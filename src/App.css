@@ -1,6 +1,92 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Comprehensive scrollbar hiding - Desktop focused */
+.scrollbar-hide {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+/* WebKit browsers (Chrome, Safari, Edge Chromium) - Desktop */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
+}
+
+.scrollbar-hide::-webkit-scrollbar-track {
+  display: none !important;
+  width: 0px !important;
+  background: transparent !important;
+}
+
+.scrollbar-hide::-webkit-scrollbar-thumb {
+  display: none !important;
+  width: 0px !important;
+  background: transparent !important;
+}
+
+.scrollbar-hide::-webkit-scrollbar-corner {
+  display: none !important;
+  background: transparent !important;
+}
+
+/* Force hide on all children */
+.scrollbar-hide * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.scrollbar-hide *::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+}
+
+/* Desktop-specific hiding using overflow mask */
+.scrollbar-hide-desktop {
+  overflow: hidden;
+  position: relative;
+}
+
+.scrollbar-hide-desktop .scroll-content {
+  overflow-y: scroll;
+  overflow-x: hidden;
+  height: 100%;
+  padding-right: 20px !important; /* Hide scrollbar by pushing it out */
+  margin-right: -20px !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.scrollbar-hide-desktop .scroll-content::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+}
+
+/* Ultra-aggressive method for stubborn desktop browsers */
+.no-scrollbar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.no-scrollbar::-webkit-scrollbar-track,
+.no-scrollbar::-webkit-scrollbar-thumb,
+.no-scrollbar::-webkit-scrollbar-corner {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

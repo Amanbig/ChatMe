@@ -53,27 +53,7 @@ export default function HomePage() {
     };
 
     return (
-        <div className="flex flex-col h-screen bg-background">
-            {/* Header */}
-            <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
-                <div className="flex items-center justify-between p-4">
-                    <div>
-                        <h1 className="text-xl font-semibold">Chat</h1>
-                        <p className="text-sm text-muted-foreground">
-                            {messages.length > 1 ? `${messages.length - 1} messages` : "Start a conversation"}
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm">
-                            Clear Chat
-                        </Button>
-                        <Button variant="outline" size="sm">
-                            Export
-                        </Button>
-                    </div>
-                </div>
-            </div>
-
+        <div className="flex flex-col h-full bg-background">
             {/* Messages Area */}
             <div className="flex-1 relative">
                 <ScrollArea ref={scrollAreaRef} className="h-full">
