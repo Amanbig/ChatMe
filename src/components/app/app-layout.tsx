@@ -22,8 +22,13 @@ import {
   FaTrash,
   FaRobot
 } from "react-icons/fa";
+import { RxCross2 } from "react-icons/rx";
+import { VscChromeMinimize } from "react-icons/vsc";
+import { IoMdSquareOutline } from "react-icons/io";
 import { useNavigate, useLocation } from "react-router";
 import { getChats, createChat, deleteChat as deleteChatApi } from "@/lib/api";
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import ThemeToggle from "./theme-toggle";
 import type { ChatWithLastMessage } from "@/lib/types";
 
 
@@ -31,6 +36,8 @@ import type { ChatWithLastMessage } from "@/lib/types";
 interface AppLayoutProps {
   children: React.ReactNode;
 }
+
+const appWindow = getCurrentWindow();
 
 export default function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
@@ -236,22 +243,52 @@ export default function AppLayout({ children }: AppLayoutProps) {
       </Sidebar>
 
       <SidebarInset className="flex flex-col h-screen">
-        <header className="sticky top-0 flex h-16 shrink-0 items-center gap-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6 z-10">
-          <SidebarTrigger className="h-9 w-9" />
-          <div className="flex items-center gap-2 ml-2">
-            <h2 className="font-semibold text-lg">
+        <header className="sticky top-0 flex h-12 shrink-0 items-center gap-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 z-10 drag">
+          <div className="flex items-center gap-2 no-drag">
+            <SidebarTrigger className="h-8 w-8" />
+          </div>
+          
+          <div className="flex items-center gap-2 ml-2 flex-1 min-w-0">
+            <FaRobot className="text-primary flex-shrink-0" size={16} />
+            <h2 className="font-semibold text-base truncate">
               {currentChatId ?
                 chats.find(chat => chat.id === currentChatId)?.title || 'Chat' :
                 'ChatMe'
               }
             </h2>
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              Share
+          
+          <div className="flex items-center gap-1 ml-auto no-drag">
+            <ThemeToggle />
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-8 w-8 p-0 hover:bg-muted" 
+              onClick={() => appWindow.minimize()}
+            >
+              <VscChromeMinimize size={14} />
             </Button>
-            <Button variant="outline" size="sm">
-              Export
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-8 w-8 p-0 hover:bg-muted" 
+              onClick={async () => {
+                if (await appWindow.isMaximized()) {
+                  await appWindow.unmaximize();
+                } else {
+                  await appWindow.maximize();
+                }
+              }}
+            >
+              <IoMdSquareOutline size={14} />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-8 w-8 p-0 hover:bg-destructive hover:text-destructive-foreground" 
+              onClick={() => appWindow.close()}
+            >
+              <RxCross2 size={14} />
             </Button>
           </div>
         </header>

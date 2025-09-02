@@ -14,7 +14,7 @@
       {
         "title": "chatme",
         "width": 1000,
-        "height": 500,
+        "height": 600,
         "decorations": false,
         "titleBarStyle": "Transparent",
         "resizable": true
