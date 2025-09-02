@@ -3,15 +3,20 @@ import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import { FaArrowRight, FaPaperclip, FaMicrophone } from "react-icons/fa";
 
-export default function InputBox() {
+interface InputBoxProps {
+    onSendMessage?: (message: string) => void;
+}
+
+export default function InputBox({ onSendMessage }: InputBoxProps) {
     const [message, setMessage] = useState("");
-    const [isTyping, setIsTyping] = useState(false);
+    const [, setIsTyping] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     const handleSend = () => {
         if (message.trim()) {
-            console.log("Sending message:", message);
+            onSendMessage?.(message.trim());
             setMessage("");
+            setIsTyping(false);
             // Reset textarea height
             if (textareaRef.current) {
                 textareaRef.current.style.height = "auto";

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useParams } from "react-router";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import InputBox from "@/components/app/input-box";
 import { FaUser, FaRobot, FaCopy, FaThumbsUp, FaThumbsDown } from "react-icons/fa";
@@ -7,31 +8,25 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
-
-interface Message {
-    id: string;
-    content: string;
-    role: "user" | "assistant";
-    timestamp: Date;
-}
+import { getMessages, createMessage } from "@/lib/api";
+import type { Message } from "@/lib/types";
 
 export default function HomePage() {
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: "1",
-            content: "Hello! How can I help you today?",
-            role: "user",
-            timestamp: new Date()
-        },
-        {
-            id: "2",
-            content: "Hello! I'm your AI assistant. I can help you with:\n\n- **Code reviews** and debugging\n- **Writing documentation** in markdown\n- **Explaining concepts** with examples\n- **Creating lists** and structured content\n\n```javascript\nfunction greet(name) {\n    return `Hello, ${name}!`;\n}\n```\n\nWhat would you like to work on today?",
-            role: "assistant",
-            timestamp: new Date()
-        }
-    ]);
+    const { chatId } = useParams<{ chatId: string }>();
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [loading, setLoading] = useState(true);
 
     const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+    // Load messages when chat changes
+    useEffect(() => {
+        if (chatId) {
+            loadMessages();
+        } else {
+            setMessages([]);
+            setLoading(false);
+        }
+    }, [chatId]);
 
     // Auto-scroll to bottom when new messages are added
     useEffect(() => {
@@ -43,12 +38,56 @@ export default function HomePage() {
         }
     }, [messages]);
 
+    const loadMessages = async () => {
+        if (!chatId) return;
+        
+        try {
+            setLoading(true);
+            const fetchedMessages = await getMessages(chatId);
+            setMessages(fetchedMessages);
+        } catch (error) {
+            console.error('Failed to load messages:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSendMessage = async (content: string) => {
+        if (!chatId || !content.trim()) return;
+
+        try {
+            // Add user message
+            const userMessage = await createMessage({
+                chat_id: chatId,
+                content: content.trim(),
+                role: 'user'
+            });
+
+            setMessages(prev => [...prev, userMessage]);
+
+            // TODO: Add AI response logic here
+            // For now, just add a simple response
+            setTimeout(async () => {
+                const assistantMessage = await createMessage({
+                    chat_id: chatId,
+                    content: "I'm a placeholder response. In a real implementation, this would be connected to an AI service like OpenAI's API.",
+                    role: 'assistant'
+                });
+                setMessages(prev => [...prev, assistantMessage]);
+            }, 1000);
+
+        } catch (error) {
+            console.error('Failed to send message:', error);
+        }
+    };
+
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
         // You could add a toast notification here
     };
 
-    const formatTime = (date: Date) => {
+    const formatTime = (dateString: string) => {
+        const date = new Date(dateString);
         return date.toLocaleTimeString('en-US', {
             hour: '2-digit',
             minute: '2-digit',
@@ -56,13 +95,37 @@ export default function HomePage() {
         });
     };
 
+    if (!chatId) {
+        return (
+            <div className="flex flex-col h-full bg-background items-center justify-center">
+                <div className="text-center">
+                    <FaRobot size={48} className="text-muted-foreground mx-auto mb-4" />
+                    <h2 className="text-xl font-semibold mb-2">Welcome to ChatMe</h2>
+                    <p className="text-muted-foreground">Select a chat from the sidebar or create a new one to get started.</p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col h-full bg-background">
             {/* Messages Area */}
             <div className="flex-1 relative">
                 <ScrollArea ref={scrollAreaRef} className="h-full">
-                    <div className="max-w-5xl mx-auto p-4 pb-32">
-                        {messages.map((message) => (
+                    <div className="max-w-6xl mx-auto p-4 pb-32">
+                        {loading ? (
+                            <div className="flex items-center justify-center h-32">
+                                <div className="text-muted-foreground">Loading messages...</div>
+                            </div>
+                        ) : messages.length === 0 ? (
+                            <div className="flex items-center justify-center h-32">
+                                <div className="text-center">
+                                    <FaRobot size={32} className="text-muted-foreground mx-auto mb-2" />
+                                    <p className="text-muted-foreground">No messages yet. Start the conversation!</p>
+                                </div>
+                            </div>
+                        ) : (
+                            messages.map((message) => (
                             <div
                                 key={message.id}
                                 className={`mb-6 flex gap-2 ${message.role === "user" ? "justify-end" : "justify-start"
@@ -116,7 +179,7 @@ export default function HomePage() {
 
                                     <div className="flex items-center gap-2 mt-2">
                                         <span className="text-xs text-muted-foreground">
-                                            {formatTime(message.timestamp)}
+                                            {formatTime(message.created_at)}
                                         </span>
 
                                         {message.role === "assistant" && (
@@ -156,7 +219,8 @@ export default function HomePage() {
                                     </div>
                                 )}
                             </div>
-                        ))}
+                            ))
+                        )}
 
                         {/* Typing indicator (when AI is responding) */}
                         {false && (
@@ -180,7 +244,7 @@ export default function HomePage() {
             </div>
 
             {/* Input Box - Fixed at bottom */}
-            <InputBox />
+            <InputBox onSendMessage={handleSendMessage} />
         </div>
     );
 }

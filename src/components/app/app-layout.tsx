@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -22,14 +22,10 @@ import {
   FaRobot
 } from "react-icons/fa";
 import { useNavigate, useLocation } from "react-router";
+import { getChats, createChat, deleteChat as deleteChatApi } from "@/lib/api";
+import type { ChatWithLastMessage } from "@/lib/types";
 
-interface Chat {
-  id: string;
-  title: string;
-  lastMessage: string;
-  timestamp: Date;
-  unread?: number;
-}
+
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -39,35 +35,29 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [chats, setChats] = useState<Chat[]>([
-    {
-      id: "1",
-      title: "Getting Started",
-      lastMessage: "Hello! How can I help you today?",
-      timestamp: new Date(Date.now() - 1000 * 60 * 5), // 5 minutes ago
-      unread: 1
-    },
-    {
-      id: "2",
-      title: "Code Review",
-      lastMessage: "The function looks good, but you might want to...",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-    },
-    {
-      id: "3",
-      title: "Project Planning",
-      lastMessage: "Let's break down the project into smaller tasks",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-    },
-    {
-      id: "4",
-      title: "API Integration",
-      lastMessage: "Here's how you can integrate the OpenAI API...",
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3), // 3 days ago
-    }
-  ]);
+  const [chats, setChats] = useState<ChatWithLastMessage[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const formatTime = (date: Date) => {
+  useEffect(() => {
+    loadChats();
+  }, []);
+
+  const loadChats = async () => {
+    try {
+      setLoading(true);
+      const fetchedChats = await getChats();
+      setChats(fetchedChats);
+    } catch (error) {
+      console.error('Failed to load chats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatTime = (dateString: string | null) => {
+    if (!dateString) return '';
+
+    const date = new Date(dateString);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -87,20 +77,38 @@ export default function AppLayout({ children }: AppLayoutProps) {
     }
   };
 
-  const handleNewChat = () => {
-    const newChat: Chat = {
-      id: Date.now().toString(),
-      title: "New Chat",
-      lastMessage: "Start a new conversation...",
-      timestamp: new Date()
-    };
-    setChats(prev => [newChat, ...prev]);
-    navigate(`/chat/${newChat.id}`);
+  const handleNewChat = async () => {
+    try {
+      const newChat = await createChat({ title: "New Chat" });
+      setChats(prev => [
+        {
+          ...newChat,
+          last_message: null,
+          last_message_time: null,
+          unread_count: 0
+        },
+        ...prev
+      ]);
+      navigate(`/chat/${newChat.id}`);
+    } catch (error) {
+      console.error('Failed to create chat:', error);
+    }
   };
 
-  const handleDeleteChat = (chatId: string, e: React.MouseEvent) => {
+  const handleDeleteChat = async (chatId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setChats(prev => prev.filter(chat => chat.id !== chatId));
+    try {
+      await deleteChatApi(chatId);
+      setChats(prev => prev.filter(chat => chat.id !== chatId));
+
+      // Navigate away if we're currently viewing the deleted chat
+      const currentChatId = location.pathname.split('/').pop();
+      if (currentChatId === chatId) {
+        navigate('/');
+      }
+    } catch (error) {
+      console.error('Failed to delete chat:', error);
+    }
   };
 
   const currentChatId = location.pathname.split('/').pop();
@@ -143,58 +151,62 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 } as React.CSSProperties}
               >
                 <SidebarMenu className="space-y-1">
-                  {chats.map((chat) => (
-                    <SidebarMenuItem key={chat.id} className="group">
-                      <SidebarMenuButton
-                        onClick={() => navigate(`/chat/${chat.id}`)}
-                        isActive={currentChatId === chat.id}
-                        className="w-full p-3 h-auto flex-col items-start rounded-lg hover:bg-muted/80 transition-colors relative"
-                      >
-                        <div className="flex items-start justify-between w-full">
-                          <div className="flex-1 min-w-0 pr-8">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-medium text-sm truncate">
-                                {chat.title}
-                              </span>
-                              {chat.unread && (
-                                <Badge className="h-5 min-w-5 text-xs flex items-center justify-center bg-primary">
-                                  {chat.unread}
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground truncate mb-1">
-                              {chat.lastMessage}
-                            </p>
-                            <span className="text-xs text-muted-foreground/80">
-                              {formatTime(chat.timestamp)}
-                            </span>
-                          </div>
-                          
-                          {/* Delete Button - positioned absolutely */}
-                          <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground rounded-md"
-                              onClick={(e) => handleDeleteChat(chat.id, e)}
-                            >
-                              <FaTrash size={10} />
-                            </Button>
-                          </div>
-                        </div>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-
-                  {chats.length === 0 && (
+                  {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="text-sm text-muted-foreground">Loading chats...</div>
+                    </div>
+                  ) : chats.length === 0 ? (
                     <div className="text-center py-8">
                       <p className="text-sm text-muted-foreground">
-                        No chat history yet
+                        No chats yet
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Start a new conversation to begin
+                        Create your first chat to get started
                       </p>
                     </div>
+                  ) : (
+                    chats.map((chat) => (
+                      <SidebarMenuItem key={chat.id} className="group">
+                        <SidebarMenuButton
+                          onClick={() => navigate(`/chat/${chat.id}`)}
+                          isActive={currentChatId === chat.id}
+                          className="w-full p-3 h-auto flex-col items-start rounded-lg hover:bg-muted/80 transition-colors relative"
+                        >
+                          <div className="flex items-start justify-between w-full">
+                            <div className="flex-1 min-w-0 pr-8">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-medium text-sm truncate">
+                                  {chat.title}
+                                </span>
+                                {chat.unread_count > 0 && (
+                                  <Badge className="h-5 min-w-5 text-xs flex items-center justify-center bg-primary">
+                                    {chat.unread_count}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground truncate mb-1">
+                                {chat.last_message || "No messages yet"}
+                              </p>
+                              <span className="text-xs text-muted-foreground/80">
+                                {formatTime(chat.last_message_time || chat.updated_at)}
+                              </span>
+                            </div>
+
+                            {/* Delete Button - positioned absolutely */}
+                            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground rounded-md"
+                                onClick={(e) => handleDeleteChat(chat.id, e)}
+                              >
+                                <FaTrash size={10} />
+                              </Button>
+                            </div>
+                          </div>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))
                   )}
                 </SidebarMenu>
               </div>
