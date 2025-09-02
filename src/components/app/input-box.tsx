@@ -44,14 +44,14 @@ export default function InputBox({ onSendMessage, disabled = false }: InputBoxPr
     };
 
     return (
-        <div className="sticky bottom-0 w-full bg-background/80 backdrop-blur-sm border-t p-4">
+        <div className="w-full bg-background/95 backdrop-blur-sm border-t border-border/50 p-4 sticky bottom-0 z-10">
             <div className="max-w-4xl mx-auto">
-                <div className="flex items-center gap-2 bg-muted/50 rounded-2xl p-3 border border-border/50 shadow-sm">
+                <div className="flex items-end gap-3 bg-muted/30 rounded-2xl p-3 border border-border/30 shadow-lg">
                     {/* Attachment button */}
                     <Button
                         variant="ghost"
                         size="sm"
-                        className="shrink-0 h-8 w-8 rounded-full hover:bg-muted"
+                        className="shrink-0 h-9 w-9 rounded-full hover:bg-muted-foreground/10 mb-1"
                     >
                         <FaPaperclip size={14} className="text-muted-foreground" />
                     </Button>
@@ -65,18 +65,18 @@ export default function InputBox({ onSendMessage, disabled = false }: InputBoxPr
                             onKeyDown={handleKeyPress}
                             placeholder={disabled ? "AI is generating..." : "Type your message..."}
                             disabled={disabled}
-                            className="min-h-[40px] max-h-[120px] resize-none border-none !bg-transparent dark:!bg-transparent p-2 text-sm placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none disabled:opacity-50"
+                            className="min-h-[44px] max-h-[120px] resize-none border-none !bg-transparent dark:!bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none disabled:opacity-50 leading-relaxed"
                             rows={1}
                         />
                     </div>
 
                     {/* Voice/Send button */}
-                    <div className="shrink-0">
+                    <div className="shrink-0 mb-1">
                         {message.trim() && !disabled ? (
                             <Button
                                 onClick={handleSend}
                                 size="sm"
-                                className="h-8 w-8 rounded-full bg-primary hover:bg-primary/90 transition-all duration-200"
+                                className="h-9 w-9 rounded-full bg-primary hover:bg-primary/90 transition-all duration-200 shadow-md"
                             >
                                 <FaArrowRight size={14} className="text-primary-foreground" />
                             </Button>
@@ -85,7 +85,7 @@ export default function InputBox({ onSendMessage, disabled = false }: InputBoxPr
                                 variant="ghost"
                                 size="sm"
                                 disabled
-                                className="h-8 w-8 rounded-full"
+                                className="h-9 w-9 rounded-full"
                             >
                                 <div className="w-3 h-3 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
                             </Button>
@@ -93,7 +93,7 @@ export default function InputBox({ onSendMessage, disabled = false }: InputBoxPr
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-8 w-8 rounded-full hover:bg-muted"
+                                className="h-9 w-9 rounded-full hover:bg-muted-foreground/10"
                             >
                                 <FaMicrophone size={14} className="text-muted-foreground" />
                             </Button>

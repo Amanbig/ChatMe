@@ -2,12 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { useParams } from "react-router";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import InputBox from "@/components/app/input-box";
-import { FaUser, FaRobot, FaCopy, FaThumbsUp, FaThumbsDown } from "react-icons/fa";
-import { Button } from "@/components/ui/button";
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import rehypeHighlight from 'rehype-highlight';
-import rehypeRaw from 'rehype-raw';
+import MessageItem from "@/components/app/message-item";
+import StreamingMessageItem from "@/components/app/streaming-message-item";
+import { FaRobot } from "react-icons/fa";
 import { getMessages, sendAiMessageStreaming } from "@/lib/api";
 import type { Message, StreamingMessage } from "@/lib/types";
 import { listen } from '@tauri-apps/api/event';
@@ -55,7 +52,14 @@ export default function HomePage() {
             unlistenMessageCreated = await listen('message_created', (event: any) => {
                 const message = event.payload as Message;
                 if (message.chat_id === chatId) {
-                    setMessages(prev => [...prev, message]);
+                    setMessages(prev => {
+                        // Check if message already exists to prevent duplicates
+                        const exists = prev.some(m => m.id === message.id);
+                        if (!exists) {
+                            return [...prev, message];
+                        }
+                        return prev;
+                    });
                 }
             });
 
@@ -98,7 +102,14 @@ export default function HomePage() {
             unlistenFinalMessageCreated = await listen('final_message_created', (event: any) => {
                 const message = event.payload as Message;
                 if (message.chat_id === chatId) {
-                    setMessages(prev => [...prev, message]);
+                    setMessages(prev => {
+                        // Check if message already exists to prevent duplicates
+                        const exists = prev.some(m => m.id === message.id);
+                        if (!exists) {
+                            return [...prev, message];
+                        }
+                        return prev;
+                    });
                 }
             });
         };
@@ -173,175 +184,48 @@ export default function HomePage() {
 
     return (
         <div className="flex flex-col h-full bg-background">
-            {/* Messages Area */}
-            <div className="flex-1 relative">
+            {/* Messages Area with proper scroll */}
+            <div className="flex-1 min-h-0 relative">
                 <ScrollArea ref={scrollAreaRef} className="h-full">
-                    <div className="max-w-6xl mx-auto p-4 pb-32">
+                    <div className="max-w-6xl mx-auto p-4 pb-6">
                         {loading ? (
                             <div className="flex items-center justify-center h-32">
                                 <div className="text-muted-foreground">Loading messages...</div>
                             </div>
-                        ) : messages.length === 0 ? (
-                            <div className="flex items-center justify-center h-32">
+                        ) : messages.length === 0 && !streamingMessage ? (
+                            <div className="flex items-center justify-center min-h-[60vh]">
                                 <div className="text-center">
                                     <FaRobot size={32} className="text-muted-foreground mx-auto mb-2" />
                                     <p className="text-muted-foreground">No messages yet. Start the conversation!</p>
                                 </div>
                             </div>
                         ) : (
-                            <>
+                            <div className="space-y-4">
                                 {messages.map((message) => (
-                                    <div
+                                    <MessageItem
                                         key={message.id}
-                                        className={`mb-6 flex gap-2 ${message.role === "user" ? "justify-end" : "justify-start"
-                                            }`}
-                                    >
-                                        {message.role === "assistant" && (
-                                            <div className="flex-shrink-0">
-                                                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                                                    <FaRobot size={16} className="text-primary-foreground" />
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        <div className={`flex flex-col ${message.role === "user" ? "items-end" : "items-start"
-                                            }`}>
-                                            <div
-                                                className={`rounded-2xl px-4 py-3 ${message.role === "user"
-                                                    ? "max-w-[70%] bg-primary text-primary-foreground"
-                                                    : "w-full bg-muted"
-                                                    }`}
-                                            >
-                                                {message.role === "assistant" ? (
-                                                    <div className="text-sm markdown-content">
-                                                        <ReactMarkdown
-                                                            remarkPlugins={[remarkGfm]}
-                                                            rehypePlugins={[rehypeHighlight, rehypeRaw]}
-                                                            components={{
-                                                                code: ({ className, children, ...props }: any) => {
-                                                                    const isInline = !className?.includes('language-');
-                                                                    return isInline ? (
-                                                                        <code className="bg-muted-foreground/20 px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
-                                                                            {children}
-                                                                        </code>
-                                                                    ) : (
-                                                                        <code className={className} {...props}>
-                                                                            {children}
-                                                                        </code>
-                                                                    );
-                                                                }
-                                                            }}
-                                                        >
-                                                            {message.content}
-                                                        </ReactMarkdown>
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                                                        {message.content}
-                                                    </p>
-                                                )}
-                                            </div>
-
-                                            <div className="flex items-center gap-2 mt-2">
-                                                <span className="text-xs text-muted-foreground">
-                                                    {formatTime(message.created_at)}
-                                                </span>
-
-                                                {message.role === "assistant" && (
-                                                    <div className="flex items-center gap-1">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="h-6 w-6 p-0 hover:bg-muted"
-                                                            onClick={() => copyToClipboard(message.content)}
-                                                        >
-                                                            <FaCopy size={12} />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="h-6 w-6 p-0 hover:bg-muted"
-                                                        >
-                                                            <FaThumbsUp size={12} />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="h-6 w-6 p-0 hover:bg-muted"
-                                                        >
-                                                            <FaThumbsDown size={12} />
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {message.role === "user" && (
-                                            <div className="flex-shrink-0">
-                                                <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
-                                                    <FaUser size={16} className="text-muted-foreground" />
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
+                                        message={message}
+                                        formatTime={formatTime}
+                                        copyToClipboard={copyToClipboard}
+                                    />
                                 ))}
 
-                                {/* Streaming Message */}
                                 {streamingMessage && (
-                                    <div key={`streaming-${streamingMessage.id}`} className="mb-6 flex gap-2 justify-start">
-                                        <div className="flex-shrink-0">
-                                            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                                                <FaRobot size={16} className="text-primary-foreground" />
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-col items-start">
-                                            <div className="w-full bg-muted rounded-2xl px-4 py-3">
-                                                <div className="text-sm markdown-content">
-                                                    <ReactMarkdown
-                                                        remarkPlugins={[remarkGfm]}
-                                                        rehypePlugins={[rehypeHighlight, rehypeRaw]}
-                                                        components={{
-                                                            code: ({ className, children, ...props }: any) => {
-                                                                const isInline = !className?.includes('language-');
-                                                                return isInline ? (
-                                                                    <code className="bg-muted-foreground/20 px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
-                                                                        {children}
-                                                                    </code>
-                                                                ) : (
-                                                                    <code className={className} {...props}>
-                                                                        {children}
-                                                                    </code>
-                                                                );
-                                                            }
-                                                        }}
-                                                    >
-                                                        {streamingMessage.content}
-                                                    </ReactMarkdown>
-                                                    {streamingMessage.isStreaming && (
-                                                        <span className="inline-block w-2 h-4 bg-primary ml-1 animate-pulse" />
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            <div className="flex items-center gap-2 mt-2">
-                                                <span className="text-xs text-muted-foreground">
-                                                    {streamingMessage.isStreaming ? 'Generating...' : 'Just now'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <StreamingMessageItem
+                                        key={`streaming-${streamingMessage.id}`}
+                                        streamingMessage={streamingMessage}
+                                    />
                                 )}
-                            </>
+                            </div>
                         )}
-
-
                     </div>
                 </ScrollArea>
             </div>
 
-            {/* Input Box - Fixed at bottom */}
-            <InputBox onSendMessage={handleSendMessage} disabled={isGenerating} />
+            {/* Input Box - Fixed at bottom with proper spacing */}
+            <div className="flex-shrink-0">
+                <InputBox onSendMessage={handleSendMessage} disabled={isGenerating} />
+            </div>
         </div>
     );
 }

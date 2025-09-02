@@ -6,6 +6,7 @@ import { SidebarProvider } from "./components/ui/sidebar";
 import AppLayout from "./components/app/app-layout";
 import SettingsPage from "./pages/settings";
 import HomePage from "./pages/home";
+import { Toaster } from "./components/ui/sonner";
 
 const router = createBrowserRouter([
   {
@@ -38,6 +39,7 @@ function App() {
   return (
     <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
       <SidebarProvider>
+        <Toaster />
         <RouterProvider router={router} />
       </SidebarProvider>
     </ThemeProvider>
