@@ -216,7 +216,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Issues**: [GitHub Issues](https://github.com/Amanbig/ChatMe/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/Amanbig/ChatMe/discussions)
-- **Email**: [your-email@example.com](mailto:amanpreetsinghjhiwant7@gmail.com)
+- **Email**: [amanpreetsinghjhiwant7@gmail.com](mailto:amanpreetsinghjhiwant7@gmail.com)
 
 ---
 
