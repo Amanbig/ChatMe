@@ -87,6 +87,25 @@
   visibility: hidden !important;
 }
 
+/* Specific targeting for sidebar scrollbars */
+[data-sidebar] .scrollbar-hide,
+[data-sidebar] .no-scrollbar,
+.sidebar .scrollbar-hide,
+.sidebar .no-scrollbar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+[data-sidebar] .scrollbar-hide::-webkit-scrollbar,
+[data-sidebar] .no-scrollbar::-webkit-scrollbar,
+.sidebar .scrollbar-hide::-webkit-scrollbar,
+.sidebar .no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0px !important;
+  height: 0px !important;
+  background: transparent !important;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

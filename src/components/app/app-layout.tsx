@@ -15,10 +15,10 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  FaPlus, 
-  FaCog, 
-  FaTrash, 
+import {
+  FaPlus,
+  FaCog,
+  FaTrash,
   FaRobot
 } from "react-icons/fa";
 import { useNavigate, useLocation } from "react-router";
@@ -38,7 +38,7 @@ interface AppLayoutProps {
 export default function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   const [chats, setChats] = useState<Chat[]>([
     {
       id: "1",
@@ -48,7 +48,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       unread: 1
     },
     {
-      id: "2", 
+      id: "2",
       title: "Code Review",
       lastMessage: "The function looks good, but you might want to...",
       timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
@@ -71,12 +71,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    
+
     if (days === 0) {
-      return date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
         minute: '2-digit',
-        hour12: false 
+        hour12: false
       });
     } else if (days === 1) {
       return "Yesterday";
@@ -107,19 +107,19 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <>
-      <Sidebar 
+      <Sidebar
         style={{
           '--sidebar-width': '20rem',
           '--sidebar-width-icon': '3rem',
         } as React.CSSProperties}
       >
-        <SidebarHeader className="p-6">
+        <SidebarHeader className="p-6 bg-background">
           <div className="flex items-center gap-3 mb-6">
             <FaRobot className="text-primary" size={28} />
             <h1 className="font-bold text-xl">ChatMe</h1>
           </div>
-          
-          <Button 
+
+          <Button
             onClick={handleNewChat}
             className="w-full gap-2 h-11"
           >
@@ -128,23 +128,28 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </Button>
         </SidebarHeader>
 
-        <SidebarContent>
+        <SidebarContent className="overflow-hidden bg-background">
           <SidebarGroup>
             <SidebarGroupLabel className="px-6 py-2 text-sm font-semibold">
               Chat History
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              <div className="h-[calc(100vh-240px)] scrollbar-hide-desktop">
-                <div className="scroll-content">
-                  <div className="px-2 no-scrollbar">
-                    <SidebarMenu className="space-y-1">
+              <div
+                className="h-[calc(100vh-240px)] overflow-y-auto scrollbar-hide no-scrollbar px-2"
+                style={{
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none',
+                  WebkitScrollbar: { display: 'none' }
+                } as React.CSSProperties}
+              >
+                <SidebarMenu className="space-y-1">
                   {chats.map((chat) => (
                     <SidebarMenuItem key={chat.id} className="group">
                       <div className="flex items-center">
                         <SidebarMenuButton
                           onClick={() => navigate(`/chat/${chat.id}`)}
                           isActive={currentChatId === chat.id}
-                          className="flex-1 p-3 h-auto flex-col items-start rounded-lg hover:bg-muted/80 transition-colors"
+                          className="flex-1 p-3 h-auto flex-row items-start rounded-lg hover:bg-muted/80 transition-colors"
                         >
                           <div className="flex items-start justify-between w-full">
                             <div className="flex-1 min-w-0">
@@ -166,10 +171,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                               </span>
                             </div>
                           </div>
-                        </SidebarMenuButton>
-                        
-                        {/* Delete Button */}
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-2">
                           <Button
                             variant="ghost"
                             size="sm"
@@ -179,10 +181,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
                             <FaTrash size={12} />
                           </Button>
                         </div>
+                        </SidebarMenuButton>
+
+                        {/* Delete Button */}
                       </div>
                     </SidebarMenuItem>
                   ))}
-                  
+
                   {chats.length === 0 && (
                     <div className="text-center py-8">
                       <p className="text-sm text-muted-foreground">
@@ -192,22 +197,20 @@ export default function AppLayout({ children }: AppLayoutProps) {
                         Start a new conversation to begin
                       </p>
                     </div>
-                    )}
-                    </SidebarMenu>
-                  </div>
-                </div>
+                  )}
+                </SidebarMenu>
               </div>
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
 
-        <SidebarFooter className="p-6 border-t">
+        <SidebarFooter className="p-3 border-t bg-background">
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton
                 onClick={() => navigate('/settings')}
                 isActive={location.pathname === '/settings'}
-                className="gap-3 p-3 rounded-lg hover:bg-muted/80 transition-colors"
+                className="gap-3 p-3 rounded-lg cursor-pointer transition-colors"
               >
                 <FaCog size={18} />
                 <span className="font-medium">Settings</span>
@@ -222,8 +225,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <SidebarTrigger className="h-9 w-9" />
           <div className="flex items-center gap-2 ml-2">
             <h2 className="font-semibold text-lg">
-              {currentChatId ? 
-                chats.find(chat => chat.id === currentChatId)?.title || 'Chat' : 
+              {currentChatId ?
+                chats.find(chat => chat.id === currentChatId)?.title || 'Chat' :
                 'ChatMe'
               }
             </h2>
