@@ -145,46 +145,44 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 <SidebarMenu className="space-y-1">
                   {chats.map((chat) => (
                     <SidebarMenuItem key={chat.id} className="group">
-                      <div className="flex items-center">
-                        <SidebarMenuButton
-                          onClick={() => navigate(`/chat/${chat.id}`)}
-                          isActive={currentChatId === chat.id}
-                          className="flex-1 p-3 h-auto flex-row items-start rounded-lg hover:bg-muted/80 transition-colors"
-                        >
-                          <div className="flex items-start justify-between w-full">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-medium text-sm truncate">
-                                  {chat.title}
-                                </span>
-                                {chat.unread && (
-                                  <Badge className="h-5 min-w-5 text-xs flex items-center justify-center bg-primary">
-                                    {chat.unread}
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-xs text-muted-foreground truncate mb-1">
-                                {chat.lastMessage}
-                              </p>
-                              <span className="text-xs text-muted-foreground/80">
-                                {formatTime(chat.timestamp)}
+                      <SidebarMenuButton
+                        onClick={() => navigate(`/chat/${chat.id}`)}
+                        isActive={currentChatId === chat.id}
+                        className="w-full p-3 h-auto flex-col items-start rounded-lg hover:bg-muted/80 transition-colors relative"
+                      >
+                        <div className="flex items-start justify-between w-full">
+                          <div className="flex-1 min-w-0 pr-8">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-sm truncate">
+                                {chat.title}
                               </span>
+                              {chat.unread && (
+                                <Badge className="h-5 min-w-5 text-xs flex items-center justify-center bg-primary">
+                                  {chat.unread}
+                                </Badge>
+                              )}
                             </div>
+                            <p className="text-xs text-muted-foreground truncate mb-1">
+                              {chat.lastMessage}
+                            </p>
+                            <span className="text-xs text-muted-foreground/80">
+                              {formatTime(chat.timestamp)}
+                            </span>
                           </div>
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 hover:bg-destructive hover:text-destructive-foreground rounded-md"
-                            onClick={(e) => handleDeleteChat(chat.id, e)}
-                          >
-                            <FaTrash size={12} />
-                          </Button>
+                          
+                          {/* Delete Button - positioned absolutely */}
+                          <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground rounded-md"
+                              onClick={(e) => handleDeleteChat(chat.id, e)}
+                            >
+                              <FaTrash size={10} />
+                            </Button>
+                          </div>
                         </div>
-                        </SidebarMenuButton>
-
-                        {/* Delete Button */}
-                      </div>
+                      </SidebarMenuButton>
                     </SidebarMenuItem>
                   ))}
 
@@ -204,7 +202,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </SidebarGroup>
         </SidebarContent>
 
-        <SidebarFooter className="p-3 border-t bg-background">
+        <SidebarFooter className="p-2 border-t bg-background">
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton

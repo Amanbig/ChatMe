@@ -3,6 +3,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import InputBox from "@/components/app/input-box";
 import { FaUser, FaRobot, FaCopy, FaThumbsUp, FaThumbsDown } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import rehypeRaw from 'rehype-raw';
 
 interface Message {
     id: string;
@@ -21,7 +25,7 @@ export default function HomePage() {
         },
         {
             id: "2",
-            content: "Hello! How can I help you today?",
+            content: "Hello! I'm your AI assistant. I can help you with:\n\n- **Code reviews** and debugging\n- **Writing documentation** in markdown\n- **Explaining concepts** with examples\n- **Creating lists** and structured content\n\n```javascript\nfunction greet(name) {\n    return `Hello, ${name}!`;\n}\n```\n\nWhat would you like to work on today?",
             role: "assistant",
             timestamp: new Date()
         }
@@ -45,10 +49,10 @@ export default function HomePage() {
     };
 
     const formatTime = (date: Date) => {
-        return date.toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
+        return date.toLocaleTimeString('en-US', {
+            hour: '2-digit',
             minute: '2-digit',
-            hour12: false 
+            hour12: false
         });
     };
 
@@ -57,13 +61,12 @@ export default function HomePage() {
             {/* Messages Area */}
             <div className="flex-1 relative">
                 <ScrollArea ref={scrollAreaRef} className="h-full">
-                    <div className="max-w-4xl mx-auto p-4 pb-32">
+                    <div className="max-w-5xl mx-auto p-4 pb-32">
                         {messages.map((message) => (
                             <div
                                 key={message.id}
-                                className={`mb-6 flex gap-4 ${
-                                    message.role === "user" ? "justify-end" : "justify-start"
-                                }`}
+                                className={`mb-6 flex gap-2 ${message.role === "user" ? "justify-end" : "justify-start"
+                                    }`}
                             >
                                 {message.role === "assistant" && (
                                     <div className="flex-shrink-0">
@@ -73,26 +76,49 @@ export default function HomePage() {
                                     </div>
                                 )}
 
-                                <div className={`flex flex-col ${
-                                    message.role === "user" ? "items-end" : "items-start"
-                                }`}>
+                                <div className={`flex flex-col ${message.role === "user" ? "items-end" : "items-start"
+                                    }`}>
                                     <div
-                                        className={`max-w-[70%] rounded-2xl px-4 py-3 ${
-                                            message.role === "user"
-                                                ? "bg-primary text-primary-foreground"
-                                                : "bg-muted"
-                                        }`}
+                                        className={`rounded-2xl px-4 py-3 ${message.role === "user"
+                                            ? "max-w-[70%] bg-primary text-primary-foreground"
+                                            : "w-full bg-muted"
+                                            }`}
                                     >
-                                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                                            {message.content}
-                                        </p>
+                                        {message.role === "assistant" ? (
+                                            <div className="text-sm markdown-content">
+                                                <ReactMarkdown
+                                                    remarkPlugins={[remarkGfm]}
+                                                    rehypePlugins={[rehypeHighlight, rehypeRaw]}
+                                                    components={{
+                                                        code: ({ className, children, ...props }: any) => {
+                                                            const isInline = !className?.includes('language-');
+                                                            return isInline ? (
+                                                                <code className="bg-muted-foreground/20 px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
+                                                                    {children}
+                                                                </code>
+                                                            ) : (
+                                                                <code className={className} {...props}>
+                                                                    {children}
+                                                                </code>
+                                                            );
+                                                        }
+                                                    }}
+                                                >
+                                                    {message.content}
+                                                </ReactMarkdown>
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                                                {message.content}
+                                            </p>
+                                        )}
                                     </div>
 
                                     <div className="flex items-center gap-2 mt-2">
                                         <span className="text-xs text-muted-foreground">
                                             {formatTime(message.timestamp)}
                                         </span>
-                                        
+
                                         {message.role === "assistant" && (
                                             <div className="flex items-center gap-1">
                                                 <Button
