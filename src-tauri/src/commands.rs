@@ -212,20 +212,17 @@ pub async fn send_ai_message_streaming(
     })).map_err(|e| e.to_string())?;
 
     // Send to LLM with streaming
-    let ai_response = db.send_chat_completion_streaming(&api_config, chat_messages, &window, &assistant_msg_id)
+    let ai_response = db.send_chat_completion_streaming(&api_config, chat_messages, &window, &assistant_msg_id, &chat_id)
         .await
         .map_err(|e| e.to_string())?;
 
     // Create final assistant message in database
-    let assistant_msg = db.create_message(chat_id, ai_response.clone(), MessageRole::Assistant)
+    let assistant_msg = db.create_message(chat_id, ai_response, MessageRole::Assistant)
         .await
         .map_err(|e| e.to_string())?;
 
-    // Emit streaming complete event
-    window.emit("streaming_complete", serde_json::json!({
-        "message_id": assistant_msg_id,
-        "final_message": assistant_msg
-    })).map_err(|e| e.to_string())?;
+    // Emit final message created event
+    window.emit("final_message_created", &assistant_msg).map_err(|e| e.to_string())?;
 
     Ok(assistant_msg.id)
 }

@@ -540,7 +540,8 @@ impl Database {
         config: &ApiConfig, 
         messages: Vec<ChatMessage>,
         window: &tauri::Window,
-        message_id: &str
+        message_id: &str,
+        chat_id: &str
     ) -> Result<String> {
         let client = Client::new();
         
@@ -608,6 +609,13 @@ impl Database {
                     }
                 }
 
+                // Emit streaming complete event with the content
+                let _ = window.emit("streaming_complete", serde_json::json!({
+                    "message_id": message_id,
+                    "content": full_response,
+                    "chat_id": chat_id
+                }));
+
                 Ok(full_response)
             },
             // For other providers, fall back to non-streaming for now
@@ -636,6 +644,13 @@ impl Database {
                     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
                 }
                 
+                // Emit streaming complete event with the content
+                let _ = window.emit("streaming_complete", serde_json::json!({
+                    "message_id": message_id,
+                    "content": response,
+                    "chat_id": chat_id
+                }));
+
                 Ok(response)
             }
         }

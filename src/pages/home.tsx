@@ -48,6 +48,7 @@ export default function HomePage() {
         let unlistenStreamingStart: (() => void) | null = null;
         let unlistenStreamingChunk: (() => void) | null = null;
         let unlistenStreamingComplete: (() => void) | null = null;
+        let unlistenFinalMessageCreated: (() => void) | null = null;
 
         const setupListeners = async () => {
             // Listen for new messages (user messages)
@@ -87,11 +88,18 @@ export default function HomePage() {
             });
 
             // Listen for streaming complete
-            unlistenStreamingComplete = await listen('streaming_complete', (event: any) => {
-                const { final_message } = event.payload;
-                setMessages(prev => [...prev, final_message]);
+            unlistenStreamingComplete = await listen('streaming_complete', () => {
+                // Just clear the streaming message and stop generating state
                 setStreamingMessage(null);
                 setIsGenerating(false);
+            });
+
+            // Listen for final message created
+            unlistenFinalMessageCreated = await listen('final_message_created', (event: any) => {
+                const message = event.payload as Message;
+                if (message.chat_id === chatId) {
+                    setMessages(prev => [...prev, message]);
+                }
             });
         };
 
@@ -104,6 +112,7 @@ export default function HomePage() {
             unlistenStreamingStart?.();
             unlistenStreamingChunk?.();
             unlistenStreamingComplete?.();
+            unlistenFinalMessageCreated?.();
         };
     }, [chatId]);
 
@@ -279,7 +288,7 @@ export default function HomePage() {
 
                                 {/* Streaming Message */}
                                 {streamingMessage && (
-                                    <div className="mb-6 flex gap-2 justify-start">
+                                    <div key={`streaming-${streamingMessage.id}`} className="mb-6 flex gap-2 justify-start">
                                         <div className="flex-shrink-0">
                                             <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
                                                 <FaRobot size={16} className="text-primary-foreground" />
