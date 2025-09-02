@@ -442,43 +442,87 @@ impl Database {
                 }
             },
             ApiProvider::Google => {
-                let url = config.base_url.as_deref().unwrap_or("https://generativelanguage.googleapis.com/v1beta/models");
-                let full_url = format!("{}/{}:generateContent?key={}", url, config.model, config.api_key);
+                let base_url = config.base_url.as_deref().unwrap_or("https://generativelanguage.googleapis.com/v1beta/models");
                 
-                // Convert messages to Google format
-                let google_contents: Vec<serde_json::Value> = messages.into_iter().map(|msg| {
-                    json!({
-                        "role": if msg.role == "assistant" { "model" } else { "user" },
-                        "parts": [{"text": msg.content}]
-                    })
-                }).collect();
-
-                let request_body = json!({
-                    "contents": google_contents,
-                    "generationConfig": {
+                // Check if using OpenAI-compatible endpoint
+                if base_url.contains("/openai/chat/completions") {
+                    // Use OpenAI-compatible format
+                    let request_body = json!({
+                        "model": config.model,
+                        "messages": messages,
                         "temperature": config.temperature,
-                        "maxOutputTokens": config.max_tokens.unwrap_or(1000)
+                        "max_tokens": config.max_tokens.unwrap_or(1000)
+                    });
+
+                    let response = client
+                        .post(base_url)
+                        .header("Authorization", format!("Bearer {}", config.api_key))
+                        .header("Content-Type", "application/json")
+                        .json(&request_body)
+                        .send()
+                        .await?;
+
+                    if !response.status().is_success() {
+                        let error_text = response.text().await?;
+                        return Err(anyhow::anyhow!("Google OpenAI-compatible API request failed: {}", error_text));
                     }
-                });
 
-                let response = client
-                    .post(&full_url)
-                    .header("Content-Type", "application/json")
-                    .json(&request_body)
-                    .send()
-                    .await?;
-
-                if !response.status().is_success() {
-                    let error_text = response.text().await?;
-                    return Err(anyhow::anyhow!("Google API request failed: {}", error_text));
-                }
-
-                let response_json: serde_json::Value = response.json().await?;
-                
-                if let Some(content) = response_json["candidates"][0]["content"]["parts"][0]["text"].as_str() {
-                    Ok(content.to_string())
+                    // Parse OpenAI-compatible response
+                    let response_text = response.text().await?;
+                    
+                    match serde_json::from_str::<ChatCompletionResponse>(&response_text) {
+                        Ok(completion) => {
+                            if let Some(choice) = completion.choices.first() {
+                                Ok(choice.message.content.clone())
+                            } else {
+                                Err(anyhow::anyhow!("No response choices from Google OpenAI-compatible API"))
+                            }
+                        },
+                        Err(parse_error) => {
+                            eprintln!("Failed to parse Google OpenAI-compatible API response: {}", parse_error);
+                            eprintln!("Response body: {}", response_text);
+                            Err(anyhow::anyhow!("Failed to parse Google OpenAI-compatible API response: {}. Response: {}", parse_error, response_text))
+                        }
+                    }
                 } else {
-                    Err(anyhow::anyhow!("Invalid response format from Google API"))
+                    // Use original Gemini API format
+                    let full_url = format!("{}/{}:generateContent?key={}", base_url, config.model, config.api_key);
+                    
+                    // Convert messages to Google format
+                    let google_contents: Vec<serde_json::Value> = messages.into_iter().map(|msg| {
+                        json!({
+                            "role": if msg.role == "assistant" { "model" } else { "user" },
+                            "parts": [{"text": msg.content}]
+                        })
+                    }).collect();
+
+                    let request_body = json!({
+                        "contents": google_contents,
+                        "generationConfig": {
+                            "temperature": config.temperature,
+                            "maxOutputTokens": config.max_tokens.unwrap_or(1000)
+                        }
+                    });
+
+                    let response = client
+                        .post(&full_url)
+                        .header("Content-Type", "application/json")
+                        .json(&request_body)
+                        .send()
+                        .await?;
+
+                    if !response.status().is_success() {
+                        let error_text = response.text().await?;
+                        return Err(anyhow::anyhow!("Google Gemini API request failed: {}", error_text));
+                    }
+
+                    let response_json: serde_json::Value = response.json().await?;
+                    
+                    if let Some(content) = response_json["candidates"][0]["content"]["parts"][0]["text"].as_str() {
+                        Ok(content.to_string())
+                    } else {
+                        Err(anyhow::anyhow!("Invalid response format from Google Gemini API"))
+                    }
                 }
             },
             ApiProvider::Custom => {

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { 
     FaRobot, 
@@ -51,9 +52,9 @@ const providerTemplates: ProviderTemplate[] = [
         id: "google",
         name: "Google Gemini", 
         icon: <FaGoogle className="text-blue-600" />,
-        description: "Google's Gemini Pro and Ultra models",
-        defaultUrl: "https://generativelanguage.googleapis.com/v1beta",
-        defaultModels: ["gemini-pro", "gemini-pro-vision"],
+        description: "Google's Gemini models (supports both original and OpenAI-compatible APIs)",
+        defaultUrl: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        defaultModels: ["gemini-pro", "gemini-1.5-flash", "gemini-1.5-pro"],
         popular: true
     },
     {
@@ -76,8 +77,8 @@ const providerTemplates: ProviderTemplate[] = [
         id: "custom",
         name: "Custom API",
         icon: <FaServer className="text-purple-600" />,
-        description: "Any custom API endpoint",
-        defaultModels: ["custom-model"]
+        description: "OpenAI-compatible APIs (Mistral, Groq, Together AI, etc.)",
+        defaultModels: ["mistral-large", "mixtral-8x7b", "custom-model"]
     }
 ];
 
@@ -349,13 +350,15 @@ export default function SettingsPage() {
     const selectedTemplate = selectedProvider ? providerTemplates.find(p => p.id === selectedProvider) : null;
 
     return (
-        <div className="min-h-full bg-background p-6">
-            <div className="max-w-6xl mx-auto space-y-6">
-                {/* Header */}
-                <div>
-                    <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
-                    <p className="text-muted-foreground">Configure your AI providers and preferences</p>
-                </div>
+        <div className="h-full flex flex-col overflow-hidden">
+            <ScrollArea className="flex-1 h-0">
+                <div className="p-6 min-h-full">
+                    <div className="max-w-6xl mx-auto space-y-6 pb-6">
+                        {/* Header */}
+                        <div>
+                            <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
+                            <p className="text-muted-foreground">Configure your AI providers and preferences</p>
+                        </div>
 
                 {/* Existing Configurations */}
                 {!loading && configs.length > 0 && (
@@ -644,7 +647,9 @@ export default function SettingsPage() {
                         </CardContent>
                     </Card>
                 )}
-            </div>
+                    </div>
+                </div>
+            </ScrollArea>
         </div>
     );
 }
