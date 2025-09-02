@@ -4,6 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
 import { 
     FaRobot, 
     FaGoogle, 
@@ -11,7 +14,10 @@ import {
     FaCog, 
     FaCode,
     FaTrash,
-    FaEdit
+    FaEdit,
+    FaCheck,
+    FaSpinner,
+    FaPlug
 } from "react-icons/fa";
 import {
     getApiConfigs,
@@ -80,6 +86,8 @@ export default function SettingsPage() {
     const [selectedProvider, setSelectedProvider] = useState<ApiProvider | null>(null);
     const [editingConfig, setEditingConfig] = useState<ApiConfig | null>(null);
     const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [testing, setTesting] = useState(false);
     const [formData, setFormData] = useState({
         name: "",
         api_key: "",
@@ -101,6 +109,7 @@ export default function SettingsPage() {
             setConfigs(fetchedConfigs);
         } catch (error) {
             console.error('Failed to load API configs:', error);
+            toast.error('Failed to load configurations. Please refresh the page.');
         } finally {
             setLoading(false);
         }
@@ -147,7 +156,22 @@ export default function SettingsPage() {
     const handleSave = async () => {
         if (!selectedProvider) return;
 
+        // Validation
+        if (!formData.name.trim()) {
+            toast.error('Please enter a configuration name');
+            return;
+        }
+        if (!formData.model.trim()) {
+            toast.error('Please enter a model name');
+            return;
+        }
+        if (selectedProvider !== 'ollama' && !formData.api_key.trim()) {
+            toast.error('Please enter an API key');
+            return;
+        }
+
         try {
+            setSaving(true);
             const request = {
                 name: formData.name,
                 provider: selectedProvider,
@@ -161,34 +185,150 @@ export default function SettingsPage() {
 
             if (editingConfig) {
                 await updateApiConfig(editingConfig.id, request);
+                toast.success('Configuration updated successfully!');
             } else {
                 await createApiConfig(request);
+                toast.success('Configuration created successfully!');
             }
 
             await loadConfigs();
             handleCancel();
         } catch (error) {
             console.error('Failed to save configuration:', error);
-            alert('Failed to save configuration. Please check your inputs.');
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            toast.error(`Failed to save configuration: ${errorMessage}`);
+        } finally {
+            setSaving(false);
         }
     };
 
     const handleDelete = async (configId: string) => {
-        if (confirm('Are you sure you want to delete this configuration?')) {
-            try {
-                await deleteApiConfig(configId);
-                await loadConfigs();
-            } catch (error) {
-                console.error('Failed to delete configuration:', error);
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                if (errorMessage.includes('last API configuration')) {
-                    alert('Cannot delete the last API configuration. You must have at least one configuration.');
-                } else if (errorMessage.includes('being used by chats')) {
-                    alert('Cannot delete this configuration because it is being used by existing chats.');
-                } else {
-                    alert('Failed to delete configuration: ' + errorMessage);
-                }
+        try {
+            await deleteApiConfig(configId);
+            await loadConfigs();
+            toast.success('Configuration deleted successfully');
+        } catch (error) {
+            console.error('Failed to delete configuration:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            
+            if (errorMessage.includes('last API configuration')) {
+                toast.error('Cannot delete the last configuration. You must have at least one configuration.');
+            } else if (errorMessage.includes('being used by chats')) {
+                toast.error('Cannot delete this configuration because it is being used by existing chats.');
+            } else {
+                toast.error(`Failed to delete configuration: ${errorMessage}`);
             }
+        }
+    };
+
+    const handleTestConnection = async () => {
+        if (!selectedProvider || (!formData.api_key.trim() && selectedProvider !== 'ollama') || !formData.model.trim()) {
+            toast.error('Please fill in the required fields before testing');
+            return;
+        }
+
+        if (!formData.base_url.trim()) {
+            toast.error('Please enter an API URL before testing');
+            return;
+        }
+
+        try {
+            setTesting(true);
+            
+            // For different providers, we need different test approaches
+            let testUrl = formData.base_url;
+            let testBody: any = {};
+            let headers: any = {
+                'Content-Type': 'application/json',
+            };
+
+            // Configure test based on provider
+            switch (selectedProvider) {
+                case 'openai':
+                    testBody = {
+                        model: formData.model,
+                        messages: [{ role: 'user', content: 'Hi' }],
+                        max_tokens: 1,
+                    };
+                    headers['Authorization'] = `Bearer ${formData.api_key}`;
+                    break;
+                
+                case 'google':
+                    // Google Gemini has different endpoint structure
+                    testUrl = `${formData.base_url}/models/${formData.model}:generateContent`;
+                    testBody = {
+                        contents: [{ parts: [{ text: 'Hi' }] }],
+                        generationConfig: { maxOutputTokens: 1 }
+                    };
+                    headers['Authorization'] = `Bearer ${formData.api_key}`;
+                    break;
+                
+                case 'anthropic':
+                    testBody = {
+                        model: formData.model,
+                        max_tokens: 1,
+                        messages: [{ role: 'user', content: 'Hi' }]
+                    };
+                    headers['Authorization'] = `Bearer ${formData.api_key}`;
+                    headers['anthropic-version'] = '2023-06-01';
+                    break;
+                
+                case 'ollama':
+                    testUrl = `${formData.base_url}/api/generate`;
+                    testBody = {
+                        model: formData.model,
+                        prompt: 'Hi',
+                        stream: false
+                    };
+                    break;
+                
+                default:
+                    testBody = {
+                        model: formData.model,
+                        messages: [{ role: 'user', content: 'Hi' }],
+                        max_tokens: 1,
+                    };
+                    if (formData.api_key) {
+                        headers['Authorization'] = `Bearer ${formData.api_key}`;
+                    }
+            }
+
+            const testPromise = fetch(testUrl, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(testBody),
+            });
+
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Connection timeout after 10 seconds')), 10000)
+            );
+
+            const response = await Promise.race([testPromise, timeoutPromise]) as Response;
+            
+            if (response.ok) {
+                toast.success('✅ Connection successful! Your configuration is working correctly.');
+            } else if (response.status === 401 || response.status === 403) {
+                toast.warning('🔑 API endpoint reached, but authentication failed. Please check your API key.');
+            } else if (response.status === 404) {
+                toast.warning('❓ API endpoint not found. Please check your API URL and model name.');
+            } else {
+                toast.warning(`⚠️ API responded with status ${response.status}. Your configuration may need adjustments.`);
+            }
+        } catch (error: any) {
+            console.error('Connection test failed:', error);
+            
+            // Handle specific error types
+            if (error.message?.includes('CORS') || error.message?.includes('Failed to fetch')) {
+                toast.info('ℹ️ CORS blocked (this is normal). Your configuration will work in the actual chat - browsers block direct API calls for security.');
+            } else if (error.message?.includes('timeout')) {
+                toast.error('⏱️ Connection timeout. Please check your network connection and API URL.');
+            } else if (error.message?.includes('NetworkError')) {
+                toast.error('🌐 Network error. Please check your internet connection.');
+            } else {
+                toast.error(`❌ Connection test failed: ${error.message || 'Unknown error'}`);
+            }
+        } finally {
+            setTesting(false);
         }
     };
 
@@ -209,225 +349,300 @@ export default function SettingsPage() {
     const selectedTemplate = selectedProvider ? providerTemplates.find(p => p.id === selectedProvider) : null;
 
     return (
-        <div className="min-h-screen bg-background p-8">
-            <div className="max-w-6xl mx-auto">
+        <div className="min-h-full bg-background p-6">
+            <div className="max-w-6xl mx-auto space-y-6">
                 {/* Header */}
-                <div className="mb-8">
+                <div>
                     <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
                     <p className="text-muted-foreground">Configure your AI providers and preferences</p>
                 </div>
 
                 {/* Existing Configurations */}
                 {!loading && configs.length > 0 && (
-                    <div className="mb-8">
-                        <h2 className="text-xl font-semibold mb-4">Your Configurations</h2>
-                        <div className="grid gap-4">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Your Configurations</CardTitle>
+                            <CardDescription>Manage your existing AI provider configurations</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
                             {configs.map((config) => (
                                 <div
                                     key={config.id}
-                                    className="p-4 rounded-xl border bg-card"
+                                    className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
                                 >
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            {providerTemplates.find(p => p.id === config.provider)?.icon}
-                                            <div>
-                                                <h3 className="font-semibold flex items-center gap-2">
-                                                    {config.name}
-                                                    {config.is_default && (
-                                                        <Badge variant="default">Default</Badge>
-                                                    )}
-                                                </h3>
-                                                <p className="text-sm text-muted-foreground">
-                                                    {config.provider.toUpperCase()} • {config.model}
-                                                </p>
-                                            </div>
+                                    <div className="flex items-center gap-3">
+                                        {providerTemplates.find(p => p.id === config.provider)?.icon}
+                                        <div>
+                                            <h3 className="font-semibold flex items-center gap-2">
+                                                {config.name}
+                                                {config.is_default && (
+                                                    <Badge variant="default" className="gap-1">
+                                                        <FaCheck className="h-3 w-3" />
+                                                        Default
+                                                    </Badge>
+                                                )}
+                                            </h3>
+                                            <p className="text-sm text-muted-foreground">
+                                                {config.provider.toUpperCase()} • {config.model}
+                                            </p>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => handleEditConfig(config)}
-                                            >
-                                                <FaEdit className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => handleDelete(config.id)}
-                                                className="text-destructive hover:text-destructive"
-                                            >
-                                                <FaTrash className="h-4 w-4" />
-                                            </Button>
-                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleEditConfig(config)}
+                                            className="h-9 w-9 p-0"
+                                        >
+                                            <FaEdit className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleDelete(config.id)}
+                                            className="h-9 w-9 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                        >
+                                            <FaTrash className="h-4 w-4" />
+                                        </Button>
                                     </div>
                                 </div>
                             ))}
-                        </div>
-                    </div>
+                        </CardContent>
+                    </Card>
                 )}
 
                 {/* Provider Selection */}
                 {!selectedProvider && (
-                    <div className="mb-8">
-                        <h2 className="text-xl font-semibold mb-4">Add New Configuration</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {providerTemplates.map((provider) => (
-                                <div
-                                    key={provider.id}
-                                    onClick={() => handleProviderSelect(provider.id)}
-                                    className="relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:shadow-md border-border hover:border-primary/50"
-                                >
-                                    {/* Popular badge */}
-                                    {provider.popular && (
-                                        <Badge className="absolute top-3 right-3 bg-green-500 hover:bg-green-500">
-                                            Popular
-                                        </Badge>
-                                    )}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Add New Configuration</CardTitle>
+                            <CardDescription>Choose an AI provider to configure</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {providerTemplates.map((provider) => (
+                                    <div
+                                        key={provider.id}
+                                        onClick={() => handleProviderSelect(provider.id)}
+                                        className="relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:shadow-lg border-border hover:border-primary/50 hover:bg-muted/30"
+                                    >
+                                        {/* Popular badge */}
+                                        {provider.popular && (
+                                            <Badge className="absolute top-3 right-3 bg-green-500 hover:bg-green-500">
+                                                Popular
+                                            </Badge>
+                                        )}
 
-                                    <div className="flex items-start gap-3">
-                                        <div className="text-2xl">{provider.icon}</div>
-                                        <div className="flex-1">
-                                            <h3 className="font-semibold text-lg">{provider.name}</h3>
-                                            <p className="text-sm text-muted-foreground mt-1">
-                                                {provider.description}
-                                            </p>
+                                        <div className="flex items-start gap-3">
+                                            <div className="text-2xl">{provider.icon}</div>
+                                            <div className="flex-1">
+                                                <h3 className="font-semibold text-lg">{provider.name}</h3>
+                                                <p className="text-sm text-muted-foreground mt-1">
+                                                    {provider.description}
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
                 )}
 
                 {/* Configuration Form */}
                 {selectedTemplate && (
-                    <div className="bg-muted/20 rounded-xl p-6 border">
-                        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                            {selectedTemplate.icon}
-                            {editingConfig ? 'Edit' : 'Configure'} {selectedTemplate.name}
-                        </h3>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                            {/* Configuration Name */}
-                            <div className="space-y-2">
-                                <Label htmlFor="name">Configuration Name</Label>
-                                <Input
-                                    id="name"
-                                    placeholder="My OpenAI Config"
-                                    value={formData.name}
-                                    onChange={(e) => handleInputChange("name", e.target.value)}
-                                    required
-                                />
-                            </div>
-
-                            {/* API Key Field */}
-                            {selectedProvider !== 'ollama' && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                {selectedTemplate.icon}
+                                {editingConfig ? 'Edit' : 'Configure'} {selectedTemplate.name}
+                            </CardTitle>
+                            <CardDescription>
+                                {editingConfig ? 'Update your' : 'Set up your'} {selectedTemplate.name} configuration
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Configuration Name */}
                                 <div className="space-y-2">
-                                    <Label htmlFor="api_key">API Key</Label>
+                                    <Label htmlFor="name">Configuration Name *</Label>
                                     <Input
-                                        id="api_key"
-                                        type="password"
-                                        placeholder="Enter your API key"
-                                        value={formData.api_key}
-                                        onChange={(e) => handleInputChange("api_key", e.target.value)}
-                                        className="font-mono"
+                                        id="name"
+                                        placeholder="My OpenAI Config"
+                                        value={formData.name}
+                                        onChange={(e) => handleInputChange("name", e.target.value)}
                                         required
                                     />
                                 </div>
-                            )}
 
-                            {/* URL Field */}
-                            <div className="space-y-2">
-                                <Label htmlFor="base_url">API URL (Optional)</Label>
-                                <Input
-                                    id="base_url"
-                                    type="url"
-                                    placeholder={selectedTemplate.defaultUrl || "Enter API URL"}
-                                    value={formData.base_url}
-                                    onChange={(e) => handleInputChange("base_url", e.target.value)}
-                                />
-                            </div>
+                                {/* API Key Field */}
+                                {selectedProvider !== 'ollama' && (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="api_key">API Key *</Label>
+                                        <Input
+                                            id="api_key"
+                                            type="password"
+                                            placeholder="Enter your API key"
+                                            value={formData.api_key}
+                                            onChange={(e) => handleInputChange("api_key", e.target.value)}
+                                            className="font-mono"
+                                            required
+                                        />
+                                    </div>
+                                )}
 
-                            {/* Model Field */}
-                            <div className="space-y-2">
-                                <Label htmlFor="model">Model Name</Label>
-                                <Input
-                                    id="model"
-                                    placeholder="e.g., gpt-4, gemini-pro, llama2"
-                                    value={formData.model}
-                                    onChange={(e) => handleInputChange("model", e.target.value)}
-                                    required
-                                />
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                    {selectedTemplate.defaultModels.map((model) => (
-                                        <Badge
-                                            key={model}
-                                            variant="outline"
-                                            className="cursor-pointer text-xs"
-                                            onClick={() => handleInputChange("model", model)}
-                                        >
-                                            {model}
-                                        </Badge>
-                                    ))}
+                                {/* URL Field */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="base_url">API URL</Label>
+                                    <Input
+                                        id="base_url"
+                                        type="url"
+                                        placeholder={selectedTemplate.defaultUrl || "Enter API URL"}
+                                        value={formData.base_url}
+                                        onChange={(e) => handleInputChange("base_url", e.target.value)}
+                                    />
+                                </div>
+
+                                {/* Model Field */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="model">Model Name *</Label>
+                                    <Input
+                                        id="model"
+                                        placeholder="e.g., gpt-4, gemini-pro, llama2"
+                                        value={formData.model}
+                                        onChange={(e) => handleInputChange("model", e.target.value)}
+                                        required
+                                    />
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                        {selectedTemplate.defaultModels.map((model) => (
+                                            <Badge
+                                                key={model}
+                                                variant="outline"
+                                                className="cursor-pointer text-xs hover:bg-muted"
+                                                onClick={() => handleInputChange("model", model)}
+                                            >
+                                                {model}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Temperature */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="temperature">Temperature</Label>
+                                    <Input
+                                        id="temperature"
+                                        type="number"
+                                        min="0"
+                                        max="2"
+                                        step="0.1"
+                                        value={formData.temperature}
+                                        onChange={(e) => handleInputChange("temperature", parseFloat(e.target.value))}
+                                    />
+                                    <p className="text-xs text-muted-foreground">Controls randomness (0 = focused, 2 = creative)</p>
+                                </div>
+
+                                {/* Max Tokens */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="max_tokens">Max Tokens</Label>
+                                    <Input
+                                        id="max_tokens"
+                                        type="number"
+                                        min="1"
+                                        value={formData.max_tokens || ""}
+                                        onChange={(e) => handleInputChange("max_tokens", e.target.value ? parseInt(e.target.value) : null)}
+                                        placeholder="1000"
+                                    />
+                                    <p className="text-xs text-muted-foreground">Maximum response length (optional)</p>
                                 </div>
                             </div>
 
-                            {/* Temperature */}
-                            <div className="space-y-2">
-                                <Label htmlFor="temperature">Temperature</Label>
-                                <Input
-                                    id="temperature"
-                                    type="number"
-                                    min="0"
-                                    max="2"
-                                    step="0.1"
-                                    value={formData.temperature}
-                                    onChange={(e) => handleInputChange("temperature", parseFloat(e.target.value))}
+                            <Separator />
+
+                            {/* Default Switch */}
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <Label htmlFor="is_default" className="text-base font-medium">Default Configuration</Label>
+                                    <p className="text-sm text-muted-foreground">Use this as the default for new chats</p>
+                                </div>
+                                <Switch
+                                    id="is_default"
+                                    checked={formData.is_default}
+                                    onCheckedChange={(checked) => handleInputChange("is_default", checked)}
                                 />
                             </div>
 
-                            {/* Max Tokens */}
-                            <div className="space-y-2">
-                                <Label htmlFor="max_tokens">Max Tokens (Optional)</Label>
-                                <Input
-                                    id="max_tokens"
-                                    type="number"
-                                    min="1"
-                                    value={formData.max_tokens || ""}
-                                    onChange={(e) => handleInputChange("max_tokens", e.target.value ? parseInt(e.target.value) : null)}
-                                    placeholder="1000"
-                                />
+                            {/* Action Buttons */}
+                            <div className="space-y-3">
+                                <div className="flex gap-3">
+                                    <Button 
+                                        onClick={handleSave} 
+                                        disabled={saving}
+                                        className="px-6"
+                                    >
+                                        {saving ? (
+                                            <>
+                                                <FaSpinner className="mr-2 h-4 w-4 animate-spin" />
+                                                Saving...
+                                            </>
+                                        ) : (
+                                            <>
+                                                {editingConfig ? 'Update' : 'Save'} Configuration
+                                            </>
+                                        )}
+                                    </Button>
+                                    
+                                    {selectedProvider !== 'ollama' && formData.api_key && (
+                                        <Button 
+                                            variant="outline" 
+                                            onClick={handleTestConnection}
+                                            disabled={testing}
+                                        >
+                                            {testing ? (
+                                                <>
+                                                    <FaSpinner className="mr-2 h-4 w-4 animate-spin" />
+                                                    Testing...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <FaPlug className="mr-2 h-4 w-4" />
+                                                    Test Connection
+                                                </>
+                                            )}
+                                        </Button>
+                                    )}
+                                    
+                                    <Button variant="outline" onClick={handleCancel}>
+                                        Cancel
+                                    </Button>
+                                </div>
+                                
+                                {/* Test Connection Info */}
+                                {selectedProvider !== 'ollama' && (
+                                    <div className="text-xs text-muted-foreground bg-muted/30 p-3 rounded-lg">
+                                        <p className="font-medium mb-1">💡 About Connection Testing:</p>
+                                        <p>
+                                            Most AI APIs block direct browser requests (CORS policy). If you see a CORS error, 
+                                            don't worry - your configuration will still work in actual chats. The test helps 
+                                            verify your API URL format and credentials when possible.
+                                        </p>
+                                    </div>
+                                )}
                             </div>
-                        </div>
-
-                        {/* Default Switch */}
-                        <div className="flex items-center space-x-2 mb-6">
-                            <Switch
-                                id="is_default"
-                                checked={formData.is_default}
-                                onCheckedChange={(checked) => handleInputChange("is_default", checked)}
-                            />
-                            <Label htmlFor="is_default">Set as default configuration</Label>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex gap-3">
-                            <Button onClick={handleSave} className="px-6">
-                                {editingConfig ? 'Update' : 'Save'} Configuration
-                            </Button>
-                            <Button variant="outline" onClick={handleCancel}>
-                                Cancel
-                            </Button>
-                        </div>
-                    </div>
+                        </CardContent>
+                    </Card>
                 )}
 
                 {!selectedProvider && configs.length === 0 && !loading && (
-                    <div className="text-center py-12">
-                        <p className="text-muted-foreground text-lg">
-                            Select an AI provider above to create your first configuration
-                        </p>
-                    </div>
+                    <Card>
+                        <CardContent className="text-center py-12">
+                            <FaCog className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                            <h3 className="text-lg font-medium mb-2">No Configurations Yet</h3>
+                            <p className="text-muted-foreground">
+                                Select an AI provider above to create your first configuration
+                            </p>
+                        </CardContent>
+                    </Card>
                 )}
             </div>
         </div>

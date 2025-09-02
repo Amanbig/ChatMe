@@ -5,6 +5,7 @@ import InputBox from "@/components/app/input-box";
 import MessageItem from "@/components/app/message-item";
 import StreamingMessageItem from "@/components/app/streaming-message-item";
 import { FaRobot } from "react-icons/fa";
+import { toast } from "sonner";
 import { getMessages, sendAiMessageStreaming } from "@/lib/api";
 import type { Message, StreamingMessage } from "@/lib/types";
 import { listen } from '@tauri-apps/api/event';
@@ -136,6 +137,7 @@ export default function HomePage() {
             setMessages(fetchedMessages);
         } catch (error) {
             console.error('Failed to load messages:', error);
+            toast.error('Failed to load messages. Please refresh the page.');
         } finally {
             setLoading(false);
         }
@@ -152,13 +154,16 @@ export default function HomePage() {
             console.error('Failed to send message:', error);
             setIsGenerating(false);
             setStreamingMessage(null);
-            // TODO: Show error notification to user
+            toast.error('Failed to send message. Please check your configuration and try again.');
         }
     };
 
     const copyToClipboard = (text: string) => {
-        navigator.clipboard.writeText(text);
-        // You could add a toast notification here
+        navigator.clipboard.writeText(text).then(() => {
+            toast.success('Message copied to clipboard');
+        }).catch(() => {
+            toast.error('Failed to copy message');
+        });
     };
 
     const formatTime = (dateString: string) => {

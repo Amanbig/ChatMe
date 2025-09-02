@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import {
   FaPlus,
   FaCog,
@@ -49,6 +50,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       setChats(fetchedChats);
     } catch (error) {
       console.error('Failed to load chats:', error);
+      toast.error('Failed to load chats. Please refresh the page.');
     } finally {
       setLoading(false);
     }
@@ -91,8 +93,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
         ...prev
       ]);
       navigate(`/chat/${newChat.id}`);
+      toast.success('New chat created!');
     } catch (error) {
       console.error('Failed to create chat:', error);
+      toast.error('Failed to create new chat. Please try again.');
     }
   };
 
@@ -107,8 +111,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
       if (currentChatId === chatId) {
         navigate('/');
       }
+      toast.success('Chat deleted successfully');
     } catch (error) {
       console.error('Failed to delete chat:', error);
+      toast.error('Failed to delete chat. Please try again.');
     }
   };
 
