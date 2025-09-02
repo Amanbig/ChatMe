@@ -8,13 +8,16 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
-import { getMessages, sendAiMessage } from "@/lib/api";
-import type { Message } from "@/lib/types";
+import { getMessages, sendAiMessageStreaming } from "@/lib/api";
+import type { Message, StreamingMessage } from "@/lib/types";
+import { listen } from '@tauri-apps/api/event';
 
 export default function HomePage() {
     const { chatId } = useParams<{ chatId: string }>();
     const [messages, setMessages] = useState<Message[]>([]);
+    const [streamingMessage, setStreamingMessage] = useState<StreamingMessage | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isGenerating, setIsGenerating] = useState(false);
 
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -24,11 +27,12 @@ export default function HomePage() {
             loadMessages();
         } else {
             setMessages([]);
+            setStreamingMessage(null);
             setLoading(false);
         }
     }, [chatId]);
 
-    // Auto-scroll to bottom when new messages are added
+    // Auto-scroll to bottom when new messages are added or streaming updates
     useEffect(() => {
         if (scrollAreaRef.current) {
             const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
@@ -36,7 +40,72 @@ export default function HomePage() {
                 scrollContainer.scrollTop = scrollContainer.scrollHeight;
             }
         }
-    }, [messages]);
+    }, [messages, streamingMessage]);
+
+    // Set up event listeners for streaming
+    useEffect(() => {
+        let unlistenMessageCreated: (() => void) | null = null;
+        let unlistenStreamingStart: (() => void) | null = null;
+        let unlistenStreamingChunk: (() => void) | null = null;
+        let unlistenStreamingComplete: (() => void) | null = null;
+
+        const setupListeners = async () => {
+            // Listen for new messages (user messages)
+            unlistenMessageCreated = await listen('message_created', (event: any) => {
+                const message = event.payload as Message;
+                if (message.chat_id === chatId) {
+                    setMessages(prev => [...prev, message]);
+                }
+            });
+
+            // Listen for streaming start
+            unlistenStreamingStart = await listen('streaming_start', (event: any) => {
+                const { message_id } = event.payload;
+                setStreamingMessage({
+                    id: message_id,
+                    content: '',
+                    isStreaming: true,
+                    isComplete: false
+                });
+                setIsGenerating(true);
+            });
+
+            // Listen for streaming chunks
+            unlistenStreamingChunk = await listen('streaming_chunk', (event: any) => {
+                const { message_id, full_content } = event.payload;
+                setStreamingMessage(prev => {
+                    if (prev && prev.id === message_id) {
+                        return {
+                            ...prev,
+                            content: full_content,
+                            isStreaming: true,
+                            isComplete: false
+                        };
+                    }
+                    return prev;
+                });
+            });
+
+            // Listen for streaming complete
+            unlistenStreamingComplete = await listen('streaming_complete', (event: any) => {
+                const { final_message } = event.payload;
+                setMessages(prev => [...prev, final_message]);
+                setStreamingMessage(null);
+                setIsGenerating(false);
+            });
+        };
+
+        if (chatId) {
+            setupListeners();
+        }
+
+        return () => {
+            unlistenMessageCreated?.();
+            unlistenStreamingStart?.();
+            unlistenStreamingChunk?.();
+            unlistenStreamingComplete?.();
+        };
+    }, [chatId]);
 
     const loadMessages = async () => {
         if (!chatId) return;
@@ -53,17 +122,16 @@ export default function HomePage() {
     };
 
     const handleSendMessage = async (content: string) => {
-        if (!chatId || !content.trim()) return;
+        if (!chatId || !content.trim() || isGenerating) return;
 
         try {
-            // Send message and get AI response
-            const assistantMessage = await sendAiMessage(chatId, content.trim());
-            
-            // Reload messages to get both user and assistant messages
-            await loadMessages();
-
+            setIsGenerating(true);
+            // Send message with streaming
+            await sendAiMessageStreaming(chatId, content.trim());
         } catch (error) {
             console.error('Failed to send message:', error);
+            setIsGenerating(false);
+            setStreamingMessage(null);
             // TODO: Show error notification to user
         }
     };
@@ -112,126 +180,159 @@ export default function HomePage() {
                                 </div>
                             </div>
                         ) : (
-                            messages.map((message) => (
-                            <div
-                                key={message.id}
-                                className={`mb-6 flex gap-2 ${message.role === "user" ? "justify-end" : "justify-start"
-                                    }`}
-                            >
-                                {message.role === "assistant" && (
-                                    <div className="flex-shrink-0">
-                                        <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                                            <FaRobot size={16} className="text-primary-foreground" />
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className={`flex flex-col ${message.role === "user" ? "items-end" : "items-start"
-                                    }`}>
+                            <>
+                                {messages.map((message) => (
                                     <div
-                                        className={`rounded-2xl px-4 py-3 ${message.role === "user"
-                                            ? "max-w-[70%] bg-primary text-primary-foreground"
-                                            : "w-full bg-muted"
+                                        key={message.id}
+                                        className={`mb-6 flex gap-2 ${message.role === "user" ? "justify-end" : "justify-start"
                                             }`}
                                     >
-                                        {message.role === "assistant" ? (
-                                            <div className="text-sm markdown-content">
-                                                <ReactMarkdown
-                                                    remarkPlugins={[remarkGfm]}
-                                                    rehypePlugins={[rehypeHighlight, rehypeRaw]}
-                                                    components={{
-                                                        code: ({ className, children, ...props }: any) => {
-                                                            const isInline = !className?.includes('language-');
-                                                            return isInline ? (
-                                                                <code className="bg-muted-foreground/20 px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
-                                                                    {children}
-                                                                </code>
-                                                            ) : (
-                                                                <code className={className} {...props}>
-                                                                    {children}
-                                                                </code>
-                                                            );
-                                                        }
-                                                    }}
-                                                >
-                                                    {message.content}
-                                                </ReactMarkdown>
-                                            </div>
-                                        ) : (
-                                            <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                                                {message.content}
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    <div className="flex items-center gap-2 mt-2">
-                                        <span className="text-xs text-muted-foreground">
-                                            {formatTime(message.created_at)}
-                                        </span>
-
                                         {message.role === "assistant" && (
-                                            <div className="flex items-center gap-1">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-6 w-6 p-0 hover:bg-muted"
-                                                    onClick={() => copyToClipboard(message.content)}
-                                                >
-                                                    <FaCopy size={12} />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-6 w-6 p-0 hover:bg-muted"
-                                                >
-                                                    <FaThumbsUp size={12} />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-6 w-6 p-0 hover:bg-muted"
-                                                >
-                                                    <FaThumbsDown size={12} />
-                                                </Button>
+                                            <div className="flex-shrink-0">
+                                                <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                                                    <FaRobot size={16} className="text-primary-foreground" />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className={`flex flex-col ${message.role === "user" ? "items-end" : "items-start"
+                                            }`}>
+                                            <div
+                                                className={`rounded-2xl px-4 py-3 ${message.role === "user"
+                                                    ? "max-w-[70%] bg-primary text-primary-foreground"
+                                                    : "w-full bg-muted"
+                                                    }`}
+                                            >
+                                                {message.role === "assistant" ? (
+                                                    <div className="text-sm markdown-content">
+                                                        <ReactMarkdown
+                                                            remarkPlugins={[remarkGfm]}
+                                                            rehypePlugins={[rehypeHighlight, rehypeRaw]}
+                                                            components={{
+                                                                code: ({ className, children, ...props }: any) => {
+                                                                    const isInline = !className?.includes('language-');
+                                                                    return isInline ? (
+                                                                        <code className="bg-muted-foreground/20 px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
+                                                                            {children}
+                                                                        </code>
+                                                                    ) : (
+                                                                        <code className={className} {...props}>
+                                                                            {children}
+                                                                        </code>
+                                                                    );
+                                                                }
+                                                            }}
+                                                        >
+                                                            {message.content}
+                                                        </ReactMarkdown>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                                                        {message.content}
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            <div className="flex items-center gap-2 mt-2">
+                                                <span className="text-xs text-muted-foreground">
+                                                    {formatTime(message.created_at)}
+                                                </span>
+
+                                                {message.role === "assistant" && (
+                                                    <div className="flex items-center gap-1">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-6 w-6 p-0 hover:bg-muted"
+                                                            onClick={() => copyToClipboard(message.content)}
+                                                        >
+                                                            <FaCopy size={12} />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-6 w-6 p-0 hover:bg-muted"
+                                                        >
+                                                            <FaThumbsUp size={12} />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-6 w-6 p-0 hover:bg-muted"
+                                                        >
+                                                            <FaThumbsDown size={12} />
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {message.role === "user" && (
+                                            <div className="flex-shrink-0">
+                                                <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
+                                                    <FaUser size={16} className="text-muted-foreground" />
+                                                </div>
                                             </div>
                                         )}
                                     </div>
-                                </div>
+                                ))}
 
-                                {message.role === "user" && (
-                                    <div className="flex-shrink-0">
-                                        <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
-                                            <FaUser size={16} className="text-muted-foreground" />
+                                {/* Streaming Message */}
+                                {streamingMessage && (
+                                    <div className="mb-6 flex gap-2 justify-start">
+                                        <div className="flex-shrink-0">
+                                            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                                                <FaRobot size={16} className="text-primary-foreground" />
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col items-start">
+                                            <div className="w-full bg-muted rounded-2xl px-4 py-3">
+                                                <div className="text-sm markdown-content">
+                                                    <ReactMarkdown
+                                                        remarkPlugins={[remarkGfm]}
+                                                        rehypePlugins={[rehypeHighlight, rehypeRaw]}
+                                                        components={{
+                                                            code: ({ className, children, ...props }: any) => {
+                                                                const isInline = !className?.includes('language-');
+                                                                return isInline ? (
+                                                                    <code className="bg-muted-foreground/20 px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
+                                                                        {children}
+                                                                    </code>
+                                                                ) : (
+                                                                    <code className={className} {...props}>
+                                                                        {children}
+                                                                    </code>
+                                                                );
+                                                            }
+                                                        }}
+                                                    >
+                                                        {streamingMessage.content}
+                                                    </ReactMarkdown>
+                                                    {streamingMessage.isStreaming && (
+                                                        <span className="inline-block w-2 h-4 bg-primary ml-1 animate-pulse" />
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 mt-2">
+                                                <span className="text-xs text-muted-foreground">
+                                                    {streamingMessage.isStreaming ? 'Generating...' : 'Just now'}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
-                            </div>
-                            ))
+                            </>
                         )}
 
-                        {/* Typing indicator (when AI is responding) */}
-                        {false && (
-                            <div className="flex gap-4 justify-start mb-6">
-                                <div className="flex-shrink-0">
-                                    <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                                        <FaRobot size={16} className="text-primary-foreground" />
-                                    </div>
-                                </div>
-                                <div className="bg-muted rounded-2xl px-4 py-3">
-                                    <div className="flex space-x-1">
-                                        <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"></div>
-                                        <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                                        <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+
                     </div>
                 </ScrollArea>
             </div>
 
             {/* Input Box - Fixed at bottom */}
-            <InputBox onSendMessage={handleSendMessage} />
+            <InputBox onSendMessage={handleSendMessage} disabled={isGenerating} />
         </div>
     );
 }

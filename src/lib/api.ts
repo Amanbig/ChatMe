@@ -74,3 +74,7 @@ export async function deleteApiConfig(configId: string): Promise<void> {
 export async function sendAiMessage(chatId: string, userMessage: string): Promise<Message> {
   return await invoke('send_ai_message', { chatId, userMessage });
 }
+
+export async function sendAiMessageStreaming(chatId: string, userMessage: string): Promise<string> {
+  return await invoke('send_ai_message_streaming', { chatId, userMessage });
+}

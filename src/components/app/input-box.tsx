@@ -5,15 +5,16 @@ import { FaArrowRight, FaPaperclip, FaMicrophone } from "react-icons/fa";
 
 interface InputBoxProps {
     onSendMessage?: (message: string) => void;
+    disabled?: boolean;
 }
 
-export default function InputBox({ onSendMessage }: InputBoxProps) {
+export default function InputBox({ onSendMessage, disabled = false }: InputBoxProps) {
     const [message, setMessage] = useState("");
     const [, setIsTyping] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     const handleSend = () => {
-        if (message.trim()) {
+        if (message.trim() && !disabled) {
             onSendMessage?.(message.trim());
             setMessage("");
             setIsTyping(false);
@@ -25,7 +26,7 @@ export default function InputBox({ onSendMessage }: InputBoxProps) {
     };
 
     const handleKeyPress = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-        if (e.key === "Enter" && !e.shiftKey) {
+        if (e.key === "Enter" && !e.shiftKey && !disabled) {
             e.preventDefault();
             handleSend();
         }
@@ -62,21 +63,31 @@ export default function InputBox({ onSendMessage }: InputBoxProps) {
                             value={message}
                             onChange={handleInputChange}
                             onKeyDown={handleKeyPress}
-                            placeholder="Type your message..."
-                            className="min-h-[40px] max-h-[120px] resize-none border-none !bg-transparent dark:!bg-transparent p-2 text-sm placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
+                            placeholder={disabled ? "AI is generating..." : "Type your message..."}
+                            disabled={disabled}
+                            className="min-h-[40px] max-h-[120px] resize-none border-none !bg-transparent dark:!bg-transparent p-2 text-sm placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none disabled:opacity-50"
                             rows={1}
                         />
                     </div>
 
                     {/* Voice/Send button */}
                     <div className="shrink-0">
-                        {message.trim() ? (
+                        {message.trim() && !disabled ? (
                             <Button
                                 onClick={handleSend}
                                 size="sm"
                                 className="h-8 w-8 rounded-full bg-primary hover:bg-primary/90 transition-all duration-200"
                             >
                                 <FaArrowRight size={14} className="text-primary-foreground" />
+                            </Button>
+                        ) : disabled ? (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled
+                                className="h-8 w-8 rounded-full"
+                            >
+                                <div className="w-3 h-3 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
                             </Button>
                         ) : (
                             <Button

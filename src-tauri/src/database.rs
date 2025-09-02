@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use uuid::Uuid;
 use reqwest::Client;
 use serde_json::json;
+use tauri::Emitter;
 
 use crate::models::*;
 
@@ -530,6 +531,112 @@ impl Database {
                         Err(anyhow::anyhow!("Failed to parse custom API response: {}. Response: {}", parse_error, response_text))
                     }
                 }
+            }
+        }
+    }
+
+    pub async fn send_chat_completion_streaming(
+        &self, 
+        config: &ApiConfig, 
+        messages: Vec<ChatMessage>,
+        window: &tauri::Window,
+        message_id: &str
+    ) -> Result<String> {
+        let client = Client::new();
+        
+        match config.provider {
+            ApiProvider::OpenAI => {
+                let url = config.base_url.as_deref().unwrap_or("https://api.openai.com/v1/chat/completions");
+                
+                let request_body = json!({
+                    "model": config.model,
+                    "messages": messages,
+                    "temperature": config.temperature,
+                    "max_tokens": config.max_tokens,
+                    "stream": true
+                });
+
+                let response = client
+                    .post(url)
+                    .header("Authorization", format!("Bearer {}", config.api_key))
+                    .header("Content-Type", "application/json")
+                    .json(&request_body)
+                    .send()
+                    .await?;
+
+                if !response.status().is_success() {
+                    let error_text = response.text().await?;
+                    return Err(anyhow::anyhow!("API request failed: {}", error_text));
+                }
+
+                let mut full_response = String::new();
+                let mut stream = response.bytes_stream();
+                
+                use futures_util::StreamExt;
+                
+                while let Some(chunk) = stream.next().await {
+                    let chunk = chunk?;
+                    let chunk_str = String::from_utf8_lossy(&chunk);
+                    
+                    // Parse SSE format
+                    for line in chunk_str.lines() {
+                        if line.starts_with("data: ") {
+                            let data = &line[6..];
+                            if data == "[DONE]" {
+                                break;
+                            }
+                            
+                            if let Ok(json_data) = serde_json::from_str::<serde_json::Value>(data) {
+                                if let Some(choices) = json_data["choices"].as_array() {
+                                    if let Some(choice) = choices.first() {
+                                        if let Some(delta) = choice["delta"].as_object() {
+                                            if let Some(content) = delta["content"].as_str() {
+                                                full_response.push_str(content);
+                                                
+                                                // Emit streaming chunk to frontend
+                                                let _ = window.emit("streaming_chunk", serde_json::json!({
+                                                    "message_id": message_id,
+                                                    "chunk": content,
+                                                    "full_content": full_response
+                                                }));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Ok(full_response)
+            },
+            // For other providers, fall back to non-streaming for now
+            _ => {
+                // Simulate streaming by sending the full response in chunks
+                let response = self.send_chat_completion(config, messages).await?;
+                
+                // Split response into words and send as chunks
+                let words: Vec<&str> = response.split_whitespace().collect();
+                let mut current_content = String::new();
+                
+                for (i, word) in words.iter().enumerate() {
+                    current_content.push_str(word);
+                    if i < words.len() - 1 {
+                        current_content.push(' ');
+                    }
+                    
+                    // Emit chunk
+                    let _ = window.emit("streaming_chunk", serde_json::json!({
+                        "message_id": message_id,
+                        "chunk": format!("{} ", word),
+                        "full_content": current_content
+                    }));
+                    
+                    // Small delay to simulate streaming
+                    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                }
+                
+                Ok(response)
             }
         }
     }

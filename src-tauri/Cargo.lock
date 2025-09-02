@@ -502,6 +502,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "dirs 5.0.1",
+ "futures-util",
  "reqwest",
  "serde",
  "serde_json",

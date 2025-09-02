@@ -9,9 +9,7 @@ import {
     FaGoogle, 
     FaServer, 
     FaCog, 
-    FaDesktop,
     FaCode,
-    FaCheck,
     FaTrash,
     FaEdit
 } from "react-icons/fa";

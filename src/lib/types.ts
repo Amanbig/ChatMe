@@ -78,3 +78,10 @@ export interface UpdateApiConfigRequest {
   max_tokens?: number | null;
   is_default: boolean;
 }
+
+export interface StreamingMessage {
+  id: string;
+  content: string;
+  isStreaming: boolean;
+  isComplete: boolean;
+}

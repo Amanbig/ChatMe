@@ -28,6 +28,7 @@ pub fn run() {
                 commands::update_api_config,
                 commands::delete_api_config,
                 commands::send_ai_message,
+                commands::send_ai_message_streaming,
             ])
             .run(tauri::generate_context!())
             .expect("error while running tauri application");
