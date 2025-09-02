@@ -118,7 +118,7 @@ export default function HomePage() {
 
     const loadMessages = async () => {
         if (!chatId) return;
-        
+
         try {
             setLoading(true);
             const fetchedMessages = await getMessages(chatId);
