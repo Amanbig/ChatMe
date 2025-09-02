@@ -2,7 +2,26 @@
 
 A modern, cross-platform AI chat application built with Tauri, React, and TypeScript. ChatMe supports multiple AI providers with a beautiful, responsive interface and advanced features.
 
-![ChatMe Preview](https://via.placeholder.com/800x450/2d3748/ffffff?text=ChatMe+Preview)
+## 📸 Screenshots
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <img src="images/light.png" alt="FileEx Light Theme" width="450"/>
+        <br/>
+        <sub><b>Light Theme</b></sub>
+      </td>
+      <td align="center">
+        <img src="images/dark.png" alt="FileEx Dark Theme" width="450"/>
+        <br/>
+        <sub><b>Dark Theme</b></sub>
+      </td>
+    </tr>
+  </table>
+</div>
+
+---
 
 ## ✨ Features
 
