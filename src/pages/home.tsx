@@ -8,7 +8,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
-import { getMessages, createMessage } from "@/lib/api";
+import { getMessages, sendAiMessage } from "@/lib/api";
 import type { Message } from "@/lib/types";
 
 export default function HomePage() {
@@ -56,28 +56,15 @@ export default function HomePage() {
         if (!chatId || !content.trim()) return;
 
         try {
-            // Add user message
-            const userMessage = await createMessage({
-                chat_id: chatId,
-                content: content.trim(),
-                role: 'user'
-            });
-
-            setMessages(prev => [...prev, userMessage]);
-
-            // TODO: Add AI response logic here
-            // For now, just add a simple response
-            setTimeout(async () => {
-                const assistantMessage = await createMessage({
-                    chat_id: chatId,
-                    content: "I'm a placeholder response. In a real implementation, this would be connected to an AI service like OpenAI's API.",
-                    role: 'assistant'
-                });
-                setMessages(prev => [...prev, assistantMessage]);
-            }, 1000);
+            // Send message and get AI response
+            const assistantMessage = await sendAiMessage(chatId, content.trim());
+            
+            // Reload messages to get both user and assistant messages
+            await loadMessages();
 
         } catch (error) {
             console.error('Failed to send message:', error);
+            // TODO: Show error notification to user
         }
     };
 

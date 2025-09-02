@@ -347,12 +347,23 @@ impl Database {
                     return Err(anyhow::anyhow!("API request failed: {}", error_text));
                 }
 
-                let completion: ChatCompletionResponse = response.json().await?;
+                // Try to parse as ChatCompletionResponse, but provide better error handling
+                let response_text = response.text().await?;
                 
-                if let Some(choice) = completion.choices.first() {
-                    Ok(choice.message.content.clone())
-                } else {
-                    Err(anyhow::anyhow!("No response from API"))
+                match serde_json::from_str::<ChatCompletionResponse>(&response_text) {
+                    Ok(completion) => {
+                        if let Some(choice) = completion.choices.first() {
+                            Ok(choice.message.content.clone())
+                        } else {
+                            Err(anyhow::anyhow!("No response choices from API"))
+                        }
+                    },
+                    Err(parse_error) => {
+                        // Log the actual response for debugging
+                        eprintln!("Failed to parse OpenAI API response: {}", parse_error);
+                        eprintln!("Response body: {}", response_text);
+                        Err(anyhow::anyhow!("Failed to parse API response: {}. Response: {}", parse_error, response_text))
+                    }
                 }
             },
             ApiProvider::Anthropic => {
@@ -429,8 +440,96 @@ impl Database {
                     Err(anyhow::anyhow!("Invalid response format from Ollama API"))
                 }
             },
-            _ => {
-                Err(anyhow::anyhow!("Provider not yet implemented: {:?}", config.provider))
+            ApiProvider::Google => {
+                let url = config.base_url.as_deref().unwrap_or("https://generativelanguage.googleapis.com/v1beta/models");
+                let full_url = format!("{}/{}:generateContent?key={}", url, config.model, config.api_key);
+                
+                // Convert messages to Google format
+                let google_contents: Vec<serde_json::Value> = messages.into_iter().map(|msg| {
+                    json!({
+                        "role": if msg.role == "assistant" { "model" } else { "user" },
+                        "parts": [{"text": msg.content}]
+                    })
+                }).collect();
+
+                let request_body = json!({
+                    "contents": google_contents,
+                    "generationConfig": {
+                        "temperature": config.temperature,
+                        "maxOutputTokens": config.max_tokens.unwrap_or(1000)
+                    }
+                });
+
+                let response = client
+                    .post(&full_url)
+                    .header("Content-Type", "application/json")
+                    .json(&request_body)
+                    .send()
+                    .await?;
+
+                if !response.status().is_success() {
+                    let error_text = response.text().await?;
+                    return Err(anyhow::anyhow!("Google API request failed: {}", error_text));
+                }
+
+                let response_json: serde_json::Value = response.json().await?;
+                
+                if let Some(content) = response_json["candidates"][0]["content"]["parts"][0]["text"].as_str() {
+                    Ok(content.to_string())
+                } else {
+                    Err(anyhow::anyhow!("Invalid response format from Google API"))
+                }
+            },
+            ApiProvider::Custom => {
+                // For custom providers, assume OpenAI-compatible API format
+                let url = config.base_url.as_deref().ok_or_else(|| {
+                    anyhow::anyhow!("Base URL is required for custom providers")
+                })?;
+                
+                let request_body = json!({
+                    "model": config.model,
+                    "messages": messages,
+                    "temperature": config.temperature,
+                    "max_tokens": config.max_tokens
+                });
+
+                let mut request_builder = client
+                    .post(url)
+                    .header("Content-Type", "application/json");
+
+                // Add authorization header if API key is provided
+                if !config.api_key.is_empty() {
+                    request_builder = request_builder.header("Authorization", format!("Bearer {}", config.api_key));
+                }
+
+                let response = request_builder
+                    .json(&request_body)
+                    .send()
+                    .await?;
+
+                if !response.status().is_success() {
+                    let error_text = response.text().await?;
+                    return Err(anyhow::anyhow!("Custom API request failed: {}", error_text));
+                }
+
+                // Try to parse as ChatCompletionResponse, but provide better error handling
+                let response_text = response.text().await?;
+                
+                match serde_json::from_str::<ChatCompletionResponse>(&response_text) {
+                    Ok(completion) => {
+                        if let Some(choice) = completion.choices.first() {
+                            Ok(choice.message.content.clone())
+                        } else {
+                            Err(anyhow::anyhow!("No response choices from custom API"))
+                        }
+                    },
+                    Err(parse_error) => {
+                        // Log the actual response for debugging
+                        eprintln!("Failed to parse custom API response: {}", parse_error);
+                        eprintln!("Response body: {}", response_text);
+                        Err(anyhow::anyhow!("Failed to parse custom API response: {}. Response: {}", parse_error, response_text))
+                    }
+                }
             }
         }
     }
