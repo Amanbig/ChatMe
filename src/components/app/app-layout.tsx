@@ -83,6 +83,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       setChats(prev => [
         {
           ...newChat,
+          api_config_name: null,
           last_message: null,
           last_message_time: null,
           unread_count: 0
@@ -194,14 +195,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
                             {/* Delete Button - positioned absolutely */}
                             <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground rounded-md"
+                              <div
+                                className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground rounded-md cursor-pointer flex items-center justify-center"
                                 onClick={(e) => handleDeleteChat(chat.id, e)}
                               >
                                 <FaTrash size={10} />
-                              </Button>
+                              </div>
                             </div>
                           </div>
                         </SidebarMenuButton>

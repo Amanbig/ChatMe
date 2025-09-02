@@ -1,8 +1,10 @@
 use anyhow::Result;
 use chrono::Utc;
-use sqlx::{migrate::MigrateDatabase, Pool, Sqlite, SqlitePool};
+use sqlx::{migrate::MigrateDatabase, Pool, Sqlite, SqlitePool, Row};
 use std::path::PathBuf;
 use uuid::Uuid;
+use reqwest::Client;
+use serde_json::json;
 
 use crate::models::*;
 
@@ -37,15 +39,16 @@ impl Database {
     }
 
     // Chat operations
-    pub async fn create_chat(&self, title: String) -> Result<Chat> {
+    pub async fn create_chat(&self, title: String, api_config_id: Option<String>) -> Result<Chat> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now();
 
         let chat = sqlx::query_as::<_, Chat>(
-            "INSERT INTO chats (id, title, created_at, updated_at) VALUES (?, ?, ?, ?) RETURNING *"
+            "INSERT INTO chats (id, title, api_config_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?) RETURNING *"
         )
         .bind(&id)
         .bind(&title)
+        .bind(&api_config_id)
         .bind(now)
         .bind(now)
         .fetch_one(&self.pool)
@@ -60,11 +63,14 @@ impl Database {
             SELECT 
                 c.id,
                 c.title,
+                c.api_config_id,
+                ac.name as api_config_name,
                 c.created_at,
                 c.updated_at,
                 m.content as last_message,
                 m.created_at as last_message_time
             FROM chats c
+            LEFT JOIN api_configs ac ON c.api_config_id = ac.id
             LEFT JOIN (
                 SELECT DISTINCT chat_id, content, created_at,
                        ROW_NUMBER() OVER (PARTITION BY chat_id ORDER BY created_at DESC) as rn
@@ -79,10 +85,11 @@ impl Database {
         let chats = rows
             .into_iter()
             .map(|row| {
-                use sqlx::Row;
                 ChatWithLastMessage {
                     id: row.get("id"),
                     title: row.get("title"),
+                    api_config_id: row.get("api_config_id"),
+                    api_config_name: row.get("api_config_name"),
                     created_at: row.get("created_at"),
                     updated_at: row.get("updated_at"),
                     last_message: row.get("last_message"),
@@ -104,13 +111,14 @@ impl Database {
         Ok(chat)
     }
 
-    pub async fn update_chat(&self, chat_id: &str, title: String) -> Result<Chat> {
+    pub async fn update_chat(&self, chat_id: &str, title: String, api_config_id: Option<String>) -> Result<Chat> {
         let now = Utc::now();
         
         let chat = sqlx::query_as::<_, Chat>(
-            "UPDATE chats SET title = ?, updated_at = ? WHERE id = ? RETURNING *"
+            "UPDATE chats SET title = ?, api_config_id = ?, updated_at = ? WHERE id = ? RETURNING *"
         )
         .bind(&title)
+        .bind(&api_config_id)
         .bind(now)
         .bind(chat_id)
         .fetch_one(&self.pool)
@@ -179,5 +187,251 @@ impl Database {
             .await?;
 
         Ok(())
+    }
+
+    // API Configuration operations
+    pub async fn create_api_config(&self, request: CreateApiConfigRequest) -> Result<ApiConfig> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now();
+
+        // If this is set as default, unset all other defaults
+        if request.is_default {
+            sqlx::query("UPDATE api_configs SET is_default = FALSE")
+                .execute(&self.pool)
+                .await?;
+        }
+
+        let config = sqlx::query_as::<_, ApiConfig>(
+            r#"
+            INSERT INTO api_configs (
+                id, name, provider, api_key, base_url, model, 
+                temperature, max_tokens, is_default, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
+            RETURNING *
+            "#
+        )
+        .bind(&id)
+        .bind(&request.name)
+        .bind(&request.provider)
+        .bind(&request.api_key)
+        .bind(&request.base_url)
+        .bind(&request.model)
+        .bind(request.temperature)
+        .bind(request.max_tokens)
+        .bind(request.is_default)
+        .bind(now)
+        .bind(now)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(config)
+    }
+
+    pub async fn get_api_configs(&self) -> Result<Vec<ApiConfig>> {
+        let configs = sqlx::query_as::<_, ApiConfig>(
+            "SELECT * FROM api_configs ORDER BY is_default DESC, name ASC"
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(configs)
+    }
+
+    pub async fn get_api_config(&self, config_id: &str) -> Result<Option<ApiConfig>> {
+        let config = sqlx::query_as::<_, ApiConfig>(
+            "SELECT * FROM api_configs WHERE id = ?"
+        )
+        .bind(config_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(config)
+    }
+
+    pub async fn get_default_api_config(&self) -> Result<Option<ApiConfig>> {
+        let config = sqlx::query_as::<_, ApiConfig>(
+            "SELECT * FROM api_configs WHERE is_default = TRUE LIMIT 1"
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(config)
+    }
+
+    pub async fn update_api_config(&self, config_id: &str, request: UpdateApiConfigRequest) -> Result<ApiConfig> {
+        let now = Utc::now();
+
+        // If this is set as default, unset all other defaults
+        if request.is_default {
+            sqlx::query("UPDATE api_configs SET is_default = FALSE")
+                .execute(&self.pool)
+                .await?;
+        }
+
+        let config = sqlx::query_as::<_, ApiConfig>(
+            r#"
+            UPDATE api_configs SET 
+                name = ?, api_key = ?, base_url = ?, model = ?, 
+                temperature = ?, max_tokens = ?, is_default = ?, updated_at = ?
+            WHERE id = ? 
+            RETURNING *
+            "#
+        )
+        .bind(&request.name)
+        .bind(&request.api_key)
+        .bind(&request.base_url)
+        .bind(&request.model)
+        .bind(request.temperature)
+        .bind(request.max_tokens)
+        .bind(request.is_default)
+        .bind(now)
+        .bind(config_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(config)
+    }
+
+    pub async fn delete_api_config(&self, config_id: &str) -> Result<()> {
+        // Don't allow deleting if it's the only config or if chats are using it
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM api_configs")
+            .fetch_one(&self.pool)
+            .await?;
+
+        if count <= 1 {
+            return Err(anyhow::anyhow!("Cannot delete the last API configuration"));
+        }
+
+        let chats_using: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM chats WHERE api_config_id = ?")
+            .bind(config_id)
+            .fetch_one(&self.pool)
+            .await?;
+
+        if chats_using > 0 {
+            return Err(anyhow::anyhow!("Cannot delete API configuration that is being used by chats"));
+        }
+
+        sqlx::query("DELETE FROM api_configs WHERE id = ?")
+            .bind(config_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    // LLM Integration
+    pub async fn send_chat_completion(&self, config: &ApiConfig, messages: Vec<ChatMessage>) -> Result<String> {
+        let client = Client::new();
+        
+        match config.provider {
+            ApiProvider::OpenAI => {
+                let url = config.base_url.as_deref().unwrap_or("https://api.openai.com/v1/chat/completions");
+                
+                let request_body = json!({
+                    "model": config.model,
+                    "messages": messages,
+                    "temperature": config.temperature,
+                    "max_tokens": config.max_tokens
+                });
+
+                let response = client
+                    .post(url)
+                    .header("Authorization", format!("Bearer {}", config.api_key))
+                    .header("Content-Type", "application/json")
+                    .json(&request_body)
+                    .send()
+                    .await?;
+
+                if !response.status().is_success() {
+                    let error_text = response.text().await?;
+                    return Err(anyhow::anyhow!("API request failed: {}", error_text));
+                }
+
+                let completion: ChatCompletionResponse = response.json().await?;
+                
+                if let Some(choice) = completion.choices.first() {
+                    Ok(choice.message.content.clone())
+                } else {
+                    Err(anyhow::anyhow!("No response from API"))
+                }
+            },
+            ApiProvider::Anthropic => {
+                let url = config.base_url.as_deref().unwrap_or("https://api.anthropic.com/v1/messages");
+                
+                // Convert messages to Anthropic format
+                let anthropic_messages: Vec<serde_json::Value> = messages.into_iter().map(|msg| {
+                    json!({
+                        "role": if msg.role == "assistant" { "assistant" } else { "user" },
+                        "content": msg.content
+                    })
+                }).collect();
+
+                let request_body = json!({
+                    "model": config.model,
+                    "max_tokens": config.max_tokens.unwrap_or(1000),
+                    "messages": anthropic_messages
+                });
+
+                let response = client
+                    .post(url)
+                    .header("x-api-key", &config.api_key)
+                    .header("anthropic-version", "2023-06-01")
+                    .header("Content-Type", "application/json")
+                    .json(&request_body)
+                    .send()
+                    .await?;
+
+                if !response.status().is_success() {
+                    let error_text = response.text().await?;
+                    return Err(anyhow::anyhow!("Anthropic API request failed: {}", error_text));
+                }
+
+                let response_json: serde_json::Value = response.json().await?;
+                
+                if let Some(content) = response_json["content"][0]["text"].as_str() {
+                    Ok(content.to_string())
+                } else {
+                    Err(anyhow::anyhow!("Invalid response format from Anthropic API"))
+                }
+            },
+            ApiProvider::Ollama => {
+                let url = format!(
+                    "{}/api/chat", 
+                    config.base_url.as_deref().unwrap_or("http://localhost:11434")
+                );
+                
+                let request_body = json!({
+                    "model": config.model,
+                    "messages": messages,
+                    "stream": false,
+                    "options": {
+                        "temperature": config.temperature
+                    }
+                });
+
+                let response = client
+                    .post(&url)
+                    .header("Content-Type", "application/json")
+                    .json(&request_body)
+                    .send()
+                    .await?;
+
+                if !response.status().is_success() {
+                    let error_text = response.text().await?;
+                    return Err(anyhow::anyhow!("Ollama API request failed: {}", error_text));
+                }
+
+                let response_json: serde_json::Value = response.json().await?;
+                
+                if let Some(content) = response_json["message"]["content"].as_str() {
+                    Ok(content.to_string())
+                } else {
+                    Err(anyhow::anyhow!("Invalid response format from Ollama API"))
+                }
+            },
+            _ => {
+                Err(anyhow::anyhow!("Provider not yet implemented: {:?}", config.provider))
+            }
+        }
     }
 }

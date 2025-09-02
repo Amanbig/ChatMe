@@ -4,7 +4,7 @@ use tauri::State;
 
 #[tauri::command]
 pub async fn create_chat(db: State<'_, Database>, request: CreateChatRequest) -> Result<Chat, String> {
-    db.create_chat(request.title)
+    db.create_chat(request.title, request.api_config_id)
         .await
         .map_err(|e| e.to_string())
 }
@@ -25,7 +25,7 @@ pub async fn update_chat(
     chat_id: String,
     request: UpdateChatRequest,
 ) -> Result<Chat, String> {
-    db.update_chat(&chat_id, request.title)
+    db.update_chat(&chat_id, request.title, request.api_config_id)
         .await
         .map_err(|e| e.to_string())
 }
@@ -55,4 +55,103 @@ pub async fn delete_message(db: State<'_, Database>, message_id: String) -> Resu
     db.delete_message(&message_id)
         .await
         .map_err(|e| e.to_string())
+}
+
+// API Configuration commands
+#[tauri::command]
+pub async fn create_api_config(
+    db: State<'_, Database>,
+    request: CreateApiConfigRequest,
+) -> Result<ApiConfig, String> {
+    db.create_api_config(request)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_api_configs(db: State<'_, Database>) -> Result<Vec<ApiConfig>, String> {
+    db.get_api_configs().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_api_config(db: State<'_, Database>, config_id: String) -> Result<Option<ApiConfig>, String> {
+    db.get_api_config(&config_id).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_default_api_config(db: State<'_, Database>) -> Result<Option<ApiConfig>, String> {
+    db.get_default_api_config().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn update_api_config(
+    db: State<'_, Database>,
+    config_id: String,
+    request: UpdateApiConfigRequest,
+) -> Result<ApiConfig, String> {
+    db.update_api_config(&config_id, request)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn delete_api_config(db: State<'_, Database>, config_id: String) -> Result<(), String> {
+    db.delete_api_config(&config_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn send_ai_message(
+    db: State<'_, Database>,
+    chat_id: String,
+    user_message: String,
+) -> Result<Message, String> {
+    // Get the chat to find its API config
+    let chat = db.get_chat(&chat_id).await.map_err(|e| e.to_string())?;
+    let chat = chat.ok_or("Chat not found")?;
+
+    // Get API config (use chat's config or default)
+    let api_config = if let Some(config_id) = &chat.api_config_id {
+        db.get_api_config(config_id).await.map_err(|e| e.to_string())?
+    } else {
+        db.get_default_api_config().await.map_err(|e| e.to_string())?
+    };
+
+    let api_config = api_config.ok_or("No API configuration found")?;
+
+    // Create user message
+    let _user_msg = db.create_message(chat_id.clone(), user_message.clone(), MessageRole::User)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Get recent messages for context
+    let messages = db.get_messages(&chat_id).await.map_err(|e| e.to_string())?;
+    
+    // Convert to chat format (take last 10 messages for context)
+    let chat_messages: Vec<ChatMessage> = messages
+        .iter()
+        .rev()
+        .take(10)
+        .rev()
+        .map(|msg| ChatMessage {
+            role: match msg.role {
+                MessageRole::User => "user".to_string(),
+                MessageRole::Assistant => "assistant".to_string(),
+            },
+            content: msg.content.clone(),
+        })
+        .collect();
+
+    // Send to LLM
+    let ai_response = db.send_chat_completion(&api_config, chat_messages)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Create assistant message
+    let assistant_msg = db.create_message(chat_id, ai_response, MessageRole::Assistant)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(assistant_msg)
 }
