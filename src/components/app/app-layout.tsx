@@ -229,7 +229,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
         </SidebarFooter>
       </Sidebar>
 
-      <SidebarInset>
+      <SidebarInset className="flex flex-col h-screen">
         <header className="sticky top-0 flex h-16 shrink-0 items-center gap-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6 z-10">
           <SidebarTrigger className="h-9 w-9" />
           <div className="flex items-center gap-2 ml-2">
@@ -249,7 +249,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             </Button>
           </div>
         </header>
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0">
           {children}
         </div>
       </SidebarInset>

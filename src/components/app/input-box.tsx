@@ -44,7 +44,7 @@ export default function InputBox({ onSendMessage, disabled = false }: InputBoxPr
     };
 
     return (
-        <div className="w-full bg-background/95 backdrop-blur-sm border-t border-border/50 p-4 sticky bottom-0 z-10">
+        <div className="w-full bg-background/95 backdrop-blur-sm border-t border-border/50 p-4">
             <div className="max-w-4xl mx-auto">
                 <div className="flex items-end gap-3 bg-muted/30 rounded-2xl p-3 border border-border/30 shadow-lg">
                     {/* Attachment button */}
