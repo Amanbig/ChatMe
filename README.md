@@ -26,8 +26,8 @@ A modern, cross-platform AI chat application built with Tauri, React, and TypeSc
 ## ✨ Features
 
 ### 🎯 **Multi-Provider AI Support**
-- **OpenAI**: GPT-4, GPT-4 Turbo, GPT-3.5 Turbo
-- **Google Gemini**: Gemini Pro, Gemini 1.5 Flash/Pro (both original and OpenAI-compatible APIs)
+- **OpenAI**: GPT-4, GPT-4 Turbo, GPT-3.5 Turbo and many more
+- **Google Gemini**: Gemini Pro, Gemini 1.5 Flash/Pro and many more (both original and OpenAI-compatible APIs)
 - **Anthropic Claude**: Claude 3 models
 - **Ollama**: Local models (Llama 2, CodeLlama, Mistral, etc.)
 - **Custom APIs**: Support for Mistral AI, Groq, Together AI, Perplexity, and any OpenAI-compatible API
