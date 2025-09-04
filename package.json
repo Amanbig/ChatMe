@@ -7,7 +7,14 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "mobile:init": "tauri android init && tauri ios init",
+    "mobile:dev:android": "tauri android dev",
+    "mobile:dev:ios": "tauri ios dev",
+    "mobile:build:android": "tauri android build",
+    "mobile:build:ios": "tauri ios build"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",

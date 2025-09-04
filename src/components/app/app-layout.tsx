@@ -28,6 +28,7 @@ import { IoMdSquareOutline } from "react-icons/io";
 import { useNavigate, useLocation } from "react-router";
 import { getChats, createChat, deleteChat as deleteChatApi } from "@/lib/api";
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { useIsMobile } from "@/hooks/use-mobile";
 import ThemeToggle from "./theme-toggle";
 import type { ChatWithLastMessage } from "@/lib/types";
 
@@ -42,6 +43,7 @@ const appWindow = getCurrentWindow();
 export default function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const isMobile = useIsMobile();
 
   const [chats, setChats] = useState<ChatWithLastMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -258,39 +260,49 @@ export default function AppLayout({ children }: AppLayoutProps) {
             </h2>
           </div>
           
-          <div className="flex items-center gap-1 ml-auto no-drag">
-            <ThemeToggle />
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="h-8 w-8 p-0 hover:bg-muted" 
-              onClick={() => appWindow.minimize()}
-            >
-              <VscChromeMinimize size={14} />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="h-8 w-8 p-0 hover:bg-muted" 
-              onClick={async () => {
-                if (await appWindow.isMaximized()) {
-                  await appWindow.unmaximize();
-                } else {
-                  await appWindow.maximize();
-                }
-              }}
-            >
-              <IoMdSquareOutline size={14} />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="h-8 w-8 p-0 hover:bg-destructive hover:text-destructive-foreground" 
-              onClick={() => appWindow.close()}
-            >
-              <RxCross2 size={14} />
-            </Button>
-          </div>
+          {/* Hide window controls on mobile */}
+          {!isMobile && (
+            <div className="flex items-center gap-1 ml-auto no-drag">
+              <ThemeToggle />
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 w-8 p-0 hover:bg-muted" 
+                onClick={() => appWindow.minimize()}
+              >
+                <VscChromeMinimize size={14} />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 w-8 p-0 hover:bg-muted" 
+                onClick={async () => {
+                  if (await appWindow.isMaximized()) {
+                    await appWindow.unmaximize();
+                  } else {
+                    await appWindow.maximize();
+                  }
+                }}
+              >
+                <IoMdSquareOutline size={14} />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 w-8 p-0 hover:bg-destructive hover:text-destructive-foreground" 
+                onClick={() => appWindow.close()}
+              >
+                <RxCross2 size={14} />
+              </Button>
+            </div>
+          )}
+
+          {/* Mobile-only theme toggle */}
+          {isMobile && (
+            <div className="flex items-center ml-auto no-drag">
+              <ThemeToggle />
+            </div>
+          )}
         </header>
         <div className="flex-1 min-h-0">
           {children}

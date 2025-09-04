@@ -16,6 +16,38 @@ html, body, #root {
   padding: 0;
 }
 
+/* Mobile touch improvements */
+@media (hover: none) and (pointer: coarse) {
+  /* Touch-friendly button sizing */
+  button, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Larger tap targets for mobile */
+  .sidebar-trigger {
+    min-height: 48px;
+    min-width: 48px;
+  }
+  
+  /* Prevent overscroll on mobile */
+  body {
+    overscroll-behavior: none;
+  }
+  
+  /* Improve touch scrolling */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Disable drag for mobile */
+@media (max-width: 768px) {
+  .drag {
+    -webkit-app-region: none;
+  }
+}
+
 /* Custom markdown styles for assistant messages */
 .markdown-content {
   line-height: 1.6;

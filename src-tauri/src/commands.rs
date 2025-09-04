@@ -122,7 +122,7 @@ pub async fn send_ai_message(
     let api_config = api_config.ok_or("No API configuration found")?;
 
     // Create user message
-    let user_msg = db.create_message(chat_id.clone(), user_message.clone(), MessageRole::User, None)
+    let _user_msg = db.create_message(chat_id.clone(), user_message.clone(), MessageRole::User, None)
         .await
         .map_err(|e| e.to_string())?;
 
