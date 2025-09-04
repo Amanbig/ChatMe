@@ -2,18 +2,24 @@
 
 A modern, cross-platform AI chat application built with Tauri, React, and TypeScript. ChatMe supports multiple AI providers with a beautiful, responsive interface and advanced features.
 
+## 🌟 Platform Support
+
+- **🖥️ Desktop**: Windows, macOS, Linux
+- **📱 Mobile**: Android (iOS coming soon)
+- **🌐 Web**: Progressive Web App capabilities
+
 ## 📸 Screenshots
 
 <div align="center">
   <table>
     <tr>
       <td align="center">
-        <img src="images/light.png" alt="FileEx Light Theme" width="450"/>
+        <img src="images/light.png" alt="ChatMe Light Theme" width="450"/>
         <br/>
         <sub><b>Light Theme</b></sub>
       </td>
       <td align="center">
-        <img src="images/dark.png" alt="FileEx Dark Theme" width="450"/>
+        <img src="images/dark.png" alt="ChatMe Dark Theme" width="450"/>
         <br/>
         <sub><b>Dark Theme</b></sub>
       </td>
@@ -34,14 +40,24 @@ A modern, cross-platform AI chat application built with Tauri, React, and TypeSc
 - **Custom APIs**: Support for Mistral AI, Groq, Together AI, Perplexity, and any OpenAI-compatible API
 
 ### 🎨 **Modern Interface**
-- **Custom Title Bar**: Integrated window controls with drag functionality
-- **Responsive Design**: Works beautifully on all screen sizes
+- **Custom Title Bar**: Integrated window controls with drag functionality (desktop)
+- **Mobile-First Design**: Touch-optimized interface for mobile devices
+- **Responsive Layout**: Auto-adapting sidebar and layout for all screen sizes
 - **Dark/Light Theme**: System-aware theme switching
 - **Sidebar Navigation**: Easy chat management and organization
 - **Smooth Animations**: Polished user experience with transitions
 
-### 💬 **Advanced Chat Features**
+### � **Mobile Features**
+- **Touch-Optimized Controls**: Minimum 44px touch targets for accessibility
+- **Mobile Sidebar**: Auto-collapsing navigation to save screen space
+- **Image Upload**: Camera and gallery integration for image uploads
+- **Gesture Support**: Smooth scrolling and touch interactions
+- **Mobile Keyboard**: Optimized input handling for mobile keyboards
+- **Responsive Images**: Properly scaled image previews and displays
+
+### �💬 **Advanced Chat Features**
 - **Real-time Streaming**: Live message streaming for supported providers
+- **Image Analysis**: Upload and analyze images with AI vision models
 - **AI Thinking Display**: Collapsible sections showing AI reasoning process
 - **Message Management**: Copy, export, and share conversations
 - **Chat History**: Persistent chat storage with SQLite
@@ -57,11 +73,34 @@ A modern, cross-platform AI chat application built with Tauri, React, and TypeSc
 
 ## 🚀 Getting Started
 
+### 📦 Downloads
+
+#### Desktop Applications
+- **Windows**: Download `.exe` installer from [Releases](https://github.com/Amanbig/ChatMe/releases)
+- **macOS**: Download `.dmg` file (Intel and Apple Silicon supported)
+- **Linux**: Download `.deb` package or `.AppImage`
+
+#### Mobile Applications
+- **Android**: Download `.apk` file from [Releases](https://github.com/Amanbig/ChatMe/releases)
+- **iOS**: Coming soon
+
+### 📱 Mobile Installation (Android)
+
+1. **Download APK** from the latest release
+2. **Enable Unknown Sources**:
+   - Go to Settings → Security → Unknown Sources
+   - Or Settings → Apps → Special Access → Install Unknown Apps
+3. **Install APK** by tapping the downloaded file
+4. **Launch ChatMe** from your app drawer
+
+### 🛠️ Development Setup
+
 ### Prerequisites
 
 - **Node.js** (v18 or higher)
 - **Rust** (latest stable)
 - **pnpm/npm/yarn** (package manager)
+- **Android SDK** (for mobile development)
 
 ### Installation
 
@@ -84,6 +123,30 @@ A modern, cross-platform AI chat application built with Tauri, React, and TypeSc
 4. **Build for production**
    ```bash
    npm run build
+   ```
+
+### 📱 Mobile Development
+
+1. **Setup Android environment**
+   ```bash
+   # Install Android Studio and set ANDROID_HOME
+   export ANDROID_HOME=$HOME/Android/Sdk
+   export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
+   ```
+
+2. **Initialize Android project**
+   ```bash
+   npm run android:init
+   ```
+
+3. **Run on Android device/emulator**
+   ```bash
+   npm run android:dev
+   ```
+
+4. **Build Android APK**
+   ```bash
+   npm run android:build
    ```
 
 ## 🔧 Configuration

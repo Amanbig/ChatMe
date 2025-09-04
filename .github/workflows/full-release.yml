@@ -1,0 +1,231 @@
+name: 'Full Platform Release'
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+      release_notes:
+        description: 'Release notes'
+        required: false
+        default: 'New release with desktop and mobile support'
+
+jobs:
+  # Desktop builds (Windows, macOS, Linux)
+  desktop-release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: '--target aarch64-apple-darwin'
+            target: 'aarch64-apple-darwin'
+          - platform: 'macos-latest'
+            args: '--target x86_64-apple-darwin'
+            target: 'x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
+            target: 'x86_64-unknown-linux-gnu'
+          - platform: 'windows-latest'
+            args: ''
+            target: 'x86_64-pc-windows-msvc'
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'npm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build desktop app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.event.inputs.version }}
+          releaseName: 'ChatMe ${{ github.event.inputs.version }}'
+          releaseBody: ${{ github.event.inputs.release_notes }}
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
+
+  # Android mobile build
+  android-release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    needs: desktop-release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'npm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          build-tools: 34.0.0
+          ndk-version: 25.2.9519653
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli
+
+      - name: Setup Android environment
+        run: |
+          echo "ANDROID_NDK_ROOT=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
+          echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+
+      - name: Accept Android SDK licenses
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+
+      - name: Initialize Android project
+        run: |
+          if [ ! -d "src-tauri/gen/android" ]; then
+            cargo tauri android init
+          fi
+
+      - name: Build Android APK
+        run: |
+          cargo tauri android build --apk
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+
+      - name: Rename APK with version
+        run: |
+          mkdir -p dist
+          cp src-tauri/gen/android/app/build/outputs/apk/debug/app-debug.apk dist/ChatMe-${{ github.event.inputs.version }}-android.apk
+
+      - name: Add APK to existing release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/ChatMe-${{ github.event.inputs.version }}-android.apk
+          tag_name: ${{ github.event.inputs.version }}
+          append_body: true
+          body: |
+            
+            ## Mobile Release
+            - 📱 **Android APK**: ChatMe-${{ github.event.inputs.version }}-android.apk
+            - 🎯 **Mobile-optimized UI** with touch-friendly controls
+            - 📸 **Image upload support** with camera/gallery integration
+            - 🤖 **AI vision integration** for image analysis
+            
+            ### Android Installation
+            1. Download the APK file from the assets below
+            2. Enable "Install from unknown sources" in your Android settings
+            3. Install the APK file
+            4. Enjoy ChatMe on your mobile device!
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Create comprehensive release notes
+  finalize-release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    needs: [desktop-release, android-release]
+    steps:
+      - name: Update release description
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          body: |
+            # 🎉 ChatMe ${{ github.event.inputs.version }} - Full Platform Release
+            
+            ${{ github.event.inputs.release_notes }}
+            
+            ## 📦 What's Included
+            
+            ### 🖥️ Desktop Applications
+            - **Windows**: `.exe` installer and portable version
+            - **macOS**: `.dmg` for both Intel and Apple Silicon Macs  
+            - **Linux**: `.deb` and `.AppImage` packages
+            
+            ### 📱 Mobile Applications
+            - **Android**: `.apk` file for direct installation
+            
+            ## ✨ Key Features
+            
+            - 💬 **AI-Powered Chat**: Integration with OpenAI and Claude models
+            - 📸 **Image Upload & Analysis**: Upload images and get AI insights
+            - 🎨 **Modern UI**: Clean, responsive interface that works on all devices
+            - 🌙 **Dark/Light Mode**: Automatic theme switching
+            - 📱 **Mobile-Optimized**: Touch-friendly interface for mobile devices
+            - 🔄 **Cross-Platform**: Same experience across desktop and mobile
+            
+            ## 🚀 Installation
+            
+            ### Desktop
+            1. Download the appropriate file for your operating system
+            2. Run the installer or extract the portable version
+            3. Launch ChatMe and start chatting!
+            
+            ### Android
+            1. Download the APK file
+            2. Enable "Install from unknown sources" in Android settings
+            3. Install the APK file
+            4. Open ChatMe from your app drawer
+            
+            ## 🔧 Technical Details
+            
+            - Built with Tauri v2 for optimal performance
+            - React + TypeScript frontend
+            - Rust backend for security and speed
+            - SQLite database for local storage
+            - Responsive design with mobile-first approach
+            
+            ---
+            
+            **Full Changelog**: [View changes](https://github.com/${{ github.repository }}/compare/previous...current)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

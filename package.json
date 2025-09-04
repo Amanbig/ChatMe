@@ -10,11 +10,13 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "mobile:init": "tauri android init && tauri ios init",
-    "mobile:dev:android": "tauri android dev",
-    "mobile:dev:ios": "tauri ios dev",
-    "mobile:build:android": "tauri android build",
-    "mobile:build:ios": "tauri ios build"
+    "android:init": "cargo tauri android init",
+    "android:dev": "cargo tauri android dev",
+    "android:build": "cargo tauri android build",
+    "release:patch": "npm version patch",
+    "release:minor": "npm version minor", 
+    "release:major": "npm version major",
+    "test:mobile": "echo 'Testing mobile responsiveness - use browser dev tools to simulate mobile devices'"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",

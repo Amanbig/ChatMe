@@ -1,0 +1,181 @@
+name: 'Mobile Release'
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'package.json'
+      - 'Cargo.toml'
+
+jobs:
+  # Android APK Build
+  build-android:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'npm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          build-tools: 34.0.0
+          ndk-version: 25.2.9519653
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli
+
+      - name: Setup Android environment
+        run: |
+          echo "ANDROID_NDK_ROOT=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
+          echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+
+      - name: Accept Android SDK licenses
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+
+      - name: Initialize Android project
+        run: |
+          if [ ! -d "src-tauri/gen/android" ]; then
+            cargo tauri android init
+          fi
+
+      - name: Build Android APK (Debug)
+        run: |
+          cargo tauri android build --apk
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+
+      - name: Upload Android APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatme-android-debug
+          path: src-tauri/gen/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Create GitHub Release with APK
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: src-tauri/gen/android/app/build/outputs/apk/debug/app-debug.apk
+          tag_name: mobile-v${{ github.run_number }}
+          name: ChatMe Mobile v${{ github.run_number }}
+          body: |
+            ## ChatMe Mobile Release
+            
+            This release includes:
+            - 📱 Android APK (Debug build)
+            - 🎯 Mobile-optimized UI
+            - 📸 Image upload support
+            - 🤖 AI vision integration
+            
+            ### Installation
+            1. Download the APK file
+            2. Enable "Install from unknown sources" on your Android device
+            3. Install the APK
+            
+            ### Features
+            - Full chat functionality
+            - Image upload and analysis
+            - Dark/Light theme support
+            - Touch-optimized interface
+          draft: true
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Optional: Build AAB for Play Store (requires signing)
+  build-android-aab:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'workflow_dispatch' # Only run manually for now
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'npm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          build-tools: 34.0.0
+          ndk-version: 25.2.9519653
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli
+
+      - name: Setup Android environment
+        run: |
+          echo "ANDROID_NDK_ROOT=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
+          echo "NDK_HOME=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+
+      - name: Initialize Android project
+        run: |
+          if [ ! -d "src-tauri/gen/android" ]; then
+            cargo tauri android init
+          fi
+
+      - name: Build Android AAB (Release)
+        run: |
+          cargo tauri android build --aab
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+
+      - name: Upload Android AAB as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatme-android-aab
+          path: src-tauri/gen/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
