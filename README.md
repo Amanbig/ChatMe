@@ -1,12 +1,24 @@
 # ChatMe 🤖
 
-A modern, cross-platform AI chat application built with Tauri, React, and TypeScript. ChatMe supports multiple AI providers with a beautiful, responsive interface and advanced features.
+A modern, cross-platform A### 🎨 **Modern Interface**
+- **Custom Title Bar**: Integrated window controls with drag functionality (desktop)
+- **Responsive Design**: Mobile-friendly UI that adapts to different screen sizes
+- **Dark/Light Theme**: System-aware theme switching
+- **Sidebar Navigation**: Easy chat management and organization
+- **Smooth Animations**: Polished user experience with transitions
+
+### 📱 **Responsive Features**
+- **Touch-Friendly Controls**: Large tap targets for accessibility
+- **Adaptive Layout**: Auto-resizing sidebar and components for different screen sizes
+- **Image Upload**: File selection with drag-and-drop and preview functionality
+- **Mobile-Optimized**: UI components that work well on tablets and small screens
+- **Gesture Support**: Smooth scrolling and intuitive interactionsion built with Tauri, React, and TypeScript. ChatMe supports multiple AI providers with a beautiful, responsive interface and advanced features.
 
 ## 🌟 Platform Support
 
 - **🖥️ Desktop**: Windows, macOS, Linux
-- **📱 Mobile**: Android (iOS coming soon)
 - **🌐 Web**: Progressive Web App capabilities
+- **📱 Mobile**: UI is responsive and mobile-friendly (native mobile apps coming soon)
 
 ## 📸 Screenshots
 
@@ -80,27 +92,15 @@ A modern, cross-platform AI chat application built with Tauri, React, and TypeSc
 - **macOS**: Download `.dmg` file (Intel and Apple Silicon supported)
 - **Linux**: Download `.deb` package or `.AppImage`
 
-#### Mobile Applications
-- **Android**: Download `.apk` file from [Releases](https://github.com/Amanbig/ChatMe/releases)
-- **iOS**: Coming soon
-
-### 📱 Mobile Installation (Android)
-
-1. **Download APK** from the latest release
-2. **Enable Unknown Sources**:
-   - Go to Settings → Security → Unknown Sources
-   - Or Settings → Apps → Special Access → Install Unknown Apps
-3. **Install APK** by tapping the downloaded file
-4. **Launch ChatMe** from your app drawer
-
-### 🛠️ Development Setup
+#### Mobile Support
+- **Responsive Web UI**: The application works well on mobile browsers
+- **Native Mobile Apps**: Coming soon - currently in development
 
 ### Prerequisites
 
 - **Node.js** (v18 or higher)
 - **Rust** (latest stable)
 - **pnpm/npm/yarn** (package manager)
-- **Android SDK** (for mobile development)
 
 ### Installation
 
@@ -125,29 +125,13 @@ A modern, cross-platform AI chat application built with Tauri, React, and TypeSc
    npm run build
    ```
 
-### 📱 Mobile Development
+### 🌐 Testing on Mobile Devices
 
-1. **Setup Android environment**
-   ```bash
-   # Install Android Studio and set ANDROID_HOME
-   export ANDROID_HOME=$HOME/Android/Sdk
-   export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
-   ```
+While native mobile apps are in development, you can test the responsive UI:
 
-2. **Initialize Android project**
-   ```bash
-   npm run android:init
-   ```
-
-3. **Run on Android device/emulator**
-   ```bash
-   npm run android:dev
-   ```
-
-4. **Build Android APK**
-   ```bash
-   npm run android:build
-   ```
+1. **Browser dev tools**: Use mobile device simulation
+2. **Local network**: Access the dev server from mobile browsers
+3. **Responsive testing**: Resize desktop window to test different screen sizes
 
 ## 🔧 Configuration
 
@@ -246,8 +230,9 @@ cargo tauri build --debug  # Build with debug info
 
 ### Platform Support
 - **Windows**: Native .exe and .msi installers
-- **macOS**: .app bundle and .dmg installer
+- **macOS**: .app bundle and .dmg installer (Intel and Apple Silicon)
 - **Linux**: .deb, .rpm, and AppImage formats
+- **Cross-platform**: Responsive UI that works on various screen sizes
 
 ## 🤝 Contributing
 
