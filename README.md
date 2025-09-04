@@ -117,12 +117,12 @@ A modern, cross-platform A### 🎨 **Modern Interface**
 
 3. **Start development server**
    ```bash
-   npm run dev
+   npm run tauri dev
    ```
 
 4. **Build for production**
    ```bash
-   npm run build
+   npm run tauri build
    ```
 
 ### 🌐 Testing on Mobile Devices
