@@ -143,13 +143,13 @@ export default function HomePage() {
         }
     };
 
-    const handleSendMessage = async (content: string) => {
-        if (!chatId || !content.trim() || isGenerating) return;
+    const handleSendMessage = async (content: string, images?: string[]) => {
+        if (!chatId || (!content.trim() && !images?.length) || isGenerating) return;
 
         try {
             setIsGenerating(true);
             // Send message with streaming
-            await sendAiMessageStreaming(chatId, content.trim());
+            await sendAiMessageStreaming(chatId, content.trim(), images);
         } catch (error) {
             console.error('Failed to send message:', error);
             setIsGenerating(false);

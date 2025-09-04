@@ -145,19 +145,26 @@ impl Database {
     }
 
     // Message operations
-    pub async fn create_message(&self, chat_id: String, content: String, role: MessageRole) -> Result<Message> {
+    pub async fn create_message(&self, chat_id: String, content: String, role: MessageRole, images: Option<Vec<String>>) -> Result<Message> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now();
+        
+        // Serialize images to JSON string if present
+        let images_json = match images.as_ref() {
+            Some(imgs) if !imgs.is_empty() => Some(serde_json::to_string(imgs)?),
+            _ => None,
+        };
 
-        let message = sqlx::query_as::<_, Message>(
-            "INSERT INTO messages (id, chat_id, content, role, created_at) VALUES (?, ?, ?, ?, ?) RETURNING *"
+        sqlx::query(
+            "INSERT INTO messages (id, chat_id, content, role, created_at, images) VALUES (?, ?, ?, ?, ?, ?)"
         )
         .bind(&id)
         .bind(&chat_id)
         .bind(&content)
         .bind(&role)
         .bind(now)
-        .fetch_one(&self.pool)
+        .bind(&images_json)
+        .execute(&self.pool)
         .await?;
 
         // Update chat's updated_at timestamp
@@ -167,16 +174,47 @@ impl Database {
             .execute(&self.pool)
             .await?;
 
-        Ok(message)
+        Ok(Message {
+            id,
+            chat_id,
+            content,
+            role,
+            created_at: now,
+            images,
+        })
     }
 
     pub async fn get_messages(&self, chat_id: &str) -> Result<Vec<Message>> {
-        let messages = sqlx::query_as::<_, Message>(
-            "SELECT * FROM messages WHERE chat_id = ? ORDER BY created_at ASC"
-        )
-        .bind(chat_id)
-        .fetch_all(&self.pool)
-        .await?;
+        // Use the full query with images column
+        let rows = sqlx::query("SELECT id, chat_id, content, role, created_at, images FROM messages WHERE chat_id = ? ORDER BY created_at ASC")
+            .bind(chat_id)
+            .fetch_all(&self.pool)
+            .await?;
+
+        let mut messages = Vec::new();
+        for row in rows {
+            let role_str: String = row.try_get("role")?;
+            let role = match role_str.as_str() {
+                "user" => MessageRole::User,
+                "assistant" => MessageRole::Assistant,
+                _ => return Err(anyhow::anyhow!("Invalid message role: {}", role_str)),
+            };
+
+            // Parse images from JSON string
+            let images: Option<Vec<String>> = match row.try_get::<Option<String>, _>("images")? {
+                Some(images_str) => serde_json::from_str(&images_str).ok(),
+                None => None,
+            };
+
+            messages.push(Message {
+                id: row.try_get("id")?,
+                chat_id: row.try_get("chat_id")?,
+                content: row.try_get("content")?,
+                role,
+                created_at: row.try_get("created_at")?,
+                images,
+            });
+        }
 
         Ok(messages)
     }
@@ -354,7 +392,12 @@ impl Database {
                 match serde_json::from_str::<ChatCompletionResponse>(&response_text) {
                     Ok(completion) => {
                         if let Some(choice) = completion.choices.first() {
-                            Ok(choice.message.content.clone())
+                            // Convert content Value to String
+                            let content_str = match &choice.message.content {
+                                serde_json::Value::String(s) => s.clone(),
+                                other => other.to_string(),
+                            };
+                            Ok(content_str)
                         } else {
                             Err(anyhow::anyhow!("No response choices from API"))
                         }
@@ -473,7 +516,12 @@ impl Database {
                     match serde_json::from_str::<ChatCompletionResponse>(&response_text) {
                         Ok(completion) => {
                             if let Some(choice) = completion.choices.first() {
-                                Ok(choice.message.content.clone())
+                                // Convert content Value to String
+                                let content_str = match &choice.message.content {
+                                    serde_json::Value::String(s) => s.clone(),
+                                    other => other.to_string(),
+                                };
+                                Ok(content_str)
                             } else {
                                 Err(anyhow::anyhow!("No response choices from Google OpenAI-compatible API"))
                             }
@@ -563,7 +611,12 @@ impl Database {
                 match serde_json::from_str::<ChatCompletionResponse>(&response_text) {
                     Ok(completion) => {
                         if let Some(choice) = completion.choices.first() {
-                            Ok(choice.message.content.clone())
+                            // Convert content Value to String
+                            let content_str = match &choice.message.content {
+                                serde_json::Value::String(s) => s.clone(),
+                                other => other.to_string(),
+                            };
+                            Ok(content_str)
                         } else {
                             Err(anyhow::anyhow!("No response choices from custom API"))
                         }

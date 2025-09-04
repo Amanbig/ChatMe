@@ -102,6 +102,24 @@ export default function MessageItem({ message, formatTime, copyToClipboard }: Me
                         : "bg-muted w-full"
                         }`}
                 >
+                    {/* Display images if present */}
+                    {message.images && message.images.length > 0 && (
+                        <div className="mb-3">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                {message.images.map((image, index) => (
+                                    <img
+                                        key={index}
+                                        src={image}
+                                        alt={`Message image ${index + 1}`}
+                                        className="w-full h-32 object-cover rounded-lg border border-border"
+                                        onClick={() => window.open(image, '_blank')}
+                                        style={{ cursor: 'pointer' }}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {message.role === "assistant" ? (
                         <div className="text-sm markdown-content">
                             <ReactMarkdown
@@ -126,9 +144,13 @@ export default function MessageItem({ message, formatTime, copyToClipboard }: Me
                             </ReactMarkdown>
                         </div>
                     ) : (
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                            {message.content}
-                        </p>
+                        <div>
+                            {message.content && (
+                                <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                                    {message.content}
+                                </p>
+                            )}
+                        </div>
                     )}
                 </div>
 

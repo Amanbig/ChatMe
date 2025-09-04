@@ -1,6 +1,7 @@
 use crate::database::Database;
 use crate::models::*;
 use tauri::{State, Emitter};
+use serde_json::json;
 
 #[tauri::command]
 pub async fn create_chat(db: State<'_, Database>, request: CreateChatRequest) -> Result<Chat, String> {
@@ -40,7 +41,7 @@ pub async fn create_message(
     db: State<'_, Database>,
     request: CreateMessageRequest,
 ) -> Result<Message, String> {
-    db.create_message(request.chat_id, request.content, request.role)
+    db.create_message(request.chat_id, request.content, request.role, request.images)
         .await
         .map_err(|e| e.to_string())
 }
@@ -121,7 +122,7 @@ pub async fn send_ai_message(
     let api_config = api_config.ok_or("No API configuration found")?;
 
     // Create user message
-    let user_msg = db.create_message(chat_id.clone(), user_message.clone(), MessageRole::User)
+    let user_msg = db.create_message(chat_id.clone(), user_message.clone(), MessageRole::User, None)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -134,12 +135,47 @@ pub async fn send_ai_message(
         .rev()
         .take(10)
         .rev()
-        .map(|msg| ChatMessage {
-            role: match msg.role {
-                MessageRole::User => "user".to_string(),
-                MessageRole::Assistant => "assistant".to_string(),
-            },
-            content: msg.content.clone(),
+        .map(|msg| {
+            let content = if let Some(images) = &msg.images {
+                if !images.is_empty() {
+                    // Create vision format with text and images
+                    let mut content_array = vec![];
+                    
+                    // Add text content if present
+                    if !msg.content.is_empty() {
+                        content_array.push(json!({
+                            "type": "text",
+                            "text": msg.content
+                        }));
+                    }
+                    
+                    // Add images
+                    for image in images {
+                        content_array.push(json!({
+                            "type": "image_url",
+                            "image_url": {
+                                "url": image
+                            }
+                        }));
+                    }
+                    
+                    json!(content_array)
+                } else {
+                    // No images, just text
+                    json!(msg.content)
+                }
+            } else {
+                // No images, just text
+                json!(msg.content)
+            };
+
+            ChatMessage {
+                role: match msg.role {
+                    MessageRole::User => "user".to_string(),
+                    MessageRole::Assistant => "assistant".to_string(),
+                },
+                content,
+            }
         })
         .collect();
 
@@ -149,7 +185,7 @@ pub async fn send_ai_message(
         .map_err(|e| e.to_string())?;
 
     // Create assistant message
-    let assistant_msg = db.create_message(chat_id, ai_response, MessageRole::Assistant)
+    let assistant_msg = db.create_message(chat_id, ai_response, MessageRole::Assistant, None)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -162,6 +198,7 @@ pub async fn send_ai_message_streaming(
     db: State<'_, Database>,
     chat_id: String,
     user_message: String,
+    images: Option<Vec<String>>,
 ) -> Result<String, String> {
     // Get the chat to find its API config
     let chat = db.get_chat(&chat_id).await.map_err(|e| e.to_string())?;
@@ -177,7 +214,7 @@ pub async fn send_ai_message_streaming(
     let api_config = api_config.ok_or("No API configuration found")?;
 
     // Create user message
-    let user_msg = db.create_message(chat_id.clone(), user_message.clone(), MessageRole::User)
+    let user_msg = db.create_message(chat_id.clone(), user_message.clone(), MessageRole::User, images)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -193,12 +230,47 @@ pub async fn send_ai_message_streaming(
         .rev()
         .take(10)
         .rev()
-        .map(|msg| ChatMessage {
-            role: match msg.role {
-                MessageRole::User => "user".to_string(),
-                MessageRole::Assistant => "assistant".to_string(),
-            },
-            content: msg.content.clone(),
+        .map(|msg| {
+            let content = if let Some(images) = &msg.images {
+                if !images.is_empty() {
+                    // Create vision format with text and images
+                    let mut content_array = vec![];
+                    
+                    // Add text content if present
+                    if !msg.content.is_empty() {
+                        content_array.push(json!({
+                            "type": "text",
+                            "text": msg.content
+                        }));
+                    }
+                    
+                    // Add images
+                    for image in images {
+                        content_array.push(json!({
+                            "type": "image_url",
+                            "image_url": {
+                                "url": image
+                            }
+                        }));
+                    }
+                    
+                    json!(content_array)
+                } else {
+                    // No images, just text
+                    json!(msg.content)
+                }
+            } else {
+                // No images, just text
+                json!(msg.content)
+            };
+
+            ChatMessage {
+                role: match msg.role {
+                    MessageRole::User => "user".to_string(),
+                    MessageRole::Assistant => "assistant".to_string(),
+                },
+                content,
+            }
         })
         .collect();
 
@@ -206,7 +278,7 @@ pub async fn send_ai_message_streaming(
     let assistant_msg_id = uuid::Uuid::new_v4().to_string();
     
     // Emit streaming start event
-    window.emit("streaming_start", serde_json::json!({
+    window.emit("streaming_start", json!({
         "message_id": assistant_msg_id,
         "chat_id": chat_id
     })).map_err(|e| e.to_string())?;
@@ -217,7 +289,7 @@ pub async fn send_ai_message_streaming(
         .map_err(|e| e.to_string())?;
 
     // Create final assistant message in database
-    let assistant_msg = db.create_message(chat_id, ai_response, MessageRole::Assistant)
+    let assistant_msg = db.create_message(chat_id, ai_response, MessageRole::Assistant, None)
         .await
         .map_err(|e| e.to_string())?;
 

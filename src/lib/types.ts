@@ -12,6 +12,7 @@ export interface Message {
   content: string;
   role: 'user' | 'assistant';
   created_at: string;
+  images?: string[]; // Array of base64 encoded images
 }
 
 export interface ChatWithLastMessage {
@@ -51,6 +52,7 @@ export interface CreateMessageRequest {
   chat_id: string;
   content: string;
   role: 'user' | 'assistant';
+  images?: string[]; // Array of base64 encoded images
 }
 
 export interface UpdateChatRequest {

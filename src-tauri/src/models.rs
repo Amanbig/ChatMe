@@ -18,6 +18,8 @@ pub struct Message {
     pub content: String,
     pub role: MessageRole,
     pub created_at: DateTime<Utc>,
+    #[sqlx(skip)]
+    pub images: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
@@ -85,6 +87,7 @@ pub struct CreateMessageRequest {
     pub chat_id: String,
     pub content: String,
     pub role: MessageRole,
+    pub images: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -127,7 +130,7 @@ pub struct ChatCompletionRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChatMessage {
     pub role: String,
-    pub content: String,
+    pub content: serde_json::Value, // Can be string or array of content objects
 }
 
 #[derive(Debug, Serialize, Deserialize)]

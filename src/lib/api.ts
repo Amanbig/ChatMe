@@ -75,6 +75,6 @@ export async function sendAiMessage(chatId: string, userMessage: string): Promis
   return await invoke('send_ai_message', { chatId, userMessage });
 }
 
-export async function sendAiMessageStreaming(chatId: string, userMessage: string): Promise<string> {
-  return await invoke('send_ai_message_streaming', { chatId, userMessage });
+export async function sendAiMessageStreaming(chatId: string, userMessage: string, images?: string[]): Promise<string> {
+  return await invoke('send_ai_message_streaming', { chatId, userMessage, images });
 }
