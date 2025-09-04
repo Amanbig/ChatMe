@@ -23,6 +23,7 @@ A modern, cross-platform AI chat application built with Tauri, React, and TypeSc
 
 ---
 
+
 ## ✨ Features
 
 ### 🎯 **Multi-Provider AI Support**
