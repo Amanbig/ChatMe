@@ -29,6 +29,10 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 anyhow = "1.0"
 thiserror = "1.0"
 dirs = "5.0"
-reqwest = { version = "0.12", features = ["json", "stream"] }
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"], default-features = false }
 futures-util = "0.3"
+
+# Android-specific dependencies
+[target.'cfg(target_os = "android")'.dependencies]
+openssl = { version = "0.10", features = ["vendored"] }
 
