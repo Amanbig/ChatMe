@@ -8,7 +8,12 @@ import type {
   UpdateChatRequest,
   ApiConfig,
   CreateApiConfigRequest,
-  UpdateApiConfigRequest
+  UpdateApiConfigRequest,
+  DirectoryContents,
+  SearchResult,
+  AgentSession,
+  AgentAction,
+  AgentCapability
 } from './types';
 
 // Chat operations
@@ -77,4 +82,64 @@ export async function sendAiMessage(chatId: string, userMessage: string): Promis
 
 export async function sendAiMessageStreaming(chatId: string, userMessage: string, images?: string[]): Promise<string> {
   return await invoke('send_ai_message_streaming', { chatId, userMessage, images });
+}
+
+// File Operations
+export async function openFileWithDefaultApp(filePath: string): Promise<string> {
+  return await invoke('open_file_with_default_app', { filePath });
+}
+
+export async function readDirectory(directoryPath: string, recursive?: boolean): Promise<DirectoryContents> {
+  return await invoke('read_directory', { directoryPath, recursive });
+}
+
+export async function searchFiles(
+  directoryPath: string,
+  pattern: string,
+  fileExtension?: string,
+  caseSensitive?: boolean,
+  recursive?: boolean,
+  maxResults?: number
+): Promise<SearchResult[]> {
+  return await invoke('search_files', {
+    directoryPath,
+    pattern,
+    fileExtension,
+    caseSensitive,
+    recursive,
+    maxResults
+  });
+}
+
+export async function readFile(filePath: string): Promise<string> {
+  return await invoke('read_file', { filePath });
+}
+
+export async function writeFile(filePath: string, contents: string): Promise<string> {
+  return await invoke('write_file', { filePath, contents });
+}
+
+// Agentic Mode Operations
+export async function createAgentSession(sessionId: string): Promise<AgentSession> {
+  return await invoke('create_agent_session', { sessionId });
+}
+
+export async function getAgentCapabilities(): Promise<AgentCapability[]> {
+  return await invoke('get_agent_capabilities');
+}
+
+export async function executeAgentAction(
+  sessionId: string,
+  actionType: string,
+  parameters: Record<string, any>
+): Promise<AgentAction> {
+  return await invoke('execute_agent_action', { sessionId, actionType, parameters });
+}
+
+export async function getAgentSession(sessionId: string): Promise<AgentSession> {
+  return await invoke('get_agent_session', { sessionId });
+}
+
+export async function createOrGetAgentSession(sessionId: string): Promise<AgentSession> {
+  return await invoke('create_or_get_agent_session', { sessionId });
 }

@@ -1,7 +1,14 @@
 use crate::database::Database;
 use crate::models::*;
+use crate::file_operations::{
+    open_with_default_app, read_directory_contents, search_in_files, 
+    read_file_contents, write_file_contents, DirectoryContents, SearchResult
+};
+use crate::agentic::{AgentSession, AgentAction, AgentCapability};
 use tauri::{State, Emitter};
 use serde_json::json;
+use std::collections::HashMap;
+use std::sync::Mutex;
 
 #[tauri::command]
 pub async fn create_chat(db: State<'_, Database>, request: CreateChatRequest) -> Result<Chat, String> {
@@ -297,4 +304,114 @@ pub async fn send_ai_message_streaming(
     window.emit("final_message_created", &assistant_msg).map_err(|e| e.to_string())?;
 
     Ok(assistant_msg.id)
+}
+
+// File Operations Commands
+#[tauri::command]
+pub async fn open_file_with_default_app(file_path: String) -> Result<String, String> {
+    open_with_default_app(&file_path)
+        .map_err(|e| e.to_string())?;
+    Ok(format!("Opened {} with default application", file_path))
+}
+
+#[tauri::command]
+pub async fn read_directory(
+    directory_path: String,
+    recursive: Option<bool>,
+) -> Result<DirectoryContents, String> {
+    read_directory_contents(&directory_path, recursive.unwrap_or(false))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn search_files(
+    directory_path: String,
+    pattern: String,
+    file_extension: Option<String>,
+    case_sensitive: Option<bool>,
+    recursive: Option<bool>,
+    max_results: Option<usize>,
+) -> Result<Vec<SearchResult>, String> {
+    search_in_files(
+        &directory_path,
+        &pattern,
+        file_extension.as_deref(),
+        case_sensitive.unwrap_or(false),
+        recursive.unwrap_or(true),
+        max_results,
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn read_file(file_path: String) -> Result<String, String> {
+    read_file_contents(&file_path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn write_file(file_path: String, contents: String) -> Result<String, String> {
+    write_file_contents(&file_path, &contents)
+        .map_err(|e| e.to_string())?;
+    Ok(format!("Successfully wrote to {}", file_path))
+}
+
+// Agentic Mode Commands
+#[tauri::command]
+pub async fn create_agent_session(session_id: String) -> Result<AgentSession, String> {
+    Ok(AgentSession::new(session_id))
+}
+
+#[tauri::command]
+pub async fn get_agent_capabilities() -> Result<Vec<AgentCapability>, String> {
+    Ok(AgentSession::get_capabilities())
+}
+
+#[tauri::command]
+pub async fn execute_agent_action(
+    agent_sessions: State<'_, Mutex<HashMap<String, AgentSession>>>,
+    session_id: String,
+    action_type: String,
+    parameters: HashMap<String, serde_json::Value>,
+) -> Result<AgentAction, String> {
+    // Get the session from the map
+    let session = {
+        let sessions = agent_sessions.lock().map_err(|e| e.to_string())?;
+        sessions.get(&session_id)
+            .ok_or_else(|| "Agent session not found".to_string())?
+            .clone()
+    };
+    
+    // Execute the action
+    let result = session.execute_action(&action_type, parameters).await.map_err(|e| e.to_string())?;
+    
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn get_agent_session(
+    agent_sessions: State<'_, Mutex<HashMap<String, AgentSession>>>,
+    session_id: String,
+) -> Result<AgentSession, String> {
+    let sessions = agent_sessions.lock().map_err(|e| e.to_string())?;
+    
+    sessions.get(&session_id)
+        .ok_or_else(|| "Agent session not found".to_string())
+        .map(|session| session.clone())
+}
+
+#[tauri::command]
+pub async fn create_or_get_agent_session(
+    agent_sessions: State<'_, Mutex<HashMap<String, AgentSession>>>,
+    session_id: String,
+) -> Result<AgentSession, String> {
+    let mut sessions = agent_sessions.lock().map_err(|e| e.to_string())?;
+    
+    if let Some(session) = sessions.get(&session_id) {
+        Ok(session.clone())
+    } else {
+        let new_session = AgentSession::new(session_id.clone());
+        let session_clone = new_session.clone();
+        sessions.insert(session_id, new_session);
+        Ok(session_clone)
+    }
 }

@@ -1,10 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams } from "react-router";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import InputBox from "@/components/app/input-box";
 import MessageItem from "@/components/app/message-item";
 import StreamingMessageItem from "@/components/app/streaming-message-item";
-import { FaRobot } from "react-icons/fa";
+import AgentMode from "@/components/app/agent-mode";
+import { FaRobot, FaCog } from "react-icons/fa";
 import { toast } from "sonner";
 import { getMessages, sendAiMessageStreaming } from "@/lib/api";
 import type { Message, StreamingMessage } from "@/lib/types";
@@ -187,7 +190,36 @@ export default function HomePage() {
                 <div className="text-center">
                     <FaRobot size={48} className="text-muted-foreground mx-auto mb-4" />
                     <h2 className="text-xl font-semibold mb-2">Welcome to ChatMe</h2>
-                    <p className="text-muted-foreground">Select a chat from the sidebar or create a new one to get started.</p>
+                    <p className="text-muted-foreground mb-4">Select a chat from the sidebar or create a new one to get started.</p>
+                    
+                    {/* Agent Mode Panel */}
+                    <div className="max-w-md mx-auto">
+                        <Sheet>
+                            <SheetTrigger asChild>
+                                <Button variant="outline" className="gap-2">
+                                    <FaCog className="h-4 w-4" />
+                                    Configure Agent Mode
+                                </Button>
+                            </SheetTrigger>
+                            <SheetContent className="w-full sm:max-w-md">
+                                <SheetHeader>
+                                    <SheetTitle>Agent Mode Configuration</SheetTitle>
+                                    <SheetDescription>
+                                        Set up AI agent capabilities for file operations and system interactions.
+                                    </SheetDescription>
+                                </SheetHeader>
+                                <div className="mt-6">
+                                    <AgentMode 
+                                        chatId="preview" 
+                                        onSendMessage={(message) => {
+                                            console.log('Agent preview result:', message);
+                                            toast.success('Agent action completed');
+                                        }}
+                                    />
+                                </div>
+                            </SheetContent>
+                        </Sheet>
+                    </div>
                 </div>
             </div>
         );
@@ -207,7 +239,31 @@ export default function HomePage() {
                             <div className="flex items-center justify-center min-h-[60vh]">
                                 <div className="text-center">
                                     <FaRobot size={32} className="text-muted-foreground mx-auto mb-2" />
-                                    <p className="text-muted-foreground">No messages yet. Start the conversation!</p>
+                                    <p className="text-muted-foreground mb-4">No messages yet. Start the conversation!</p>
+                                    
+                                    {/* Agent Mode Access */}
+                                    <Sheet>
+                                        <SheetTrigger asChild>
+                                            <Button variant="outline" size="sm" className="gap-2">
+                                                <FaCog className="h-4 w-4" />
+                                                Agent Mode
+                                            </Button>
+                                        </SheetTrigger>
+                                        <SheetContent className="w-full sm:max-w-md">
+                                            <SheetHeader>
+                                                <SheetTitle>Agent Mode</SheetTitle>
+                                                <SheetDescription>
+                                                    AI agent capabilities for this chat.
+                                                </SheetDescription>
+                                            </SheetHeader>
+                                            <div className="mt-6">
+                                                <AgentMode 
+                                                    chatId={chatId} 
+                                                    onSendMessage={handleSendMessage}
+                                                />
+                                            </div>
+                                        </SheetContent>
+                                    </Sheet>
                                 </div>
                             </div>
                         ) : (
@@ -237,7 +293,32 @@ export default function HomePage() {
 
             {/* Input Box - Fixed at bottom with proper spacing */}
             <div className="flex-shrink-0">
-                <InputBox onSendMessage={handleSendMessage} disabled={isGenerating} />
+                <div className="flex items-center gap-2 px-4 py-2 border-t border-border/50">
+                    <div className="flex-1">
+                        <InputBox onSendMessage={handleSendMessage} disabled={isGenerating} />
+                    </div>
+                    <Sheet>
+                        <SheetTrigger asChild>
+                            <Button variant="ghost" size="sm" className="gap-2 shrink-0">
+                                <FaCog className="h-4 w-4" />
+                            </Button>
+                        </SheetTrigger>
+                        <SheetContent className="w-full sm:max-w-md">
+                            <SheetHeader>
+                                <SheetTitle>Agent Mode</SheetTitle>
+                                <SheetDescription>
+                                    AI agent capabilities for this chat.
+                                </SheetDescription>
+                            </SheetHeader>
+                            <div className="mt-6">
+                                <AgentMode 
+                                    chatId={chatId} 
+                                    onSendMessage={handleSendMessage}
+                                />
+                            </div>
+                        </SheetContent>
+                    </Sheet>
+                </div>
             </div>
         </div>
     );

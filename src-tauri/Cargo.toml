@@ -31,4 +31,9 @@ thiserror = "1.0"
 dirs = "5.0"
 reqwest = { version = "0.12", features = ["json", "stream"] }
 futures-util = "0.3"
+regex = "1.10"
+walkdir = "2.4"
+opener = "0.7"
+tokio-fs = "0.1"
+mime_guess = "2.0"
 

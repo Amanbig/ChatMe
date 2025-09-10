@@ -87,3 +87,61 @@ export interface StreamingMessage {
   isStreaming: boolean;
   isComplete: boolean;
 }
+
+// File Operations Types
+export interface FileInfo {
+  name: string;
+  path: string;
+  is_directory: boolean;
+  size?: number;
+  modified?: string;
+  file_type?: string;
+}
+
+export interface DirectoryContents {
+  files: FileInfo[];
+  directories: FileInfo[];
+  total_files: number;
+  total_directories: number;
+}
+
+export interface SearchResult {
+  file_path: string;
+  line_number: number;
+  line_content: string;
+  match_start: number;
+  match_end: number;
+}
+
+// Agentic Mode Types
+export interface AgentAction {
+  action_type: string;
+  description: string;
+  parameters: Record<string, any>;
+  result?: any;
+  success: boolean;
+  error_message?: string;
+}
+
+export interface AgentSession {
+  id: string;
+  active: boolean;
+  actions: AgentAction[];
+  context: Record<string, any>;
+  current_directory: string;
+  capabilities: string[];
+}
+
+export interface AgentCapability {
+  name: string;
+  description: string;
+  parameters: AgentParameter[];
+}
+
+export interface AgentParameter {
+  name: string;
+  parameter_type: string;
+  description: string;
+  required: boolean;
+  default_value?: any;
+}

@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import SpeechSettings from "@/components/app/speech-settings";
+import AgentMode from "@/components/app/agent-mode";
 import { 
     FaRobot, 
     FaGoogle, 
@@ -388,6 +389,16 @@ export default function SettingsPage() {
                             onSpeechEnabledChange={handleSpeechEnabledChange}
                             autoSpeak={autoSpeak}
                             onAutoSpeakChange={handleAutoSpeakChange}
+                        />
+
+                        {/* Agent Mode */}
+                        <AgentMode
+                            chatId="settings"
+                            onSendMessage={(message) => {
+                                // In settings, we could show the result in a toast or modal
+                                console.log('Agent action result:', message);
+                                toast.success('Agent action completed - check console for details');
+                            }}
                         />
 
                         <Separator />
