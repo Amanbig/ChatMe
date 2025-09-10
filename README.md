@@ -1,6 +1,7 @@
 # ChatMe 🤖
 
-A modern, cross-platform A### 🎨 **Modern Interface**
+A modern, cross-platform AI chat application built with Tauri, React, and TypeScript. ChatMe supports multiple AI providers with a beautiful, responsive interface and advanced features.
+
 - **Custom Title Bar**: Integrated window controls with drag functionality (desktop)
 - **Responsive Design**: Mobile-friendly UI that adapts to different screen sizes
 - **Dark/Light Theme**: System-aware theme switching
