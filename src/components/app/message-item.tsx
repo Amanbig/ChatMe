@@ -180,15 +180,17 @@ export default function MessageItem({ message, formatTime, copyToClipboard, auto
                                     },
                                     a: ({ href, children, ...props }: any) => {
                                         if (href?.startsWith('file://')) {
-                                            const filePath = href.replace('file://', '');
+                                            const filePath = href.replace('file://', '').replace(/\//g, '\\');
                                             return (
                                                 <button
-                                                    className="text-blue-600 hover:text-blue-800 underline cursor-pointer inline-flex items-center gap-1"
+                                                    className="text-blue-600 hover:text-blue-800 underline cursor-pointer inline-flex items-center gap-1 font-medium"
                                                     onClick={async () => {
                                                         try {
+                                                            console.log('Opening file:', filePath);
                                                             await openFileWithDefaultApp(filePath);
                                                             toast.success(`Opened ${filePath.split(/[/\\]/).pop()}`);
                                                         } catch (error) {
+                                                            console.error('Failed to open file:', error);
                                                             toast.error(`Failed to open file: ${error}`);
                                                         }
                                                     }}
@@ -199,7 +201,7 @@ export default function MessageItem({ message, formatTime, copyToClipboard, auto
                                             );
                                         }
                                         return (
-                                            <a href={href} className="text-blue-600 hover:text-blue-800 underline" {...props}>
+                                            <a href={href} className="text-blue-600 hover:text-blue-800 underline" target="_blank" rel="noopener noreferrer" {...props}>
                                                 {children}
                                             </a>
                                         );
