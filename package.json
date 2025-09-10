@@ -1,7 +1,7 @@
 {
   "name": "chatme",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -13,9 +13,10 @@
     "android:init": "cargo tauri android init",
     "android:dev": "cargo tauri android dev",
     "android:build": "cargo tauri android build",
-    "release:patch": "npm version patch",
-    "release:minor": "npm version minor",
-    "release:major": "npm version major",
+    "update-version": "node update-version.js",
+    "version:patch": "node -e \"const pkg=require('./package.json'); const [major,minor,patch]=pkg.version.split('.').map(Number); const newVer=`${major}.${minor}.${patch+1}`; require('child_process').execSync(`node update-version.js ${newVer}`, {stdio:'inherit'});\"",
+    "version:minor": "node -e \"const pkg=require('./package.json'); const [major,minor,patch]=pkg.version.split('.').map(Number); const newVer=`${major}.${minor+1}.0`; require('child_process').execSync(`node update-version.js ${newVer}`, {stdio:'inherit'});\"",
+    "version:major": "node -e \"const pkg=require('./package.json'); const [major,minor,patch]=pkg.version.split('.').map(Number); const newVer=`${major+1}.0.0`; require('child_process').execSync(`node update-version.js ${newVer}`, {stdio:'inherit'});\"",
     "test:mobile": "echo 'Testing mobile responsiveness - use browser dev tools to simulate mobile devices'"
   },
   "dependencies": {

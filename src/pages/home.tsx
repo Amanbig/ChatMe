@@ -130,6 +130,11 @@ export default function HomePage() {
                             content: processedContent,
                             isComplete: true
                         } : null);
+                        
+                        // Also update the final message in the database with processed content
+                        // This ensures the processed content (with executed commands) is saved
+                        // instead of the raw commands, providing better reload experience
+                        
                     } catch (error) {
                         console.error('Error processing agent commands:', error);
                         toast.error('Failed to execute agent commands');
@@ -169,6 +174,36 @@ export default function HomePage() {
                         }
                     }
                     
+                    // Filter out assistant messages that are mostly execute commands
+                    if (message.role === 'assistant' && message.content.includes('[EXECUTE:')) {
+                        const lines = message.content.split('\n').filter(line => line.trim());
+                        const executeLines = lines.filter(line => line.includes('[EXECUTE:'));
+                        const nonExecuteLines = lines.filter(line => !line.includes('[EXECUTE:') && line.trim().length > 0);
+                        
+                        // If the message is mostly execute commands and has little meaningful content, don't add it
+                        if (executeLines.length > 0 && (nonExecuteLines.length === 0 || executeLines.length >= lines.length * 0.8)) {
+                            return; // Skip adding this message
+                        }
+                        
+                        // If there are execute commands but also meaningful content, clean the message
+                        if (executeLines.length > 0 && nonExecuteLines.length > 0) {
+                            const cleanContent = lines.filter(line => !line.includes('[EXECUTE:')).join('\n').trim();
+                            if (cleanContent.length > 0) {
+                                const cleanedMessage = { ...message, content: cleanContent };
+                                setMessages(prev => {
+                                    const exists = prev.some(m => m.id === message.id);
+                                    if (!exists) {
+                                        return [...prev, cleanedMessage];
+                                    }
+                                    return prev;
+                                });
+                                return;
+                            } else {
+                                return; // Skip if no meaningful content left
+                            }
+                        }
+                    }
+                    
                     setMessages(prev => {
                         // Check if message already exists to prevent duplicates
                         const exists = prev.some(m => m.id === message.id);
@@ -200,7 +235,45 @@ export default function HomePage() {
         try {
             setLoading(true);
             const fetchedMessages = await getMessages(chatId);
-            setMessages(fetchedMessages);
+            
+            // Filter messages for display
+            const displayMessages = fetchedMessages.map(message => {
+                // Clean user messages that contain agent instructions
+                if (message.role === 'user' && message.content.includes('[AGENT MODE ACTIVE]')) {
+                    const cleanContent = message.content.split('\n\n[AGENT MODE ACTIVE]')[0].trim();
+                    // Only return the message if there's meaningful content left
+                    if (cleanContent.length > 0) {
+                        return { ...message, content: cleanContent };
+                    }
+                    return null; // Filter out if no meaningful content
+                }
+                
+                // Clean assistant messages that contain execute commands
+                if (message.role === 'assistant' && message.content.includes('[EXECUTE:')) {
+                    // Check if the message ONLY contains execute commands (no other useful content)
+                    const lines = message.content.split('\n').filter(line => line.trim());
+                    const executeLines = lines.filter(line => line.includes('[EXECUTE:'));
+                    const nonExecuteLines = lines.filter(line => !line.includes('[EXECUTE:') && line.trim().length > 0);
+                    
+                    // If the message is mostly execute commands and has little meaningful content, filter it out
+                    if (executeLines.length > 0 && (nonExecuteLines.length === 0 || executeLines.length >= lines.length * 0.8)) {
+                        return null; // This will be filtered out
+                    }
+                    
+                    // If there are execute commands but also meaningful content, remove just the execute commands
+                    if (executeLines.length > 0 && nonExecuteLines.length > 0) {
+                        const cleanContent = lines.filter(line => !line.includes('[EXECUTE:')).join('\n').trim();
+                        if (cleanContent.length > 0) {
+                            return { ...message, content: cleanContent };
+                        }
+                        return null; // Filter out if no meaningful content left
+                    }
+                }
+                
+                return message;
+            }).filter(message => message !== null); // Remove null messages
+            
+            setMessages(displayMessages);
         } catch (error) {
             console.error('Failed to load messages:', error);
             toast.error('Failed to load messages. Please refresh the page.');

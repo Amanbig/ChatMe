@@ -229,6 +229,31 @@ cargo tauri build          # Build desktop app
 cargo tauri build --debug  # Build with debug info
 ```
 
+### Version Management
+
+ChatMe uses semantic versioning (SemVer) across all components. Version updates are automated:
+
+```bash
+# Update version manually
+npm run update-version 0.4.0
+
+# Or use semantic version bumps
+npm run version:patch    # 0.3.0 → 0.3.1
+npm run version:minor    # 0.3.0 → 0.4.0  
+npm run version:major    # 0.3.0 → 1.0.0
+```
+
+**Version files updated automatically:**
+- `package.json` and `package-lock.json`
+- `src-tauri/Cargo.toml` and `Cargo.lock`
+- `src-tauri/tauri.conf.json`
+
+**Release Process:**
+1. Update version using scripts above
+2. Commit changes: `git commit -m "bump version to x.x.x"`
+3. Push to main: `git push`
+4. GitHub Actions will automatically build and create release
+
 ### Platform Support
 - **Windows**: Native .exe and .msi installers
 - **macOS**: .app bundle and .dmg installer (Intel and Apple Silicon)
