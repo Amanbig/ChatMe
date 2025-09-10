@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   FaPlus,
@@ -29,6 +30,7 @@ import { useNavigate, useLocation } from "react-router";
 import { getChats, createChat, deleteChat as deleteChatApi } from "@/lib/api";
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAgent } from "@/contexts/AgentContext";
 import ThemeToggle from "./theme-toggle";
 import type { ChatWithLastMessage } from "@/lib/types";
 
@@ -44,6 +46,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const isMobile = useIsMobile();
+  const { isAgentActive, setAgentActive } = useAgent();
 
   const [chats, setChats] = useState<ChatWithLastMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -258,6 +261,20 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 'ChatMe'
               }
             </h2>
+          </div>
+
+          {/* Agent Mode Toggle */}
+          <div className="flex items-center gap-2 no-drag">
+            <span className="text-xs font-medium">Agent</span>
+            {isAgentActive && <Badge variant="default" className="text-xs px-1.5 py-0.5">ON</Badge>}
+            <Switch
+              checked={isAgentActive}
+              onCheckedChange={(checked) => {
+                setAgentActive(checked);
+                toast.info(checked ? "Agent mode enabled" : "Agent mode disabled");
+              }}
+              className="scale-75"
+            />
           </div>
           
           {/* Hide window controls on mobile */}

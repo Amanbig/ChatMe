@@ -1,25 +1,19 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams } from "react-router";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import InputBox from "@/components/app/input-box";
 import MessageItem from "@/components/app/message-item";
 import StreamingMessageItem from "@/components/app/streaming-message-item";
-import AgentMode from "../components/app/agent-mode";
-import { FaRobot, FaCog } from "react-icons/fa";
 import { toast } from "sonner";
 import { getMessages, sendAiMessageStreaming, createMessage } from "@/lib/api";
-import { handleAgentQuery, isAgentQuery } from "@/lib/agent-utils";
+import { handleAgentQuery, getAvailableAgentTools, parseAndExecuteCommands } from "@/lib/agent-utils";
 import { useAgent } from "@/contexts/AgentContext";
 import type { Message, StreamingMessage } from "@/lib/types";
 import { listen } from '@tauri-apps/api/event';
 
 export default function HomePage() {
     const { chatId } = useParams<{ chatId: string }>();
-    const { isAgentActive, workingDirectory, setAgentActive } = useAgent();
+    const { isAgentActive, workingDirectory } = useAgent();
     const [messages, setMessages] = useState<Message[]>([]);
     const [streamingMessage, setStreamingMessage] = useState<StreamingMessage | null>(null);
     const [loading, setLoading] = useState(true);
@@ -67,6 +61,23 @@ export default function HomePage() {
             unlistenMessageCreated = await listen('message_created', (event: any) => {
                 const message = event.payload as Message;
                 if (message.chat_id === chatId) {
+                    // Filter out enhanced agent messages (they contain agent instructions)
+                    if (message.role === 'user' && message.content.includes('[AGENT MODE ACTIVE]')) {
+                        // This is an enhanced message with agent instructions, skip it
+                        // and create a clean user message instead
+                        const cleanContent = message.content.split('\n\n[AGENT MODE ACTIVE]')[0];
+                        const cleanMessage = { ...message, content: cleanContent };
+                        
+                        setMessages(prev => {
+                            const exists = prev.some(m => m.id === message.id);
+                            if (!exists) {
+                                return [...prev, cleanMessage];
+                            }
+                            return prev;
+                        });
+                        return;
+                    }
+                    
                     setMessages(prev => {
                         // Check if message already exists to prevent duplicates
                         const exists = prev.some(m => m.id === message.id);
@@ -107,16 +118,57 @@ export default function HomePage() {
             });
 
             // Listen for streaming complete
-            unlistenStreamingComplete = await listen('streaming_complete', () => {
-                // Just clear the streaming message and stop generating state
+            unlistenStreamingComplete = await listen('streaming_complete', async () => {
+                // If agent mode is active and there's a streaming message, process agent commands
+                if (isAgentActive && streamingMessage) {
+                    try {
+                        const processedContent = await parseAndExecuteCommands(streamingMessage.content);
+                        
+                        // Update the streaming message with processed content
+                        setStreamingMessage(prev => prev ? {
+                            ...prev,
+                            content: processedContent,
+                            isComplete: true
+                        } : null);
+                    } catch (error) {
+                        console.error('Error processing agent commands:', error);
+                        toast.error('Failed to execute agent commands');
+                    }
+                }
+                
+                // Clear the streaming message and stop generating state
                 setStreamingMessage(null);
                 setIsGenerating(false);
             });
 
             // Listen for final message created
-            unlistenFinalMessageCreated = await listen('final_message_created', (event: any) => {
+            unlistenFinalMessageCreated = await listen('final_message_created', async (event: any) => {
                 const message = event.payload as Message;
                 if (message.chat_id === chatId) {
+                    // If agent mode is active and this is an assistant message, process agent commands
+                    if (isAgentActive && message.role === 'assistant') {
+                        try {
+                            const processedContent = await parseAndExecuteCommands(message.content);
+                            
+                            // Update the message content if commands were processed
+                            if (processedContent !== message.content) {
+                                const updatedMessage = { ...message, content: processedContent };
+                                setMessages(prev => {
+                                    const exists = prev.some(m => m.id === message.id);
+                                    if (!exists) {
+                                        return [...prev, updatedMessage];
+                                    } else {
+                                        return prev.map(m => m.id === message.id ? updatedMessage : m);
+                                    }
+                                });
+                                return;
+                            }
+                        } catch (error) {
+                            console.error('Error processing agent commands:', error);
+                            toast.error('Failed to execute agent commands');
+                        }
+                    }
+                    
                     setMessages(prev => {
                         // Check if message already exists to prevent duplicates
                         const exists = prev.some(m => m.id === message.id);
@@ -163,11 +215,11 @@ export default function HomePage() {
         try {
             setIsGenerating(true);
             
-            // Check if agent mode is active and if this is an agent query
-            if (isAgentActive && isAgentQuery(content.trim())) {
-                console.log('Handling agent query:', content.trim());
-                
-                // Create user message first
+            // Try basic agent queries first (fallback for very simple operations)
+            const agentResponse = await handleAgentQuery(content.trim(), workingDirectory);
+            
+            if (agentResponse) {
+                // Create user message first with original content
                 const userMessage = await createMessage({
                     chat_id: chatId,
                     content: content.trim(),
@@ -178,28 +230,37 @@ export default function HomePage() {
                 // Add user message to state
                 setMessages(prev => [...prev, userMessage]);
                 
-                // Handle the query with agent
-                const agentResponse = await handleAgentQuery(content.trim(), workingDirectory);
+                // Create assistant message with agent response
+                const assistantMessage = await createMessage({
+                    chat_id: chatId,
+                    content: agentResponse,
+                    role: 'assistant'
+                });
                 
-                if (agentResponse) {
-                    // Create assistant message with agent response
-                    const assistantMessage = await createMessage({
-                        chat_id: chatId,
-                        content: agentResponse,
-                        role: 'assistant'
-                    });
-                    
-                    // Add assistant message to state
-                    setMessages(prev => [...prev, assistantMessage]);
-                    setIsGenerating(false);
-                } else {
-                    // Fallback to AI if agent can't handle it
-                    await sendAiMessageStreaming(chatId, content.trim(), images);
-                }
-            } else {
-                // Send message with streaming (normal AI flow)
-                await sendAiMessageStreaming(chatId, content.trim(), images);
+                // Add assistant message to state
+                setMessages(prev => [...prev, assistantMessage]);
+                setIsGenerating(false);
+                return;
             }
+            
+            // Prepare message for LLM - enhance only if agent mode is active
+            let messageForLLM = content.trim();
+            if (isAgentActive) {
+                const toolsInfo = await getAvailableAgentTools();
+                messageForLLM = `${content.trim()}\n\n[AGENT MODE ACTIVE]
+You are an AI assistant with access to Tauri commands. Execute appropriate commands based on user requests.
+
+${toolsInfo}
+
+Working Directory: ${workingDirectory || 'Use get_current_directory() to find current location'}
+
+Respond with commands and helpful information.`;
+            }
+            
+            // sendAiMessageStreaming creates the user message, so we don't create it separately
+            // This prevents duplication and ensures only the original user message is saved
+            await sendAiMessageStreaming(chatId, messageForLLM, images);
+            
         } catch (error) {
             console.error('Failed to send message:', error);
             setIsGenerating(false);
@@ -229,32 +290,8 @@ export default function HomePage() {
         return (
             <div className="flex flex-col h-full bg-background items-center justify-center">
                 <div className="text-center">
-                    <FaRobot size={48} className="text-muted-foreground mx-auto mb-4" />
                     <h2 className="text-xl font-semibold mb-2">Welcome to ChatMe</h2>
                     <p className="text-muted-foreground mb-4">Select a chat from the sidebar or create a new one to get started.</p>
-                    
-                    {/* Agent Mode Panel */}
-                    <div className="max-w-md mx-auto">
-                        <Sheet>
-                            <SheetTrigger asChild>
-                                <Button variant="outline" className="gap-2">
-                                    <FaCog className="h-4 w-4" />
-                                    Configure Agent Mode
-                                </Button>
-                            </SheetTrigger>
-                            <SheetContent className="w-full sm:max-w-md">
-                                <SheetHeader>
-                                    <SheetTitle>Agent Mode Configuration</SheetTitle>
-                                    <SheetDescription>
-                                        Set up AI agent capabilities for file operations and system interactions.
-                                    </SheetDescription>
-                                </SheetHeader>
-                                <div className="mt-6">
-                                    <AgentMode />
-                                </div>
-                            </SheetContent>
-                        </Sheet>
-                    </div>
                 </div>
             </div>
         );
@@ -273,32 +310,7 @@ export default function HomePage() {
                         ) : messages.length === 0 && !streamingMessage ? (
                             <div className="flex items-center justify-center min-h-[60vh]">
                                 <div className="text-center">
-                                    <FaRobot size={32} className="text-muted-foreground mx-auto mb-2" />
                                     <p className="text-muted-foreground mb-4">No messages yet. Start the conversation!</p>
-                                    
-                                    {/* Agent Mode Access */}
-                                    <Sheet>
-                                        <SheetTrigger asChild>
-                                            <Button variant="outline" size="sm" className="gap-2">
-                                                <FaCog className="h-4 w-4" />
-                                                Agent Mode
-                                            </Button>
-                                        </SheetTrigger>
-                                        <SheetContent className="w-full sm:max-w-md">
-                                            <SheetHeader>
-                                                <SheetTitle>Agent Mode</SheetTitle>
-                                                <SheetDescription>
-                                                    AI agent capabilities for this chat.
-                                                </SheetDescription>
-                                            </SheetHeader>
-                                            <div className="mt-6">
-                                                {/* <AgentMode 
-                                                    chatId={chatId} 
-                                                    onSendMessage={handleSendMessage}
-                                                /> */}
-                                            </div>
-                                        </SheetContent>
-                                    </Sheet>
                                 </div>
                             </div>
                         ) : (
@@ -326,54 +338,12 @@ export default function HomePage() {
                 </ScrollArea>
             </div>
 
-            {/* Input Box - Fixed at bottom with proper spacing */}
+            {/* Input Box - Fixed at bottom */}
             <div className="flex-shrink-0">
-                {/* Agent Mode Toggle Bar */}
-                <div className="flex items-center justify-between px-4 py-2 border-t border-border/50 bg-muted/20">
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2">
-                            <FaRobot className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm font-medium">Agent Mode</span>
-                            {isAgentActive && <Badge variant="default" className="text-xs">Active</Badge>}
-                        </div>
-                        <Switch
-                            checked={isAgentActive}
-                            onCheckedChange={(checked) => {
-                                setAgentActive(checked);
-                                toast.info(checked ? "Agent mode enabled" : "Agent mode disabled");
-                            }}
-                            className="scale-75"
-                        />
-                    </div>
-                    {isAgentActive && (
-                        <div className="text-xs text-muted-foreground">
-                            Working dir: {workingDirectory || "Not set"}
-                        </div>
-                    )}
-                </div>
-                
                 <div className="flex items-center gap-2 px-4 py-2 border-t border-border/50">
                     <div className="flex-1">
                         <InputBox onSendMessage={handleSendMessage} disabled={isGenerating} />
                     </div>
-                    <Sheet>
-                        <SheetTrigger asChild>
-                            <Button variant="ghost" size="sm" className="gap-2 shrink-0">
-                                <FaCog className="h-4 w-4" />
-                            </Button>
-                        </SheetTrigger>
-                        <SheetContent className="w-full sm:max-w-md">
-                            <SheetHeader>
-                                <SheetTitle>Agent Mode</SheetTitle>
-                                <SheetDescription>
-                                    AI agent capabilities for this chat.
-                                </SheetDescription>
-                            </SheetHeader>
-                            <div className="mt-6">
-                                <AgentMode />
-                            </div>
-                        </SheetContent>
-                    </Sheet>
                 </div>
             </div>
         </div>

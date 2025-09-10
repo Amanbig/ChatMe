@@ -8,8 +8,7 @@ import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
 import type { Message } from "@/lib/types";
 import { useTextToSpeech } from "../../hooks/use-text-to-speech";
-import { openFileWithDefaultApp } from "@/lib/api";
-import { toast } from "sonner";
+import CustomMarkdownRenderer from "./custom-markdown-renderer";
 
 interface MessageItemProps {
     message: Message;
@@ -162,54 +161,7 @@ export default function MessageItem({ message, formatTime, copyToClipboard, auto
 
                     {message.role === "assistant" ? (
                         <div className="text-sm markdown-content">
-                            <ReactMarkdown
-                                remarkPlugins={[remarkGfm]}
-                                rehypePlugins={[rehypeHighlight, rehypeRaw]}
-                                components={{
-                                    code: ({ className, children, ...props }: any) => {
-                                        const isInline = !className?.includes('language-');
-                                        return isInline ? (
-                                            <code className="bg-muted-foreground/20 px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
-                                                {children}
-                                            </code>
-                                        ) : (
-                                            <code className={className} {...props}>
-                                                {children}
-                                            </code>
-                                        );
-                                    },
-                                    a: ({ href, children, ...props }: any) => {
-                                        if (href?.startsWith('file://')) {
-                                            const filePath = href.replace('file://', '').replace(/\//g, '\\');
-                                            return (
-                                                <button
-                                                    className="text-blue-600 hover:text-blue-800 underline cursor-pointer inline-flex items-center gap-1 font-medium"
-                                                    onClick={async () => {
-                                                        try {
-                                                            console.log('Opening file:', filePath);
-                                                            await openFileWithDefaultApp(filePath);
-                                                            toast.success(`Opened ${filePath.split(/[/\\]/).pop()}`);
-                                                        } catch (error) {
-                                                            console.error('Failed to open file:', error);
-                                                            toast.error(`Failed to open file: ${error}`);
-                                                        }
-                                                    }}
-                                                    {...props}
-                                                >
-                                                    {children}
-                                                </button>
-                                            );
-                                        }
-                                        return (
-                                            <a href={href} className="text-blue-600 hover:text-blue-800 underline" target="_blank" rel="noopener noreferrer" {...props}>
-                                                {children}
-                                            </a>
-                                        );
-                                    }
-                                }}
-                            >
-                                {aiContent?.final || message.content}
-                            </ReactMarkdown>
+                            <CustomMarkdownRenderer content={aiContent?.final || message.content} />
                         </div>
                     ) : (
                         <div>
