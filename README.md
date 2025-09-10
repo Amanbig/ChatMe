@@ -1,19 +1,21 @@
 # ChatMe 🤖
 
-A modern, cross-platform AI chat application built with Tauri, React, and TypeScript. ChatMe supports multiple AI providers with a beautiful, responsive interface and advanced features.
+A modern, cross-platform AI chat application built with Tauri, React, and TypeScript. ChatMe supports multiple AI providers with a beautiful, responsive interface and advanced features including voice interaction and intelligent file operations.
 
-- **Custom Title Bar**: Integrated window controls with drag functionality (desktop)
-- **Responsive Design**: Mobile-friendly UI that adapts to different screen sizes
-- **Dark/Light Theme**: System-aware theme switching
-- **Sidebar Navigation**: Easy chat management and organization
-- **Smooth Animations**: Polished user experience with transitions
+### 🚀 **Key Highlights**
+- **🎤 Voice Interaction**: Speech-to-text input and text-to-speech output with customizable voices
+- **🤖 Agentic Mode**: AI-powered file system operations with intelligent command execution
+- **🎯 Multi-Provider Support**: OpenAI, Google Gemini, Claude, Ollama, and custom APIs
+- **📱 Mobile-Optimized**: Responsive design that works beautifully on all devices
+- **🎨 Modern UI**: Custom title bar, dark/light themes, and smooth animations
+- **⚡ Real-time Features**: Live streaming responses and interactive file browsing
 
-### 📱 **Responsive Features**
+### 📱 **Cross-Platform Features**
 - **Touch-Friendly Controls**: Large tap targets for accessibility
 - **Adaptive Layout**: Auto-resizing sidebar and components for different screen sizes
 - **Image Upload**: File selection with drag-and-drop and preview functionality
 - **Mobile-Optimized**: UI components that work well on tablets and small screens
-- **Gesture Support**: Smooth scrolling and intuitive interactionsion built with Tauri, React, and TypeScript. ChatMe supports multiple AI providers with a beautiful, responsive interface and advanced features.
+- **Gesture Support**: Smooth scrolling and intuitive interactions
 
 ## 🌟 Platform Support
 
@@ -52,15 +54,31 @@ A modern, cross-platform AI chat application built with Tauri, React, and TypeSc
 - **Ollama**: Local models (Llama 2, CodeLlama, Mistral, etc.)
 - **Custom APIs**: Support for Mistral AI, Groq, Together AI, Perplexity, and any OpenAI-compatible API
 
+### 🤖 **Agentic Mode**
+- **File System Operations**: Intelligent file browsing, opening, and searching
+- **Working Directory Management**: Set and manage the agent's working directory
+- **Smart Command Execution**: AI automatically determines and executes appropriate file operations
+- **Interactive File Display**: Beautiful card-based UI for file and folder listings
+- **One-Click File Access**: Direct file opening with system default applications
+- **Real-time Directory Navigation**: Seamless folder exploration and navigation
+
+### 🎤 **Speech Features**
+- **Speech-to-Text**: Click the microphone button to dictate messages using voice input
+- **Text-to-Speech**: AI responses can be read aloud with natural-sounding voices
+- **Auto-Speak Mode**: Automatically read AI responses when they arrive
+- **Voice Customization**: Choose from multiple system voices with adjustable rate, pitch, and volume
+- **Real-time Transcription**: See your speech being converted to text in real-time
+- **Browser Integration**: Uses Web Speech API for cross-platform compatibility
+
 ### 🎨 **Modern Interface**
 - **Custom Title Bar**: Integrated window controls with drag functionality (desktop)
 - **Mobile-First Design**: Touch-optimized interface for mobile devices
 - **Responsive Layout**: Auto-adapting sidebar and layout for all screen sizes
 - **Dark/Light Theme**: System-aware theme switching
-- **Sidebar Navigation**: Easy chat management and organization
+- **Agent Toggle**: Quick agent mode toggle with visual indicator in the title bar
 - **Smooth Animations**: Polished user experience with transitions
 
-### � **Mobile Features**
+### 📱 **Mobile Features**
 - **Touch-Optimized Controls**: Minimum 44px touch targets for accessibility
 - **Mobile Sidebar**: Auto-collapsing navigation to save screen space
 - **Image Upload**: Camera and gallery integration for image uploads
@@ -68,13 +86,14 @@ A modern, cross-platform AI chat application built with Tauri, React, and TypeSc
 - **Mobile Keyboard**: Optimized input handling for mobile keyboards
 - **Responsive Images**: Properly scaled image previews and displays
 
-### �💬 **Advanced Chat Features**
+### 💬 **Advanced Chat Features**
 - **Real-time Streaming**: Live message streaming for supported providers
 - **Image Analysis**: Upload and analyze images with AI vision models
 - **AI Thinking Display**: Collapsible sections showing AI reasoning process
 - **Message Management**: Copy, export, and share conversations
 - **Chat History**: Persistent chat storage with SQLite
 - **Markdown Support**: Rich text rendering with syntax highlighting
+- **Custom Components**: Enhanced rendering for file listings and special content
 - **Scroll Management**: Intelligent auto-scrolling and manual scroll control
 
 ### ⚙️ **Configuration & Settings**
@@ -82,7 +101,53 @@ A modern, cross-platform AI chat application built with Tauri, React, and TypeSc
 - **API Testing**: Built-in connection testing with CORS-aware error handling
 - **Model Selection**: Support for different models per provider
 - **Parameter Tuning**: Temperature, max tokens, and other settings
+- **Speech Settings**: Configure voice input/output preferences and voice selection
+- **Agent Configuration**: Set working directories and enable/disable agent mode
 - **Default Configurations**: Set preferred providers for new chats
+
+## 🎙️ Speech Features Guide
+
+### **Voice Input (Speech-to-Text)**
+1. **Click the microphone button** in the input box
+2. **Grant permission** when prompted by your browser
+3. **Start speaking** - see real-time transcription
+4. **Click again to stop** recording
+5. **Edit if needed** and send your message
+
+### **AI Voice Output (Text-to-Speech)**
+1. **Click the speaker icon** next to any AI message
+2. **Listen to the response** being read aloud
+3. **Stop playback** by clicking the stop button
+4. **Enable auto-speak** in settings for automatic reading
+
+### **Speech Settings Configuration**
+- **Speech Recognition**: Toggle voice input on/off
+- **Auto-Speak Responses**: Automatically read AI responses
+- **Voice Selection**: Choose from available system voices
+- **Speech Rate**: Adjust reading speed (0.5x to 2x)
+- **Speech Pitch**: Control voice pitch (0 to 2)
+- **Volume Control**: Set playback volume (0% to 100%)
+
+## 🤖 Agent Mode Guide
+
+### **Enabling Agent Mode**
+1. **Toggle the agent switch** in the title bar
+2. **Set working directory** (optional) for file operations
+3. **Ask natural questions** about files and folders
+4. **Let the AI automatically** execute appropriate commands
+
+### **Agent Capabilities**
+- **File Browsing**: "Show me the files in this folder"
+- **File Opening**: "Open the README file"
+- **Directory Navigation**: "Go to the src folder"
+- **File Search**: "Find all TypeScript files"
+- **Smart Operations**: AI determines the best action for your request
+
+### **Interactive File Display**
+- **Card-based Layout**: Beautiful grid display of files and folders
+- **One-click Actions**: Direct file opening with system applications
+- **Visual Icons**: Distinct icons for files and folders
+- **Responsive Grid**: Adapts to screen size (1-3 columns)
 
 ## 🚀 Getting Started
 
@@ -171,26 +236,31 @@ While native mobile apps are in development, you can test the responsive UI:
 
 ### Frontend
 - **Tauri**: Cross-platform desktop framework
-- **React 18**: Modern React with hooks
+- **React 18**: Modern React with hooks and context
 - **TypeScript**: Type-safe development
 - **Vite**: Lightning-fast build tool
 - **shadcn/ui**: Modern component library
 - **Tailwind CSS**: Utility-first styling
 - **React Router**: Client-side routing
 - **Sonner**: Toast notifications
+- **React Markdown**: Rich text rendering with custom components
 
 ### Backend
 - **Rust**: High-performance backend
-- **SQLite**: Local database storage
+- **SQLite**: Local database storage with migrations
 - **Reqwest**: HTTP client for API calls
+- **Tauri Commands**: File system operations and agent capabilities
 - **Serde**: JSON serialization
 - **Tokio**: Async runtime
 
 ### Features
-- **Real-time Events**: Tauri event system
-- **Streaming Support**: Server-sent events simulation
-- **Error Handling**: Comprehensive error management
-- **Theme System**: Dark/light mode switching
+- **Real-time Events**: Tauri event system for streaming
+- **Speech Integration**: Web Speech API for voice input/output
+- **Agent System**: Intelligent file operations with LLM-driven commands
+- **Streaming Support**: Server-sent events simulation for real-time responses
+- **Error Handling**: Comprehensive error management with user-friendly messages
+- **Theme System**: Dark/light mode switching with system preference detection
+- **Custom Rendering**: Enhanced markdown with interactive file components
 
 ## 📁 Project Structure
 
