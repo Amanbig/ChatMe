@@ -150,6 +150,8 @@ export default function HomePage() {
             unlistenFinalMessageCreated = await listen('final_message_created', async (event: any) => {
                 const message = event.payload as Message;
                 if (message.chat_id === chatId) {
+                    let finalMessage = message;
+                    
                     // If agent mode is active and this is an assistant message, process agent commands
                     if (isAgentActive && message.role === 'assistant') {
                         try {
@@ -157,16 +159,7 @@ export default function HomePage() {
                             
                             // Update the message content if commands were processed
                             if (processedContent !== message.content) {
-                                const updatedMessage = { ...message, content: processedContent };
-                                setMessages(prev => {
-                                    const exists = prev.some(m => m.id === message.id);
-                                    if (!exists) {
-                                        return [...prev, updatedMessage];
-                                    } else {
-                                        return prev.map(m => m.id === message.id ? updatedMessage : m);
-                                    }
-                                });
-                                return;
+                                finalMessage = { ...message, content: processedContent };
                             }
                         } catch (error) {
                             console.error('Error processing agent commands:', error);
@@ -174,9 +167,9 @@ export default function HomePage() {
                         }
                     }
                     
-                    // Filter out assistant messages that are mostly execute commands
-                    if (message.role === 'assistant' && message.content.includes('[EXECUTE:')) {
-                        const lines = message.content.split('\n').filter(line => line.trim());
+                    // Now filter based on the final message content (after command processing)
+                    if (finalMessage.role === 'assistant' && finalMessage.content.includes('[EXECUTE:')) {
+                        const lines = finalMessage.content.split('\n').filter(line => line.trim());
                         const executeLines = lines.filter(line => line.includes('[EXECUTE:'));
                         const nonExecuteLines = lines.filter(line => !line.includes('[EXECUTE:') && line.trim().length > 0);
                         
@@ -189,28 +182,21 @@ export default function HomePage() {
                         if (executeLines.length > 0 && nonExecuteLines.length > 0) {
                             const cleanContent = lines.filter(line => !line.includes('[EXECUTE:')).join('\n').trim();
                             if (cleanContent.length > 0) {
-                                const cleanedMessage = { ...message, content: cleanContent };
-                                setMessages(prev => {
-                                    const exists = prev.some(m => m.id === message.id);
-                                    if (!exists) {
-                                        return [...prev, cleanedMessage];
-                                    }
-                                    return prev;
-                                });
-                                return;
+                                finalMessage = { ...finalMessage, content: cleanContent };
                             } else {
                                 return; // Skip if no meaningful content left
                             }
                         }
                     }
                     
+                    // Add the final processed message to state
                     setMessages(prev => {
-                        // Check if message already exists to prevent duplicates
-                        const exists = prev.some(m => m.id === message.id);
+                        const exists = prev.some(m => m.id === finalMessage.id);
                         if (!exists) {
-                            return [...prev, message];
+                            return [...prev, finalMessage];
+                        } else {
+                            return prev.map(m => m.id === finalMessage.id ? finalMessage : m);
                         }
-                        return prev;
                     });
                 }
             });
