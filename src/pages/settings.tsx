@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
+import SpeechSettings from "@/components/app/speech-settings";
 import { 
     FaRobot, 
     FaGoogle, 
@@ -89,6 +90,17 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
+    
+    // Speech settings state
+    const [speechEnabled, setSpeechEnabled] = useState(() => {
+        const saved = localStorage.getItem('speechEnabled');
+        return saved ? JSON.parse(saved) : true;
+    });
+    const [autoSpeak, setAutoSpeak] = useState(() => {
+        const saved = localStorage.getItem('autoSpeak');
+        return saved ? JSON.parse(saved) : false;
+    });
+    
     const [formData, setFormData] = useState({
         name: "",
         api_key: "",
@@ -347,6 +359,16 @@ export default function SettingsPage() {
         });
     };
 
+    const handleSpeechEnabledChange = (enabled: boolean) => {
+        setSpeechEnabled(enabled);
+        localStorage.setItem('speechEnabled', JSON.stringify(enabled));
+    };
+
+    const handleAutoSpeakChange = (enabled: boolean) => {
+        setAutoSpeak(enabled);
+        localStorage.setItem('autoSpeak', JSON.stringify(enabled));
+    };
+
     const selectedTemplate = selectedProvider ? providerTemplates.find(p => p.id === selectedProvider) : null;
 
     return (
@@ -359,6 +381,16 @@ export default function SettingsPage() {
                             <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
                             <p className="text-muted-foreground">Configure your AI providers and preferences</p>
                         </div>
+
+                        {/* Speech Settings */}
+                        <SpeechSettings
+                            speechEnabled={speechEnabled}
+                            onSpeechEnabledChange={handleSpeechEnabledChange}
+                            autoSpeak={autoSpeak}
+                            onAutoSpeakChange={handleAutoSpeakChange}
+                        />
+
+                        <Separator />
 
                 {/* Existing Configurations */}
                 {!loading && configs.length > 0 && (

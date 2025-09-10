@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FaUser, FaRobot, FaCopy, FaThumbsUp, FaThumbsDown, FaChevronDown, FaChevronUp, FaBrain } from "react-icons/fa";
+import { FaUser, FaRobot, FaCopy, FaThumbsUp, FaThumbsDown, FaChevronDown, FaChevronUp, FaBrain, FaVolumeUp, FaStop } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ReactMarkdown from 'react-markdown';
@@ -7,11 +7,13 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
 import type { Message } from "@/lib/types";
+import { useTextToSpeech } from "../../hooks/use-text-to-speech";
 
 interface MessageItemProps {
     message: Message;
     formatTime: (dateString: string) => string;
     copyToClipboard: (text: string) => void;
+    autoSpeak?: boolean;
 }
 
 // Parse AI thinking content
@@ -48,9 +50,46 @@ const parseAIThinking = (content: string) => {
     };
 };
 
-export default function MessageItem({ message, formatTime, copyToClipboard }: MessageItemProps) {
+export default function MessageItem({ message, formatTime, copyToClipboard, autoSpeak = false }: MessageItemProps) {
     const aiContent = message.role === "assistant" ? parseAIThinking(message.content) : null;
     const [isThinkingOpen, setIsThinkingOpen] = useState(false);
+    
+    const { speak, cancel, speaking, supported } = useTextToSpeech();
+    
+    // TODO: Implement autoSpeak functionality for automatic TTS when messages arrive
+    void autoSpeak; // Acknowledge parameter
+    
+    // Function to extract plain text from markdown content
+    const extractPlainText = (markdownContent: string): string => {
+        // Remove markdown formatting for cleaner TTS
+        return markdownContent
+            .replace(/```[\s\S]*?```/g, '') // Remove code blocks
+            .replace(/`[^`]+`/g, '') // Remove inline code
+            .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
+            .replace(/\*(.*?)\*/g, '$1') // Remove italic
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove links
+            .replace(/#{1,6}\s+/g, '') // Remove headers
+            .replace(/^\s*[-*+]\s+/gm, '') // Remove list markers
+            .replace(/\n{2,}/g, '. ') // Replace multiple newlines with periods
+            .replace(/\s+/g, ' ') // Normalize whitespace
+            .trim();
+    };
+
+    const handleSpeak = () => {
+        if (!supported) return;
+        
+        if (speaking) {
+            cancel();
+        } else {
+            const textToSpeak = message.role === "assistant" 
+                ? extractPlainText(aiContent?.final || message.content)
+                : message.content;
+            
+            if (textToSpeak.trim()) {
+                speak(textToSpeak);
+            }
+        }
+    };
 
     return (
         <div
@@ -111,9 +150,8 @@ export default function MessageItem({ message, formatTime, copyToClipboard }: Me
                                         key={index}
                                         src={image}
                                         alt={`Message image ${index + 1}`}
-                                        className="w-full h-32 object-cover rounded-lg border border-border"
+                                        className="w-full h-32 object-cover rounded-lg border border-border cursor-pointer"
                                         onClick={() => window.open(image, '_blank')}
-                                        style={{ cursor: 'pointer' }}
                                     />
                                 ))}
                             </div>
@@ -161,6 +199,17 @@ export default function MessageItem({ message, formatTime, copyToClipboard }: Me
 
                     {message.role === "assistant" && (
                         <div className="flex items-center gap-1">
+                            {supported && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 hover:bg-muted"
+                                    onClick={handleSpeak}
+                                    title={speaking ? "Stop speaking" : "Read aloud"}
+                                >
+                                    {speaking ? <FaStop size={12} /> : <FaVolumeUp size={12} />}
+                                </Button>
+                            )}
                             <Button
                                 variant="ghost"
                                 size="sm"

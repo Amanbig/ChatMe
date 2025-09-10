@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FaRobot, FaChevronDown, FaChevronUp, FaBrain } from "react-icons/fa";
+import { FaRobot, FaChevronDown, FaChevronUp, FaBrain, FaVolumeUp, FaStop } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ReactMarkdown from 'react-markdown';
@@ -7,9 +7,11 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
 import type { StreamingMessage } from "@/lib/types";
+import { useTextToSpeech } from "../../hooks/use-text-to-speech";
 
 interface StreamingMessageItemProps {
     streamingMessage: StreamingMessage;
+    autoSpeak?: boolean;
 }
 
 // Parse AI thinking content
@@ -46,9 +48,43 @@ const parseAIThinking = (content: string) => {
     };
 };
 
-export default function StreamingMessageItem({ streamingMessage }: StreamingMessageItemProps) {
+export default function StreamingMessageItem({ streamingMessage, autoSpeak = false }: StreamingMessageItemProps) {
     const streamingAIContent = parseAIThinking(streamingMessage.content);
     const [isStreamingThinkingOpen, setIsStreamingThinkingOpen] = useState(false);
+    
+    const { speak, cancel, speaking, supported } = useTextToSpeech();
+    
+    // TODO: Implement autoSpeak functionality for automatic TTS when streaming completes
+    void autoSpeak; // Acknowledge parameter
+    
+    // Function to extract plain text from markdown content
+    const extractPlainText = (markdownContent: string): string => {
+        return markdownContent
+            .replace(/```[\s\S]*?```/g, '') // Remove code blocks
+            .replace(/`[^`]+`/g, '') // Remove inline code
+            .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
+            .replace(/\*(.*?)\*/g, '$1') // Remove italic
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove links
+            .replace(/#{1,6}\s+/g, '') // Remove headers
+            .replace(/^\s*[-*+]\s+/gm, '') // Remove list markers
+            .replace(/\n{2,}/g, '. ') // Replace multiple newlines with periods
+            .replace(/\s+/g, ' ') // Normalize whitespace
+            .trim();
+    };
+
+    const handleSpeak = () => {
+        if (!supported) return;
+        
+        if (speaking) {
+            cancel();
+        } else {
+            const textToSpeak = extractPlainText(streamingAIContent?.final || streamingMessage.content);
+            
+            if (textToSpeak.trim()) {
+                speak(textToSpeak);
+            }
+        }
+    };
 
     return (
         <div className="flex gap-3 justify-start">
@@ -120,6 +156,19 @@ export default function StreamingMessageItem({ streamingMessage }: StreamingMess
                     <span className="text-xs text-muted-foreground">
                         {streamingMessage.isStreaming ? 'Generating...' : 'Just now'}
                     </span>
+                    
+                    {/* Add speak button when not streaming and TTS is supported */}
+                    {!streamingMessage.isStreaming && supported && streamingAIContent.final && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 hover:bg-muted"
+                            onClick={handleSpeak}
+                            title={speaking ? "Stop speaking" : "Read aloud"}
+                        >
+                            {speaking ? <FaStop size={12} /> : <FaVolumeUp size={12} />}
+                        </Button>
+                    )}
                 </div>
             </div>
         </div>

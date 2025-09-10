@@ -16,6 +16,12 @@ export default function HomePage() {
     const [streamingMessage, setStreamingMessage] = useState<StreamingMessage | null>(null);
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
+    
+    // Speech settings from localStorage
+    const [autoSpeak] = useState(() => {
+        const saved = localStorage.getItem('autoSpeak');
+        return saved ? JSON.parse(saved) : false;
+    });
 
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -212,6 +218,7 @@ export default function HomePage() {
                                         message={message}
                                         formatTime={formatTime}
                                         copyToClipboard={copyToClipboard}
+                                        autoSpeak={autoSpeak}
                                     />
                                 ))}
 
@@ -219,6 +226,7 @@ export default function HomePage() {
                                     <StreamingMessageItem
                                         key={`streaming-${streamingMessage.id}`}
                                         streamingMessage={streamingMessage}
+                                        autoSpeak={autoSpeak}
                                     />
                                 )}
                             </div>

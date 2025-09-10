@@ -1,7 +1,9 @@
-import { useState, useRef, KeyboardEvent } from "react";
+import { useState, useRef, KeyboardEvent, useEffect } from "react";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
-import { FaArrowRight, FaPaperclip, FaMicrophone, FaTimes } from "react-icons/fa";
+import { FaArrowRight, FaPaperclip, FaMicrophone, FaTimes, FaStop } from "react-icons/fa";
+import { useSpeechRecognition } from "../../hooks/use-speech-recognition";
+import { toast } from "sonner";
 
 interface InputBoxProps {
     onSendMessage?: (message: string, images?: string[]) => void;
@@ -15,16 +17,58 @@ export default function InputBox({ onSendMessage, disabled = false }: InputBoxPr
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Speech recognition setup
+    const {
+        isListening,
+        transcript,
+        startListening,
+        stopListening,
+        resetTranscript,
+        browserSupportsSpeechRecognition
+    } = useSpeechRecognition({
+        onResult: (finalTranscript) => {
+            setMessage(prev => prev + finalTranscript);
+            setIsTyping(true);
+        },
+        onError: (error) => {
+            toast.error(`Speech recognition error: ${error}`);
+        },
+        continuous: true,
+        interimResults: true
+    });
+
+    // Auto-resize textarea when message changes
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = "auto";
+            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+        }
+    }, [message]);
+
     const handleSend = () => {
         if ((message.trim() || selectedImages.length > 0) && !disabled) {
             onSendMessage?.(message.trim(), selectedImages.length > 0 ? selectedImages : undefined);
             setMessage("");
             setSelectedImages([]);
             setIsTyping(false);
+            resetTranscript(); // Clear speech recognition transcript
             // Reset textarea height
             if (textareaRef.current) {
                 textareaRef.current.style.height = "auto";
             }
+        }
+    };
+
+    const handleMicrophoneClick = () => {
+        if (!browserSupportsSpeechRecognition) {
+            toast.error("Speech recognition is not supported in your browser");
+            return;
+        }
+
+        if (isListening) {
+            stopListening();
+        } else {
+            startListening();
         }
     };
 
@@ -121,6 +165,7 @@ export default function InputBox({ onSendMessage, disabled = false }: InputBoxPr
                         multiple
                         onChange={handleImageUpload}
                         className="hidden"
+                        aria-label="Upload images"
                     />
 
                     {/* Text input area */}
@@ -130,11 +175,26 @@ export default function InputBox({ onSendMessage, disabled = false }: InputBoxPr
                             value={message}
                             onChange={handleInputChange}
                             onKeyDown={handleKeyPress}
-                            placeholder={disabled ? "AI is generating..." : "Type your message..."}
+                            placeholder={
+                                disabled 
+                                    ? "AI is generating..." 
+                                    : isListening 
+                                        ? "Listening... Speak now or click microphone to stop"
+                                        : "Type your message..."
+                            }
                             disabled={disabled}
                             className="min-h-[44px] max-h-[120px] resize-none border-none !bg-transparent dark:!bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none disabled:opacity-50 leading-relaxed"
                             rows={1}
                         />
+                        {/* Show interim speech results */}
+                        {isListening && transcript && (
+                            <div className="absolute bottom-full left-0 right-0 mb-2 p-2 bg-primary/10 text-primary text-xs rounded-lg border border-primary/20">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                                    <span>Listening: {transcript}</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Voice/Send button */}
@@ -160,9 +220,19 @@ export default function InputBox({ onSendMessage, disabled = false }: InputBoxPr
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-9 w-9 rounded-full hover:bg-muted-foreground/10"
+                                onClick={handleMicrophoneClick}
+                                disabled={disabled}
+                                className={`h-9 w-9 rounded-full transition-all duration-200 ${
+                                    isListening 
+                                        ? 'bg-red-500 hover:bg-red-600 text-white' 
+                                        : 'hover:bg-muted-foreground/10'
+                                }`}
                             >
-                                <FaMicrophone size={14} className="text-muted-foreground" />
+                                {isListening ? (
+                                    <FaStop size={14} className="text-white" />
+                                ) : (
+                                    <FaMicrophone size={14} className="text-muted-foreground" />
+                                )}
                             </Button>
                         )}
                     </div>
