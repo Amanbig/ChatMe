@@ -2,11 +2,13 @@ import { useState, useRef, useEffect } from "react";
 import { useParams } from "react-router";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import InputBox from "@/components/app/input-box";
 import MessageItem from "@/components/app/message-item";
 import StreamingMessageItem from "@/components/app/streaming-message-item";
-// import AgentMode from "../components/app/agent-mode";
+import AgentMode from "../components/app/agent-mode";
 import { FaRobot, FaCog } from "react-icons/fa";
 import { toast } from "sonner";
 import { getMessages, sendAiMessageStreaming, createMessage } from "@/lib/api";
@@ -17,7 +19,7 @@ import { listen } from '@tauri-apps/api/event';
 
 export default function HomePage() {
     const { chatId } = useParams<{ chatId: string }>();
-    const { isAgentActive, workingDirectory } = useAgent();
+    const { isAgentActive, workingDirectory, setAgentActive } = useAgent();
     const [messages, setMessages] = useState<Message[]>([]);
     const [streamingMessage, setStreamingMessage] = useState<StreamingMessage | null>(null);
     const [loading, setLoading] = useState(true);
@@ -248,13 +250,7 @@ export default function HomePage() {
                                     </SheetDescription>
                                 </SheetHeader>
                                 <div className="mt-6">
-                                    {/* <AgentMode 
-                                        chatId="preview" 
-                                        onSendMessage={(message: string) => {
-                                            console.log('Agent preview result:', message);
-                                            toast.success('Agent action completed');
-                                        }}
-                                    /> */}
+                                    <AgentMode />
                                 </div>
                             </SheetContent>
                         </Sheet>
@@ -332,6 +328,30 @@ export default function HomePage() {
 
             {/* Input Box - Fixed at bottom with proper spacing */}
             <div className="flex-shrink-0">
+                {/* Agent Mode Toggle Bar */}
+                <div className="flex items-center justify-between px-4 py-2 border-t border-border/50 bg-muted/20">
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                            <FaRobot className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium">Agent Mode</span>
+                            {isAgentActive && <Badge variant="default" className="text-xs">Active</Badge>}
+                        </div>
+                        <Switch
+                            checked={isAgentActive}
+                            onCheckedChange={(checked) => {
+                                setAgentActive(checked);
+                                toast.info(checked ? "Agent mode enabled" : "Agent mode disabled");
+                            }}
+                            className="scale-75"
+                        />
+                    </div>
+                    {isAgentActive && (
+                        <div className="text-xs text-muted-foreground">
+                            Working dir: {workingDirectory || "Not set"}
+                        </div>
+                    )}
+                </div>
+                
                 <div className="flex items-center gap-2 px-4 py-2 border-t border-border/50">
                     <div className="flex-1">
                         <InputBox onSendMessage={handleSendMessage} disabled={isGenerating} />
@@ -350,10 +370,7 @@ export default function HomePage() {
                                 </SheetDescription>
                             </SheetHeader>
                             <div className="mt-6">
-                                {/* <AgentMode 
-                                    chatId={chatId} 
-                                    onSendMessage={handleSendMessage}
-                                /> */}
+                                <AgentMode />
                             </div>
                         </SheetContent>
                     </Sheet>

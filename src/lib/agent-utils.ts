@@ -38,8 +38,17 @@ export async function handleAgentQuery(query: string, workingDirectory: string):
             }) as DirectoryContents;
             
             if (result && result.files) {
-                const fileList = result.files.map(file => `- ${file.name}`).join('\n');
-                return `Files in ${directory}:\n${fileList}`;
+                const fileList = result.files.map(file => {
+                    const icon = file.is_directory ? "📁" : "📄";
+                    return `${icon} [Open](file://${directory}/${file.name}) **${file.name}**`;
+                }).join('\n');
+                
+                const dirList = result.directories ? result.directories.map(dir => {
+                    return `📁 [Open](file://${directory}/${dir.name}) **${dir.name}/**`;
+                }).join('\n') : '';
+                
+                const fullList = [dirList, fileList].filter(Boolean).join('\n');
+                return `Files and folders in ${directory}:\n\n${fullList}\n\n*Click on any item to open it*`;
             } else {
                 return `No files found in ${directory}`;
             }
@@ -67,10 +76,11 @@ export async function handleAgentQuery(query: string, workingDirectory: string):
                 }) as SearchResult[];
                 
                 if (result && result.length > 0) {
-                    const resultList = result.map(item => 
-                        `- ${item.file_path}:${item.line_number}: ${item.line_content.trim()}`
-                    ).join('\n');
-                    return `Search results for "${pattern}":\n${resultList}`;
+                    const resultList = result.map(item => {
+                        const fileName = item.file_path.split(/[/\\]/).pop();
+                        return `📄 [${fileName}](file://${item.file_path}) (Line ${item.line_number})\n   \`${item.line_content.trim()}\``;
+                    }).join('\n\n');
+                    return `Search results for "${pattern}" (${result.length} matches):\n\n${resultList}\n\n*Click on any file to open it*`;
                 } else {
                     return `No results found for "${pattern}" in ${workingDirectory}`;
                 }

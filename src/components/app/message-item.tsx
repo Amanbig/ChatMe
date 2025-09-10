@@ -8,6 +8,8 @@ import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
 import type { Message } from "@/lib/types";
 import { useTextToSpeech } from "../../hooks/use-text-to-speech";
+import { openFileWithDefaultApp } from "@/lib/api";
+import { toast } from "sonner";
 
 interface MessageItemProps {
     message: Message;
@@ -174,6 +176,32 @@ export default function MessageItem({ message, formatTime, copyToClipboard, auto
                                             <code className={className} {...props}>
                                                 {children}
                                             </code>
+                                        );
+                                    },
+                                    a: ({ href, children, ...props }: any) => {
+                                        if (href?.startsWith('file://')) {
+                                            const filePath = href.replace('file://', '');
+                                            return (
+                                                <button
+                                                    className="text-blue-600 hover:text-blue-800 underline cursor-pointer inline-flex items-center gap-1"
+                                                    onClick={async () => {
+                                                        try {
+                                                            await openFileWithDefaultApp(filePath);
+                                                            toast.success(`Opened ${filePath.split(/[/\\]/).pop()}`);
+                                                        } catch (error) {
+                                                            toast.error(`Failed to open file: ${error}`);
+                                                        }
+                                                    }}
+                                                    {...props}
+                                                >
+                                                    {children}
+                                                </button>
+                                            );
+                                        }
+                                        return (
+                                            <a href={href} className="text-blue-600 hover:text-blue-800 underline" {...props}>
+                                                {children}
+                                            </a>
                                         );
                                     }
                                 }}
