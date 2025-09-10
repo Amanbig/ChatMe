@@ -6,15 +6,18 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import InputBox from "@/components/app/input-box";
 import MessageItem from "@/components/app/message-item";
 import StreamingMessageItem from "@/components/app/streaming-message-item";
-import AgentMode from "@/components/app/agent-mode";
+// import AgentMode from "../components/app/agent-mode";
 import { FaRobot, FaCog } from "react-icons/fa";
 import { toast } from "sonner";
-import { getMessages, sendAiMessageStreaming } from "@/lib/api";
+import { getMessages, sendAiMessageStreaming, createMessage } from "@/lib/api";
+import { handleAgentQuery, isAgentQuery } from "@/lib/agent-utils";
+import { useAgent } from "@/contexts/AgentContext";
 import type { Message, StreamingMessage } from "@/lib/types";
 import { listen } from '@tauri-apps/api/event';
 
 export default function HomePage() {
     const { chatId } = useParams<{ chatId: string }>();
+    const { isAgentActive, workingDirectory } = useAgent();
     const [messages, setMessages] = useState<Message[]>([]);
     const [streamingMessage, setStreamingMessage] = useState<StreamingMessage | null>(null);
     const [loading, setLoading] = useState(true);
@@ -157,8 +160,44 @@ export default function HomePage() {
 
         try {
             setIsGenerating(true);
-            // Send message with streaming
-            await sendAiMessageStreaming(chatId, content.trim(), images);
+            
+            // Check if agent mode is active and if this is an agent query
+            if (isAgentActive && isAgentQuery(content.trim())) {
+                console.log('Handling agent query:', content.trim());
+                
+                // Create user message first
+                const userMessage = await createMessage({
+                    chat_id: chatId,
+                    content: content.trim(),
+                    role: 'user',
+                    images
+                });
+                
+                // Add user message to state
+                setMessages(prev => [...prev, userMessage]);
+                
+                // Handle the query with agent
+                const agentResponse = await handleAgentQuery(content.trim(), workingDirectory);
+                
+                if (agentResponse) {
+                    // Create assistant message with agent response
+                    const assistantMessage = await createMessage({
+                        chat_id: chatId,
+                        content: agentResponse,
+                        role: 'assistant'
+                    });
+                    
+                    // Add assistant message to state
+                    setMessages(prev => [...prev, assistantMessage]);
+                    setIsGenerating(false);
+                } else {
+                    // Fallback to AI if agent can't handle it
+                    await sendAiMessageStreaming(chatId, content.trim(), images);
+                }
+            } else {
+                // Send message with streaming (normal AI flow)
+                await sendAiMessageStreaming(chatId, content.trim(), images);
+            }
         } catch (error) {
             console.error('Failed to send message:', error);
             setIsGenerating(false);
@@ -209,13 +248,13 @@ export default function HomePage() {
                                     </SheetDescription>
                                 </SheetHeader>
                                 <div className="mt-6">
-                                    <AgentMode 
+                                    {/* <AgentMode 
                                         chatId="preview" 
-                                        onSendMessage={(message) => {
+                                        onSendMessage={(message: string) => {
                                             console.log('Agent preview result:', message);
                                             toast.success('Agent action completed');
                                         }}
-                                    />
+                                    /> */}
                                 </div>
                             </SheetContent>
                         </Sheet>
@@ -257,10 +296,10 @@ export default function HomePage() {
                                                 </SheetDescription>
                                             </SheetHeader>
                                             <div className="mt-6">
-                                                <AgentMode 
+                                                {/* <AgentMode 
                                                     chatId={chatId} 
                                                     onSendMessage={handleSendMessage}
-                                                />
+                                                /> */}
                                             </div>
                                         </SheetContent>
                                     </Sheet>
@@ -311,10 +350,10 @@ export default function HomePage() {
                                 </SheetDescription>
                             </SheetHeader>
                             <div className="mt-6">
-                                <AgentMode 
+                                {/* <AgentMode 
                                     chatId={chatId} 
                                     onSendMessage={handleSendMessage}
-                                />
+                                /> */}
                             </div>
                         </SheetContent>
                     </Sheet>

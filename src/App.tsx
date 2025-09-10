@@ -3,6 +3,7 @@ import { createBrowserRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
 import { ThemeProvider } from "./components/theme-provider";
 import { SidebarProvider } from "./components/ui/sidebar";
+import { AgentProvider } from "./contexts/AgentContext";
 import AppLayout from "./components/app/app-layout";
 import SettingsPage from "./pages/settings";
 import HomePage from "./pages/home";
@@ -38,10 +39,12 @@ const router = createBrowserRouter([
 function App() {
   return (
     <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
-      <SidebarProvider>
-        <Toaster />
-        <RouterProvider router={router} />
-      </SidebarProvider>
+      <AgentProvider>
+        <SidebarProvider>
+          <Toaster />
+          <RouterProvider router={router} />
+        </SidebarProvider>
+      </AgentProvider>
     </ThemeProvider>
   );
 }
