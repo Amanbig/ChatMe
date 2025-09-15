@@ -162,9 +162,11 @@ export async function parseAndExecuteCommands(response: string): Promise<string>
     for (const cmdInfo of commands) {
         const cmd = cmdInfo.data;
         let commandComponent = '';
+        const startTime = Date.now();
         
         try {
             const result = await executeAgentCommand(cmd.command, cmd.params || {});
+            const executionTime = Date.now() - startTime;
             
             // Create command execution component based on type
             if (cmd.command === 'execute_command') {
@@ -187,7 +189,8 @@ export async function parseAndExecuteCommands(response: string): Promise<string>
                     result: actualResult,
                     status: 'success',
                     type: 'command',
-                    working_directory: workingDir
+                    working_directory: workingDir,
+                    executionTime: executionTime
                 };
                 
                 commandComponent = `<command-execution data='${JSON.stringify(componentData).replace(/'/g, "\\'")}'></command-execution>`;
@@ -209,7 +212,8 @@ export async function parseAndExecuteCommands(response: string): Promise<string>
                     command: `launch ${appPath}`,
                     result: resultMessage,
                     status: 'success',
-                    type: 'application'
+                    type: 'application',
+                    executionTime: executionTime
                 };
                 
                 commandComponent = `<command-execution data='${JSON.stringify(componentData).replace(/'/g, "\\'")}'></command-execution>`;
@@ -224,7 +228,8 @@ export async function parseAndExecuteCommands(response: string): Promise<string>
                     command: commandStr,
                     result: result?.result || result,
                     status: 'success',
-                    type: 'file_operation'
+                    type: 'file_operation',
+                    executionTime: executionTime
                 };
                 
                 commandComponent = `<command-execution data='${JSON.stringify(componentData).replace(/'/g, "\\'")}'></command-execution>`;
@@ -268,7 +273,8 @@ export async function parseAndExecuteCommands(response: string): Promise<string>
                     command: cmd.command,
                     result: result?.result || result,
                     status: 'success',
-                    type: 'general'
+                    type: 'general',
+                    executionTime: executionTime
                 };
                 
                 commandComponent = `<command-execution data='${JSON.stringify(componentData).replace(/'/g, "\\'")}'></command-execution>`;

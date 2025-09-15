@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Terminal, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { ChevronDown, ChevronRight, Terminal, CheckCircle, XCircle, AlertCircle, Copy, Check } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { toast } from "sonner";
 
 interface CommandExecutionProps {
     command: string;
@@ -8,6 +9,7 @@ interface CommandExecutionProps {
     status: "pending" | "running" | "success" | "error";
     type?: string;
     working_directory?: string;
+    executionTime?: number; // in milliseconds
 }
 
 export default function CommandExecution({ 
@@ -15,9 +17,11 @@ export default function CommandExecution({
     result, 
     status, 
     type = "command",
-    working_directory 
+    working_directory,
+    executionTime 
 }: CommandExecutionProps) {
     const [isExpanded, setIsExpanded] = useState(status === "error");
+    const [copied, setCopied] = useState(false);
 
     const getStatusIcon = () => {
         switch (status) {
@@ -39,10 +43,27 @@ export default function CommandExecution({
             case "running":
                 return "Running...";
             case "success":
-                return "Executed successfully";
+                return executionTime ? `Executed in ${formatExecutionTime(executionTime)}` : "Executed successfully";
             case "error":
                 return "Execution failed";
         }
+    };
+
+    const formatExecutionTime = (ms: number) => {
+        if (ms < 1000) return `${ms}ms`;
+        if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+        return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`;
+    };
+
+    const handleCopy = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(command).then(() => {
+            setCopied(true);
+            toast.success("Command copied to clipboard");
+            setTimeout(() => setCopied(false), 2000);
+        }).catch(() => {
+            toast.error("Failed to copy command");
+        });
     };
 
     const formatResult = () => {
@@ -97,25 +118,38 @@ export default function CommandExecution({
             "my-2 border rounded-lg overflow-hidden",
             status === "error" ? "border-red-200 dark:border-red-800" : "border-border"
         )}>
-            <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className={cn(
-                    "w-full px-3 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors text-left",
-                    status === "error" ? "bg-red-50 dark:bg-red-950/30" : "bg-muted/30"
-                )}
-            >
-                <div className="flex-shrink-0">
-                    {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                </div>
-                <Terminal className="h-4 w-4 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                    <code className="text-xs font-mono truncate block">{command}</code>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                    {getStatusIcon()}
-                    <span className="text-xs text-muted-foreground">{getStatusText()}</span>
-                </div>
-            </button>
+            <div className="relative">
+                <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className={cn(
+                        "w-full px-3 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors text-left",
+                        status === "error" ? "bg-red-50 dark:bg-red-950/30" : "bg-muted/30"
+                    )}
+                >
+                    <div className="flex-shrink-0">
+                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    </div>
+                    <Terminal className="h-4 w-4 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                        <code className="text-xs font-mono truncate block">{command}</code>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                            onClick={handleCopy}
+                            className="p-1 hover:bg-muted rounded transition-colors"
+                            title="Copy command"
+                        >
+                            {copied ? (
+                                <Check className="h-3 w-3 text-green-500" />
+                            ) : (
+                                <Copy className="h-3 w-3" />
+                            )}
+                        </button>
+                        {getStatusIcon()}
+                        <span className="text-xs text-muted-foreground">{getStatusText()}</span>
+                    </div>
+                </button>
+            </div>
             
             {isExpanded && (
                 <div className="px-3 py-2 border-t bg-background">

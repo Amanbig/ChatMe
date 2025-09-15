@@ -1,21 +1,33 @@
-import { useState, useRef, KeyboardEvent, useEffect } from "react";
+import { useState, useRef, KeyboardEvent, useEffect, forwardRef, useImperativeHandle } from "react";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
-import { FaArrowRight, FaPaperclip, FaMicrophone, FaTimes, FaStop } from "react-icons/fa";
+import { FaArrowRight, FaPaperclip, FaMicrophone, FaTimes, FaStop, FaKeyboard } from "react-icons/fa";
 import { useSpeechRecognition } from "../../hooks/use-speech-recognition";
 import { toast } from "sonner";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "../ui/tooltip";
 
 interface InputBoxProps {
     onSendMessage?: (message: string, images?: string[]) => void;
     disabled?: boolean;
 }
 
-export default function InputBox({ onSendMessage, disabled = false }: InputBoxProps) {
+export interface InputBoxRef {
+    focus: () => void;
+    insertText: (text: string) => void;
+}
+
+const InputBox = forwardRef<InputBoxRef, InputBoxProps>(({ onSendMessage, disabled = false }, ref) => {
     const [message, setMessage] = useState("");
     const [, setIsTyping] = useState(false);
     const [selectedImages, setSelectedImages] = useState<string[]>([]);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [lastCommand, setLastCommand] = useState<string>("");
 
     // Speech recognition setup
     const {
@@ -37,6 +49,16 @@ export default function InputBox({ onSendMessage, disabled = false }: InputBoxPr
         interimResults: true
     });
 
+    // Expose methods to parent component
+    useImperativeHandle(ref, () => ({
+        focus: () => {
+            textareaRef.current?.focus();
+        },
+        insertText: (text: string) => {
+            setMessage(prev => prev + text);
+        }
+    }));
+
     // Auto-resize textarea when message changes
     useEffect(() => {
         if (textareaRef.current) {
@@ -45,9 +67,35 @@ export default function InputBox({ onSendMessage, disabled = false }: InputBoxPr
         }
     }, [message]);
 
+    // Global keyboard shortcuts
+    useEffect(() => {
+        const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
+            // Ctrl+K or Cmd+K to focus input
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                textareaRef.current?.focus();
+            }
+            // Ctrl+R or Cmd+R to repeat last command (only when focused)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'r' && document.activeElement === textareaRef.current) {
+                e.preventDefault();
+                if (lastCommand) {
+                    setMessage(lastCommand);
+                    toast.info("Repeated last command");
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleGlobalKeyDown);
+        return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    }, [lastCommand]);
+
     const handleSend = () => {
         if ((message.trim() || selectedImages.length > 0) && !disabled) {
-            onSendMessage?.(message.trim(), selectedImages.length > 0 ? selectedImages : undefined);
+            const trimmedMessage = message.trim();
+            if (trimmedMessage) {
+                setLastCommand(trimmedMessage);
+            }
+            onSendMessage?.(trimmedMessage, selectedImages.length > 0 ? selectedImages : undefined);
             setMessage("");
             setSelectedImages([]);
             setIsTyping(false);
@@ -180,7 +228,7 @@ export default function InputBox({ onSendMessage, disabled = false }: InputBoxPr
                                     ? "AI is generating..." 
                                     : isListening 
                                         ? "Listening... Speak now or click microphone to stop"
-                                        : "Type your message..."
+                                        : "Type your message... (Ctrl+K to focus)"
                             }
                             disabled={disabled}
                             className="min-h-[44px] max-h-[120px] resize-none border-none !bg-transparent dark:!bg-transparent px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none disabled:opacity-50 leading-relaxed"
@@ -237,7 +285,45 @@ export default function InputBox({ onSendMessage, disabled = false }: InputBoxPr
                         )}
                     </div>
                 </div>
+                
+                {/* Keyboard shortcuts hint */}
+                <div className="mt-2 flex justify-center">
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
+                                    <FaKeyboard className="h-3 w-3" />
+                                    Keyboard Shortcuts
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                                <div className="space-y-2 text-xs">
+                                    <div className="flex justify-between gap-4">
+                                        <span className="text-muted-foreground">Focus input:</span>
+                                        <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">Ctrl+K</kbd>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                        <span className="text-muted-foreground">Repeat last:</span>
+                                        <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">Ctrl+R</kbd>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                        <span className="text-muted-foreground">Send message:</span>
+                                        <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">Enter</kbd>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                        <span className="text-muted-foreground">New line:</span>
+                                        <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">Shift+Enter</kbd>
+                                    </div>
+                                </div>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                </div>
             </div>
         </div>
     );
-}
+});
+
+InputBox.displayName = 'InputBox';
+
+export default InputBox;
