@@ -3,6 +3,7 @@ mod database;
 mod models;
 mod file_operations;
 mod agentic;
+mod system_operations;
 
 use database::Database;
 use std::collections::HashMap;
@@ -49,6 +50,14 @@ pub fn run() {
                 commands::execute_agent_action,
                 commands::get_agent_session,
                 commands::create_or_get_agent_session,
+                // System operations with permissions
+                commands::request_permission,
+                commands::launch_app,
+                commands::get_installed_apps,
+                commands::execute_command,
+                commands::perform_file_system_operation,
+                commands::get_processes,
+                commands::terminate_process,
             ])
             .run(tauri::generate_context!())
             .expect("error while running tauri application");

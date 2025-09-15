@@ -3,7 +3,10 @@ use std::collections::HashMap;
 use std::sync::{Mutex, Arc};
 use anyhow::{Result, anyhow};
 use crate::file_operations::{read_directory_contents, search_in_files, read_file_contents, write_file_contents, open_with_default_app};
-
+use crate::system_operations::{
+    get_installed_applications, launch_application, execute_terminal_command,
+    perform_file_operation, get_running_processes, kill_process, check_permission_level,
+    FileSystemOperation, FileOperationType, PermissionLevel};
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AgentAction {
     pub action_type: String,
@@ -84,6 +87,12 @@ impl AgentSession {
                 "open_file".to_string(),
                 "change_directory".to_string(),
                 "get_file_info".to_string(),
+                "launch_application".to_string(),
+                "get_installed_apps".to_string(),
+                "execute_command".to_string(),
+                "file_operation".to_string(),
+                "get_processes".to_string(),
+                "kill_process".to_string(),
             ],
         }
     }
@@ -237,6 +246,12 @@ impl AgentSession {
             "search_files" => self.execute_search_files(&parameters).await,
             "open_file" => self.execute_open_file(&parameters).await,
             "change_directory" => self.execute_change_directory(&parameters).await,
+            "launch_application" => self.execute_launch_application(&parameters).await,
+            "get_installed_apps" => self.execute_get_installed_apps(&parameters).await,
+            "execute_command" => self.execute_command(&parameters).await,
+            "file_operation" => self.execute_file_operation(&parameters).await,
+            "get_processes" => self.execute_get_processes(&parameters).await,
+            "kill_process" => self.execute_kill_process(&parameters).await,
             _ => Err(anyhow!("Unknown action type: {}", action_type)),
         };
         
@@ -360,5 +375,110 @@ impl AgentSession {
         };
         
         Ok(serde_json::Value::String(format!("Changed directory to {}", dir_display)))
+    }
+    
+    async fn execute_launch_application(&self, params: &HashMap<String, serde_json::Value>) -> Result<serde_json::Value> {
+        let app_path = params.get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("Missing required parameter: path"))?;
+        
+        let args = params.get("arguments")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect());
+        
+        let pid = launch_application(app_path, args)?;
+        Ok(serde_json::json!({
+            "success": true,
+            "pid": pid,
+            "message": format!("Launched application: {}", app_path)
+        }))
+    }
+    
+    async fn execute_get_installed_apps(&self, _params: &HashMap<String, serde_json::Value>) -> Result<serde_json::Value> {
+        let apps = get_installed_applications()?;
+        Ok(serde_json::to_value(apps)?)
+    }
+    
+    async fn execute_command(&self, params: &HashMap<String, serde_json::Value>) -> Result<serde_json::Value> {
+        let command = params.get("command")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("Missing required parameter: command"))?;
+        
+        let working_dir = params.get("working_directory")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| {
+                self.current_directory.lock().ok()
+                    .map(|dir| dir.clone())
+            });
+        
+        // Check permission level
+        let permission = check_permission_level("execute_command", params);
+        if permission.level == PermissionLevel::Dangerous {
+            return Err(anyhow!("Command requires explicit user permission: {}", command));
+        }
+        
+        let result = execute_terminal_command(command, working_dir.as_deref())?;
+        Ok(serde_json::to_value(result)?)
+    }
+    
+    async fn execute_file_operation(&self, params: &HashMap<String, serde_json::Value>) -> Result<serde_json::Value> {
+        let operation_type = params.get("operation_type")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("Missing required parameter: operation_type"))?;
+        
+        let source = params.get("source")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("Missing required parameter: source"))?;
+        
+        let destination = params.get("destination")
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        
+        let recursive = params.get("recursive")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        
+        let file_op_type = match operation_type {
+            "copy" => FileOperationType::Copy,
+            "move" => FileOperationType::Move,
+            "delete" => FileOperationType::Delete,
+            "create_directory" => FileOperationType::CreateDirectory,
+            "rename" => FileOperationType::Rename,
+            _ => return Err(anyhow!("Invalid operation type: {}", operation_type)),
+        };
+        
+        let operation = FileSystemOperation {
+            operation_type: file_op_type,
+            source: source.to_string(),
+            destination,
+            recursive,
+        };
+        
+        let result = perform_file_operation(&operation)?;
+        Ok(serde_json::Value::String(result))
+    }
+    
+    async fn execute_get_processes(&self, _params: &HashMap<String, serde_json::Value>) -> Result<serde_json::Value> {
+        let processes = get_running_processes()?;
+        Ok(serde_json::to_value(processes)?)
+    }
+    
+    async fn execute_kill_process(&self, params: &HashMap<String, serde_json::Value>) -> Result<serde_json::Value> {
+        let pid = params.get("pid")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as u32)
+            .ok_or_else(|| anyhow!("Missing required parameter: pid"))?;
+        
+        // Check permission level
+        let permission = check_permission_level("kill_process", params);
+        if permission.level == PermissionLevel::Dangerous {
+            return Err(anyhow!("Killing process requires explicit user permission: PID {}", pid));
+        }
+        
+        kill_process(pid)?;
+        Ok(serde_json::Value::String(format!("Successfully terminated process with PID: {}", pid)))
     }
 }

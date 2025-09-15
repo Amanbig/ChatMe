@@ -307,13 +307,20 @@ export default function HomePage() {
             if (isAgentActive) {
                 const toolsInfo = await getAvailableAgentTools();
                 messageForLLM = `${content.trim()}\n\n[AGENT MODE ACTIVE]
-You are an AI assistant with access to Tauri commands. Execute appropriate commands based on user requests.
+You are an AI assistant with FULL SYSTEM ACCESS through Tauri commands. You CAN and SHOULD execute commands, launch applications, manage files, run terminal commands, and perform system operations as requested.
 
 ${toolsInfo}
 
 Working Directory: ${workingDirectory || 'Use get_current_directory() to find current location'}
 
-Respond with commands and helpful information.`;
+IMPORTANT: You have the ability to:
+- Execute terminal/shell commands (npm, git, python, etc.)
+- Launch applications (Chrome, VS Code, etc.)
+- Manage files (copy, move, delete, create)
+- Control processes (list, kill)
+- And much more!
+
+Always execute the appropriate commands to fulfill user requests. Don't just describe what you would do - actually do it using the [EXECUTE:...] syntax.`;
             }
             
             // sendAiMessageStreaming creates the user message, so we don't create it separately
