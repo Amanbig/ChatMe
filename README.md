@@ -1,14 +1,22 @@
 # ChatMe 🤖
 
-A modern, cross-platform AI chat application built with Tauri, React, and TypeScript. ChatMe supports multiple AI providers with a beautiful, responsive interface and advanced features including voice interaction and intelligent file operations.
+A modern, cross-platform AI chat application built with Tauri, React, and TypeScript. ChatMe supports multiple AI providers with a beautiful, responsive interface and advanced features including voice interaction and powerful agent mode with full system access.
+
+## 🆕 **What's New in v0.3.2**
+- **🚀 Enhanced Agent Mode**: Execute terminal commands, launch apps, and manage processes
+- **📊 Command Execution Cards**: Interactive, expandable results with timing and copy buttons
+- **⌨️ Keyboard Shortcuts**: Ctrl+K to focus, Ctrl+R to repeat last command
+- **🎨 Improved UI**: Better dark mode support, polished settings page
+- **🔒 Permission System**: Safety checks for dangerous operations
+- **💬 Natural AI Flow**: AI explains, executes, and continues in one response
 
 ### 🚀 **Key Highlights**
+- **🤖 Powerful Agent Mode**: Full system access with terminal commands and app control
 - **🎤 Voice Interaction**: Speech-to-text input and text-to-speech output with customizable voices
-- **🤖 Agentic Mode**: AI-powered file system operations with intelligent command execution
 - **🎯 Multi-Provider Support**: OpenAI, Google Gemini, Claude, Ollama, and custom APIs
 - **📱 Mobile-Optimized**: Responsive design that works beautifully on all devices
 - **🎨 Modern UI**: Custom title bar, dark/light themes, and smooth animations
-- **⚡ Real-time Features**: Live streaming responses and interactive file browsing
+- **⚡ Real-time Features**: Live streaming responses and interactive command execution
 
 ### 📱 **Cross-Platform Features**
 - **Touch-Friendly Controls**: Large tap targets for accessibility
@@ -54,13 +62,16 @@ A modern, cross-platform AI chat application built with Tauri, React, and TypeSc
 - **Ollama**: Local models (Llama 2, CodeLlama, Mistral, etc.)
 - **Custom APIs**: Support for Mistral AI, Groq, Together AI, Perplexity, and any OpenAI-compatible API
 
-### 🤖 **Agentic Mode**
-- **File System Operations**: Intelligent file browsing, opening, and searching
-- **Working Directory Management**: Set and manage the agent's working directory
-- **Smart Command Execution**: AI automatically determines and executes appropriate file operations
-- **Interactive File Display**: Beautiful card-based UI for file and folder listings
-- **One-Click File Access**: Direct file opening with system default applications
-- **Real-time Directory Navigation**: Seamless folder exploration and navigation
+### 🤖 **Enhanced Agent Mode (NEW!)**
+- **Full System Access**: Execute terminal commands, launch applications, and manage files
+- **Natural Conversation Flow**: AI explains, executes, and continues conversation in a single response
+- **Interactive Command Cards**: Expandable command execution results with timing and copy buttons
+- **Terminal Command Execution**: Run npm, git, python, and any shell commands
+- **Application Management**: Launch and manage system applications
+- **Process Control**: List and terminate running processes
+- **File Operations**: Copy, move, delete, rename files and folders
+- **Permission System**: Safety checks for dangerous operations
+- **Smart Context Awareness**: AI understands your working directory and project context
 
 ### 🎤 **Speech Features**
 - **Speech-to-Text**: Click the microphone button to dictate messages using voice input
@@ -93,8 +104,9 @@ A modern, cross-platform AI chat application built with Tauri, React, and TypeSc
 - **Message Management**: Copy, export, and share conversations
 - **Chat History**: Persistent chat storage with SQLite
 - **Markdown Support**: Rich text rendering with syntax highlighting
-- **Custom Components**: Enhanced rendering for file listings and special content
+- **Custom Components**: Enhanced rendering for file listings and command executions
 - **Scroll Management**: Intelligent auto-scrolling and manual scroll control
+- **Keyboard Shortcuts**: Ctrl+K (focus input), Ctrl+R (repeat last command), Enter (send)
 
 ### ⚙️ **Configuration & Settings**
 - **Provider Management**: Easy setup and switching between AI providers
@@ -131,23 +143,54 @@ A modern, cross-platform AI chat application built with Tauri, React, and TypeSc
 ## 🤖 Agent Mode Guide
 
 ### **Enabling Agent Mode**
-1. **Toggle the agent switch** in the title bar
+1. **Toggle the agent switch** in the settings or title bar
 2. **Set working directory** (optional) for file operations
-3. **Ask natural questions** about files and folders
-4. **Let the AI automatically** execute appropriate commands
+3. **Ask natural questions** and the AI will execute commands
+4. **Watch commands execute** in real-time with results
 
 ### **Agent Capabilities**
-- **File Browsing**: "Show me the files in this folder"
-- **File Opening**: "Open the README file"
-- **Directory Navigation**: "Go to the src folder"
-- **File Search**: "Find all TypeScript files"
-- **Smart Operations**: AI determines the best action for your request
+- **Terminal Commands**: "Run npm install" → Executes the command
+- **Application Launch**: "Open Chrome browser" → Launches Chrome
+- **File Operations**: "Copy this file to backup folder" → Performs file operation
+- **Process Management**: "Show running processes" → Lists all processes
+- **Git Operations**: "Check git status" → Runs git commands
+- **Build & Deploy**: "Build the project" → Executes build scripts
+- **System Info**: "Check Node version" → Runs system commands
 
-### **Interactive File Display**
-- **Card-based Layout**: Beautiful grid display of files and folders
-- **One-click Actions**: Direct file opening with system applications
-- **Visual Icons**: Distinct icons for files and folders
-- **Responsive Grid**: Adapts to screen size (1-3 columns)
+### **Command Execution Display**
+- **Expandable Cards**: Click to view command output
+- **Execution Time**: See how long commands took
+- **Copy Button**: Copy commands with one click
+- **Status Indicators**: Success/error/running states
+- **Working Directory**: Shows where commands executed
+
+### **Keyboard Shortcuts**
+- **Ctrl+K / Cmd+K**: Focus the input box from anywhere
+- **Ctrl+R / Cmd+R**: Repeat the last command
+- **Enter**: Send message
+- **Shift+Enter**: New line in message
+
+### **Example Agent Mode Interactions**
+
+**User**: "Check if npm is installed and show me the version"
+**AI**: "I'll check if npm is installed and show you the version.
+[Executes: npm --version]
+✅ npm version 10.2.5 is installed. This is a recent version compatible with most modern Node.js projects."
+
+**User**: "Run the development server"
+**AI**: "I'll start the development server for you.
+[Executes: npm run dev]
+The server is now running on http://localhost:1420. You can open this in your browser to see your application."
+
+**User**: "Show me all TypeScript files in the src folder"
+**AI**: "I'll search for all TypeScript files in the src directory.
+[Executes: search for *.ts and *.tsx files]
+Found 42 TypeScript files in your src folder. The main components are in src/components/ and pages are in src/pages/."
+
+**User**: "Open Chrome and go to GitHub"
+**AI**: "I'll launch Chrome and navigate to GitHub for you.
+[Executes: launch Chrome with https://github.com]
+Chrome has been opened with GitHub loaded. You can now browse your repositories."
 
 ## 🚀 Getting Started
 
