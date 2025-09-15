@@ -297,22 +297,22 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(({ onSendMessage, disabl
                                 </button>
                             </TooltipTrigger>
                             <TooltipContent className="max-w-xs">
-                                <div className="space-y-2 text-xs">
+                                <div className="space-y-2">
                                     <div className="flex justify-between gap-4">
-                                        <span className="text-muted-foreground">Focus input:</span>
-                                        <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">Ctrl+K</kbd>
+                                        <span className="opacity-70">Focus input:</span>
+                                        <kbd className="px-1.5 py-0.5 bg-background/80 border border-border rounded text-xs font-mono">Ctrl+K</kbd>
                                     </div>
                                     <div className="flex justify-between gap-4">
-                                        <span className="text-muted-foreground">Repeat last:</span>
-                                        <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">Ctrl+R</kbd>
+                                        <span className="opacity-70">Repeat last:</span>
+                                        <kbd className="px-1.5 py-0.5 bg-background/80 border border-border rounded text-xs font-mono">Ctrl+R</kbd>
                                     </div>
                                     <div className="flex justify-between gap-4">
-                                        <span className="text-muted-foreground">Send message:</span>
-                                        <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">Enter</kbd>
+                                        <span className="opacity-70">Send message:</span>
+                                        <kbd className="px-1.5 py-0.5 bg-background/80 border border-border rounded text-xs font-mono">Enter</kbd>
                                     </div>
                                     <div className="flex justify-between gap-4">
-                                        <span className="text-muted-foreground">New line:</span>
-                                        <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs">Shift+Enter</kbd>
+                                        <span className="opacity-70">New line:</span>
+                                        <kbd className="px-1.5 py-0.5 bg-background/80 border border-border rounded text-xs font-mono">Shift+Enter</kbd>
                                     </div>
                                 </div>
                             </TooltipContent>
