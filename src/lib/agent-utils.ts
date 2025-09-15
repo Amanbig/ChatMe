@@ -150,79 +150,144 @@ export async function parseAndExecuteCommands(response: string): Promise<string>
     while ((match = commandPattern.exec(response)) !== null) {
         try {
             const commandData = JSON.parse(match[1]);
-            commands.push(commandData);
+            commands.push({ data: commandData, originalText: match[0] });
         } catch (e) {
             console.error('Failed to parse command:', match[1]);
         }
     }
     
-    // Execute commands and replace with results
+    // Execute commands and replace with expandable components
     let processedResponse = response;
     
-    for (const cmd of commands) {
+    for (const cmdInfo of commands) {
+        const cmd = cmdInfo.data;
+        let commandComponent = '';
+        
         try {
             const result = await executeAgentCommand(cmd.command, cmd.params || {});
             
-            // Format the result based on command type
-            let formattedResult = '';
-            
-            if (cmd.command === 'read_directory') {
-                formattedResult = formatDirectoryListing(result, cmd.params?.directoryPath || '');
-            } else if (cmd.command === 'search_files') {
-                formattedResult = formatSearchResults(result, cmd.params?.pattern || '');
-            } else if (cmd.command === 'read_file') {
-                formattedResult = `\`\`\`\n${result}\n\`\`\``;
-            } else if (cmd.command === 'execute_command') {
-                // Format command execution results
-                if (result && typeof result === 'object' && 'stdout' in result) {
-                    formattedResult = `**Command executed successfully**\n\`\`\`\n${result.stdout || '(no output)'}\n\`\`\``;
-                    if (result.stderr) {
-                        formattedResult += `\n**Errors:**\n\`\`\`\n${result.stderr}\n\`\`\``;
+            // Create command execution component based on type
+            if (cmd.command === 'execute_command') {
+                // Get the actual command string
+                const commandStr = cmd.params?.command || 'Unknown command';
+                const workingDir = cmd.params?.working_directory;
+                
+                // Parse result if it's from AgentAction
+                let actualResult = result;
+                if (result && result.result) {
+                    try {
+                        actualResult = JSON.parse(result.result);
+                    } catch {
+                        actualResult = result.result;
                     }
-                } else if (result && result.result) {
-                    // Handle AgentAction response
-                    formattedResult = formatAgentActionResult(result);
-                } else {
-                    formattedResult = String(result);
                 }
+                
+                const componentData = {
+                    command: commandStr,
+                    result: actualResult,
+                    status: 'success',
+                    type: 'command',
+                    working_directory: workingDir
+                };
+                
+                commandComponent = `<command-execution data='${JSON.stringify(componentData).replace(/'/g, "\\'")}'></command-execution>`;
+                
             } else if (cmd.command === 'launch_application') {
+                const appPath = cmd.params?.path || 'Unknown application';
+                let resultMessage = 'Application launched';
+                
                 if (result && result.result) {
-                    const res = JSON.parse(result.result);
-                    formattedResult = `✅ ${res.message || 'Application launched successfully'}`;
-                } else {
-                    formattedResult = String(result);
+                    try {
+                        const res = JSON.parse(result.result);
+                        resultMessage = res.message || resultMessage;
+                    } catch {
+                        resultMessage = result.result || resultMessage;
+                    }
                 }
+                
+                const componentData = {
+                    command: `launch ${appPath}`,
+                    result: resultMessage,
+                    status: 'success',
+                    type: 'application'
+                };
+                
+                commandComponent = `<command-execution data='${JSON.stringify(componentData).replace(/'/g, "\\'")}'></command-execution>`;
+                
+            } else if (cmd.command === 'file_operation') {
+                const operation = cmd.params?.operation_type || 'operation';
+                const source = cmd.params?.source || '';
+                const dest = cmd.params?.destination || '';
+                const commandStr = dest ? `${operation} ${source} → ${dest}` : `${operation} ${source}`;
+                
+                const componentData = {
+                    command: commandStr,
+                    result: result?.result || result,
+                    status: 'success',
+                    type: 'file_operation'
+                };
+                
+                commandComponent = `<command-execution data='${JSON.stringify(componentData).replace(/'/g, "\\'")}'></command-execution>`;
+                
+            } else if (cmd.command === 'read_directory') {
+                // Keep directory listing as special component
+                commandComponent = formatDirectoryListing(result, cmd.params?.directoryPath || '');
+                
+            } else if (cmd.command === 'search_files') {
+                commandComponent = formatSearchResults(result, cmd.params?.pattern || '');
+                
+            } else if (cmd.command === 'read_file') {
+                // For file reading, show as code block
+                commandComponent = `\n\`\`\`\n${result}\n\`\`\`\n`;
+                
             } else if (cmd.command === 'get_processes') {
+                let processes = result;
                 if (result && result.result) {
-                    const processes = JSON.parse(result.result);
-                    formattedResult = formatProcessList(processes);
-                } else {
-                    formattedResult = String(result);
+                    try {
+                        processes = JSON.parse(result.result);
+                    } catch {
+                        processes = result.result;
+                    }
                 }
+                commandComponent = formatProcessList(processes);
+                
             } else if (cmd.command === 'get_installed_apps') {
+                let apps = result;
                 if (result && result.result) {
-                    const apps = JSON.parse(result.result);
-                    formattedResult = formatAppsList(apps);
-                } else {
-                    formattedResult = String(result);
+                    try {
+                        apps = JSON.parse(result.result);
+                    } catch {
+                        apps = result.result;
+                    }
                 }
-            } else if (cmd.command === 'file_operation' || cmd.command === 'change_directory') {
-                if (result && result.result) {
-                    formattedResult = `✅ ${result.result}`;
-                } else {
-                    formattedResult = String(result);
-                }
+                commandComponent = formatAppsList(apps);
+                
             } else {
-                formattedResult = String(result);
+                // Default handling for other commands
+                const componentData = {
+                    command: cmd.command,
+                    result: result?.result || result,
+                    status: 'success',
+                    type: 'general'
+                };
+                
+                commandComponent = `<command-execution data='${JSON.stringify(componentData).replace(/'/g, "\\'")}'></command-execution>`;
             }
             
-            // Replace the command with the result
-            const commandText = `[EXECUTE:${JSON.stringify(cmd)}]`;
-            processedResponse = processedResponse.replace(commandText, formattedResult);
+            // Replace the command with the component
+            processedResponse = processedResponse.replace(cmdInfo.originalText, commandComponent);
             
         } catch (error) {
-            const commandText = `[EXECUTE:${JSON.stringify(cmd)}]`;
-            processedResponse = processedResponse.replace(commandText, `Error: ${error}`);
+            // Create error component
+            const componentData = {
+                command: cmd.command,
+                result: String(error),
+                status: 'error',
+                type: cmd.command
+            };
+            
+            commandComponent = `<command-execution data='${JSON.stringify(componentData).replace(/'/g, "\\'")}'></command-execution>`;
+            processedResponse = processedResponse.replace(cmdInfo.originalText, commandComponent);
         }
     }
     
@@ -244,15 +309,6 @@ function formatDirectoryListing(result: DirectoryContents, basePath: string): st
 **${result.directories?.length || 0} directories, ${result.files?.length || 0} files** found in \`${basePath}\`
 
 You can ask me to open any specific file or folder by name!`;
-}
-
-// Format AgentAction result
-function formatAgentActionResult(action: any): string {
-    if (action.success) {
-        return `✅ ${action.result || 'Operation completed successfully'}`;
-    } else {
-        return `❌ Error: ${action.error_message || 'Operation failed'}`;
-    }
 }
 
 // Format process list
@@ -337,7 +393,8 @@ export async function getAvailableAgentTools(): Promise<string> {
     return `You are now in AGENT MODE. You have access to powerful system capabilities to execute commands and perform operations.
 
 **COMMAND EXECUTION SYNTAX:**
-Use this format to execute commands: [EXECUTE:{"command":"command_name","params":{"param1":"value1"}}]
+Use this format inline in your responses: [EXECUTE:{"command":"command_name","params":{"param1":"value1"}}]
+Commands will be executed and results shown as expandable components in the chat.
 
 **CURRENT WORKING DIRECTORY:** ${currentDir}
 

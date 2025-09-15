@@ -3,15 +3,24 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
 import FileListDisplay from "./file-list-display";
+import CommandExecution from "./command-execution";
 
 interface CustomMarkdownRendererProps {
     content: string;
 }
 
 export default function CustomMarkdownRenderer({ content }: CustomMarkdownRendererProps) {
-    // Check if content contains file-list-component
+    // Check if content contains custom components
     const fileListRegex = /<file-list-component data='([^']+)'><\/file-list-component>/g;
-    const matches = [...content.matchAll(fileListRegex)];
+    const commandExecRegex = /<command-execution data='([^']+)'><\/command-execution>/g;
+    
+    // Find all custom components
+    const allMatches = [
+        ...[...content.matchAll(fileListRegex)].map(m => ({ type: 'file-list', match: m })),
+        ...[...content.matchAll(commandExecRegex)].map(m => ({ type: 'command', match: m }))
+    ].sort((a, b) => (a.match.index || 0) - (b.match.index || 0));
+    
+    const matches = allMatches;
     
     if (matches.length === 0) {
         // No custom components, render with regular ReactMarkdown
@@ -43,7 +52,8 @@ export default function CustomMarkdownRenderer({ content }: CustomMarkdownRender
     const parts = [];
     let lastIndex = 0;
     
-    matches.forEach((match, index) => {
+    matches.forEach((item, index) => {
+        const match = item.match;
         // Add text before the component
         if (match.index! > lastIndex) {
             const textBefore = content.slice(lastIndex, match.index);
@@ -77,13 +87,24 @@ export default function CustomMarkdownRenderer({ content }: CustomMarkdownRender
         // Add the custom component
         try {
             const componentData = JSON.parse(match[1]);
-            if (componentData.type === 'file-list') {
+            if (item.type === 'file-list' && componentData.type === 'file-list') {
                 parts.push(
                     <FileListDisplay
                         key={`file-list-${index}`}
                         directories={componentData.directories}
                         files={componentData.files}
                         basePath={componentData.basePath}
+                    />
+                );
+            } else if (item.type === 'command') {
+                parts.push(
+                    <CommandExecution
+                        key={`command-${index}`}
+                        command={componentData.command}
+                        result={componentData.result}
+                        status={componentData.status || 'success'}
+                        type={componentData.type}
+                        working_directory={componentData.working_directory}
                     />
                 );
             }
