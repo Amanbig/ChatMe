@@ -38,6 +38,7 @@ interface ProviderTemplate {
     defaultUrl?: string;
     defaultModels: string[];
     popular?: boolean;
+    color: string;
 }
 
 const providerTemplates: ProviderTemplate[] = [
@@ -47,25 +48,28 @@ const providerTemplates: ProviderTemplate[] = [
         icon: <FaRobot className="text-green-600" />,
         description: "GPT-4, GPT-3.5 and other OpenAI models",
         defaultUrl: "https://api.openai.com/v1/chat/completions",
-        defaultModels: ["gpt-4", "gpt-4-turbo", "gpt-3.5-turbo"],
-        popular: true
+        defaultModels: ["gpt-4-turbo-preview", "gpt-4", "gpt-3.5-turbo"],
+        popular: true,
+        color: "text-green-600"
     },
     {
         id: "google",
         name: "Google Gemini", 
         icon: <FaGoogle className="text-blue-600" />,
-        description: "Google's Gemini models (supports both original and OpenAI-compatible APIs)",
+        description: "Google's Gemini models",
         defaultUrl: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
         defaultModels: ["gemini-pro", "gemini-1.5-flash", "gemini-1.5-pro"],
-        popular: true
+        popular: true,
+        color: "text-blue-600"
     },
     {
         id: "anthropic",
         name: "Anthropic Claude",
         icon: <FaCode className="text-red-600" />,
-        description: "Claude 3 and other Anthropic models",
+        description: "Claude 3 Opus, Sonnet, and Haiku",
         defaultUrl: "https://api.anthropic.com/v1/messages",
-        defaultModels: ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"]
+        defaultModels: ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"],
+        color: "text-red-600"
     },
     {
         id: "ollama",
@@ -73,14 +77,16 @@ const providerTemplates: ProviderTemplate[] = [
         icon: <FaCog className="text-gray-600" />,
         description: "Local models via Ollama",
         defaultUrl: "http://localhost:11434",
-        defaultModels: ["llama2", "codellama", "mistral", "neural-chat"]
+        defaultModels: ["llama2", "codellama", "mistral", "neural-chat"],
+        color: "text-gray-600"
     },
     {
         id: "custom",
         name: "Custom API",
         icon: <FaServer className="text-purple-600" />,
-        description: "OpenAI-compatible APIs (Mistral, Groq, Together AI, etc.)",
-        defaultModels: ["mistral-large", "mixtral-8x7b", "custom-model"]
+        description: "OpenAI-compatible APIs",
+        defaultModels: ["custom-model"],
+        color: "text-purple-600"
     }
 ];
 

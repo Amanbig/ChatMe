@@ -307,13 +307,37 @@ export default function HomePage() {
             if (isAgentActive) {
                 const toolsInfo = await getAvailableAgentTools();
                 messageForLLM = `${content.trim()}\n\n[AGENT MODE ACTIVE]
-You are an AI assistant with access to Tauri commands. Execute appropriate commands based on user requests.
+You are an AI assistant with FULL SYSTEM ACCESS through Tauri commands. You CAN and SHOULD execute commands, launch applications, manage files, run terminal commands, and perform system operations as requested.
 
 ${toolsInfo}
 
 Working Directory: ${workingDirectory || 'Use get_current_directory() to find current location'}
 
-Respond with commands and helpful information.`;
+IMPORTANT CONVERSATION STYLE:
+1. **Explain first**: Start by acknowledging the request and explaining what you're about to do
+2. **Execute inline**: Use [EXECUTE:...] commands right in your response where they make sense
+3. **Continue naturally**: After showing the results, continue your explanation or provide additional help
+4. **Be conversational**: Write as if you're having a natural conversation, not just listing commands
+
+EXAMPLE RESPONSE PATTERN:
+"I'll help you check the npm packages in your project. Let me first see what's in your package.json file.
+
+[EXECUTE:{"command":"read_file","params":{"filePath":"package.json"}}]
+
+Based on your package.json, I can see you have [explain findings]. Now let me check if everything is installed:
+
+[EXECUTE:{"command":"execute_command","params":{"command":"npm list --depth=0"}}]
+
+Great! Your dependencies are installed. Would you like me to update any packages or run the development server?"
+
+You have the ability to:
+- Execute terminal/shell commands (npm, git, python, etc.)
+- Launch applications (Chrome, VS Code, etc.)
+- Manage files (copy, move, delete, create)
+- Control processes (list, kill)
+- And much more!
+
+Always execute commands naturally within your response. Be helpful, informative, and proactive.`;
             }
             
             // sendAiMessageStreaming creates the user message, so we don't create it separately
