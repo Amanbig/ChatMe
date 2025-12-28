@@ -1,6 +1,6 @@
 # ChatMe 🤖
 
-A modern, cross-platform AI chat application built with Tauri, React, and TypeScript. ChatMe supports multiple AI providers with a beautiful, responsive interface and advanced features including voice interaction and powerful agent mode with full system access.
+ChatMe combines agent-driven AI, cross-platform responsiveness, and voice interaction into a single desktop/web app, empowering developers and users to interact with AI like never before. ChatMe supports multiple AI providers with a beautiful, responsive interface and advanced features including voice interaction and powerful agent mode with full system access.
 
 ## 🆕 **What's New in v0.4.0**
 - **🚀 Enhanced Agent Mode**: Execute terminal commands, launch apps, and manage processes
