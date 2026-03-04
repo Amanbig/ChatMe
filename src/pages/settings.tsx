@@ -5,7 +5,6 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import SpeechSettings from "@/components/app/speech-settings";
@@ -21,7 +20,13 @@ import {
     FaCheck,
     FaSpinner,
     FaPlug,
-    FaSlidersH
+    FaMicrophone,
+    FaBrain,
+    FaSlidersH,
+    FaKey,
+    FaPlus,
+    FaTimes,
+    FaSave
 } from "react-icons/fa";
 import {
     getApiConfigs,
@@ -46,58 +51,353 @@ const providerTemplates: ProviderTemplate[] = [
     {
         id: "openai",
         name: "OpenAI",
-        icon: <FaRobot className="text-green-600" />,
+        icon: <FaRobot className="text-green-600" size={24} />,
         description: "GPT-4, GPT-3.5 and other OpenAI models",
         defaultUrl: "https://api.openai.com/v1/chat/completions",
         defaultModels: ["gpt-4-turbo-preview", "gpt-4", "gpt-3.5-turbo"],
         popular: true,
-        color: "text-green-600"
+        color: "from-green-500 to-emerald-600"
     },
     {
         id: "google",
         name: "Google Gemini",
-        icon: <FaGoogle className="text-blue-600" />,
+        icon: <FaGoogle className="text-blue-600" size={24} />,
         description: "Google's Gemini models",
         defaultUrl: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
         defaultModels: ["gemini-pro", "gemini-1.5-flash", "gemini-1.5-pro"],
         popular: true,
-        color: "text-blue-600"
+        color: "from-blue-500 to-cyan-600"
     },
     {
         id: "anthropic",
         name: "Anthropic Claude",
-        icon: <FaCode className="text-red-600" />,
+        icon: <FaCode className="text-orange-600" size={24} />,
         description: "Claude 3 Opus, Sonnet, and Haiku",
         defaultUrl: "https://api.anthropic.com/v1/messages",
         defaultModels: ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"],
-        color: "text-red-600"
+        color: "from-orange-500 to-red-600"
     },
     {
         id: "ollama",
         name: "Ollama",
-        icon: <FaCog className="text-gray-600" />,
+        icon: <FaCog className="text-gray-600" size={24} />,
         description: "Local models via Ollama",
         defaultUrl: "http://localhost:11434",
         defaultModels: ["llama2", "codellama", "mistral", "neural-chat"],
-        color: "text-gray-600"
+        color: "from-gray-500 to-slate-600"
     },
     {
         id: "custom",
         name: "Custom API",
-        icon: <FaServer className="text-purple-600" />,
+        icon: <FaServer className="text-purple-600" size={24} />,
         description: "OpenAI-compatible APIs",
         defaultModels: ["custom-model"],
-        color: "text-purple-600"
+        color: "from-purple-500 to-violet-600"
     }
 ];
 
+type TabType = 'api' | 'agent' | 'speech';
+
+// Edit Form Component - shown inline
+function ConfigEditForm({
+    config,
+    providerTemplate,
+    onSave,
+    onCancel,
+    onDelete,
+    saving
+}: {
+    config: ApiConfig;
+    providerTemplate: ProviderTemplate;
+    onSave: (data: any) => void;
+    onCancel: () => void;
+    onDelete: () => void;
+    saving: boolean;
+}) {
+    const [formData, setFormData] = useState({
+        name: config.name,
+        api_key: config.api_key,
+        base_url: config.base_url || "",
+        model: config.model,
+        temperature: config.temperature,
+        max_tokens: config.max_tokens,
+        is_default: config.is_default,
+    });
+
+    return (
+        <div className="p-5 rounded-xl border-2 border-primary/30 bg-primary/5 animate-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+                <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${providerTemplate.color} flex items-center justify-center text-white`}>
+                    {providerTemplate.icon}
+                </div>
+                <div>
+                    <h3 className="font-semibold">Edit Configuration</h3>
+                    <p className="text-xs text-muted-foreground">{providerTemplate.name}</p>
+                </div>
+            </div>
+
+            <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="edit-name">Configuration Name</Label>
+                        <Input
+                            id="edit-name"
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            placeholder="My API Configuration"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="edit-model">Model</Label>
+                        <Input
+                            id="edit-model"
+                            value={formData.model}
+                            onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                            placeholder="gpt-4, gemini-pro, etc."
+                        />
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="edit-api-key">API Key</Label>
+                    <Input
+                        id="edit-api-key"
+                        type="password"
+                        value={formData.api_key}
+                        onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
+                        placeholder="Enter your API key"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="edit-base-url">Base URL (Optional)</Label>
+                    <Input
+                        id="edit-base-url"
+                        value={formData.base_url}
+                        onChange={(e) => setFormData({ ...formData, base_url: e.target.value })}
+                        placeholder="https://api.example.com/v1"
+                    />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="edit-temperature">Temperature ({formData.temperature})</Label>
+                        <Input
+                            id="edit-temperature"
+                            type="number"
+                            min="0"
+                            max="2"
+                            step="0.1"
+                            value={formData.temperature}
+                            onChange={(e) => setFormData({ ...formData, temperature: parseFloat(e.target.value) })}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="edit-max-tokens">Max Tokens (Optional)</Label>
+                        <Input
+                            id="edit-max-tokens"
+                            type="number"
+                            value={formData.max_tokens || ''}
+                            onChange={(e) => setFormData({ ...formData, max_tokens: e.target.value ? parseInt(e.target.value) : null })}
+                            placeholder="Leave empty for default"
+                        />
+                    </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                    <div className="flex items-center gap-2">
+                        <Switch
+                            checked={formData.is_default}
+                            onCheckedChange={(checked) => setFormData({ ...formData, is_default: checked })}
+                        />
+                        <Label className="text-sm cursor-pointer">Set as default</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={onCancel}
+                            disabled={saving}
+                            className="gap-1"
+                        >
+                            <FaTimes size={12} />
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={onDelete}
+                            disabled={saving}
+                            className="gap-1"
+                        >
+                            <FaTrash size={12} />
+                            Delete
+                        </Button>
+                        <Button
+                            size="sm"
+                            onClick={() => onSave(formData)}
+                            disabled={saving}
+                            className="gap-1"
+                        >
+                            {saving ? <FaSpinner size={12} className="animate-spin" /> : <FaSave size={12} />}
+                            Save
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// Create Form Component - shown inline when adding new
+function CreateConfigForm({
+    providerTemplate,
+    onSave,
+    onCancel,
+    saving,
+    configs
+}: {
+    providerTemplate: ProviderTemplate;
+    onSave: (data: any) => void;
+    onCancel: () => void;
+    saving: boolean;
+    configs: ApiConfig[];
+}) {
+    const [formData, setFormData] = useState({
+        name: `${providerTemplate.name} Configuration`,
+        api_key: "",
+        base_url: providerTemplate.defaultUrl || "",
+        model: providerTemplate.defaultModels[0] || "",
+        temperature: 0.7,
+        max_tokens: null as number | null,
+        is_default: configs.length === 0,
+    });
+
+    return (
+        <div className="p-5 rounded-xl border-2 border-green-500/30 bg-green-500/5 animate-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+                <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${providerTemplate.color} flex items-center justify-center text-white`}>
+                    {providerTemplate.icon}
+                </div>
+                <div>
+                    <h3 className="font-semibold">New Configuration</h3>
+                    <p className="text-xs text-muted-foreground">{providerTemplate.name}</p>
+                </div>
+            </div>
+
+            <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="new-name">Configuration Name</Label>
+                        <Input
+                            id="new-name"
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            placeholder="My API Configuration"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="new-model">Model</Label>
+                        <Input
+                            id="new-model"
+                            value={formData.model}
+                            onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                            placeholder="gpt-4, gemini-pro, etc."
+                        />
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="new-api-key">API Key</Label>
+                    <Input
+                        id="new-api-key"
+                        type="password"
+                        value={formData.api_key}
+                        onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
+                        placeholder="Enter your API key"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="new-base-url">Base URL (Optional)</Label>
+                    <Input
+                        id="new-base-url"
+                        value={formData.base_url}
+                        onChange={(e) => setFormData({ ...formData, base_url: e.target.value })}
+                        placeholder="https://api.example.com/v1"
+                    />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="new-temperature">Temperature ({formData.temperature})</Label>
+                        <Input
+                            id="new-temperature"
+                            type="number"
+                            min="0"
+                            max="2"
+                            step="0.1"
+                            value={formData.temperature}
+                            onChange={(e) => setFormData({ ...formData, temperature: parseFloat(e.target.value) })}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="new-max-tokens">Max Tokens (Optional)</Label>
+                        <Input
+                            id="new-max-tokens"
+                            type="number"
+                            value={formData.max_tokens || ''}
+                            onChange={(e) => setFormData({ ...formData, max_tokens: e.target.value ? parseInt(e.target.value) : null })}
+                            placeholder="Leave empty for default"
+                        />
+                    </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                    <div className="flex items-center gap-2">
+                        <Switch
+                            checked={formData.is_default}
+                            onCheckedChange={(checked) => setFormData({ ...formData, is_default: checked })}
+                        />
+                        <Label className="text-sm cursor-pointer">Set as default</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={onCancel}
+                            disabled={saving}
+                            className="gap-1"
+                        >
+                            <FaTimes size={12} />
+                            Cancel
+                        </Button>
+                        <Button
+                            size="sm"
+                            onClick={() => onSave({ ...formData, provider: providerTemplate.id })}
+                            disabled={saving}
+                            className="gap-1 bg-green-600 hover:bg-green-700"
+                        >
+                            {saving ? <FaSpinner size={12} className="animate-spin" /> : <FaPlus size={12} />}
+                            Create
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function SettingsPage() {
+    const [activeTab, setActiveTab] = useState<TabType>('api');
     const [configs, setConfigs] = useState<ApiConfig[]>([]);
-    const [selectedProvider, setSelectedProvider] = useState<ApiProvider | null>(null);
-    const [editingConfig, setEditingConfig] = useState<ApiConfig | null>(null);
+    const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [testing, setTesting] = useState(false);
+
+    // Add new config flow states
+    const [showAddNew, setShowAddNew] = useState(false);
+    const [selectedProviderForNew, setSelectedProviderForNew] = useState<ProviderTemplate | null>(null);
 
     // Speech settings state
     const [speechEnabled, setSpeechEnabled] = useState(() => {
@@ -107,16 +407,6 @@ export default function SettingsPage() {
     const [autoSpeak, setAutoSpeak] = useState(() => {
         const saved = localStorage.getItem('autoSpeak');
         return saved ? JSON.parse(saved) : false;
-    });
-
-    const [formData, setFormData] = useState({
-        name: "",
-        api_key: "",
-        base_url: "",
-        model: "",
-        temperature: 0.7,
-        max_tokens: null as number | null,
-        is_default: false,
     });
 
     useEffect(() => {
@@ -136,48 +426,7 @@ export default function SettingsPage() {
         }
     };
 
-    const handleProviderSelect = (providerId: ApiProvider) => {
-        const template = providerTemplates.find(p => p.id === providerId);
-        if (template) {
-            setSelectedProvider(providerId);
-            setEditingConfig(null);
-            setFormData({
-                name: `${template.name} Configuration`,
-                api_key: "",
-                base_url: template.defaultUrl || "",
-                model: template.defaultModels[0] || "",
-                temperature: 0.7,
-                max_tokens: null,
-                is_default: configs.length === 0, // Make first config default
-            });
-        }
-    };
-
-    const handleEditConfig = (config: ApiConfig) => {
-        setEditingConfig(config);
-        setSelectedProvider(config.provider);
-        setFormData({
-            name: config.name,
-            api_key: config.api_key,
-            base_url: config.base_url || "",
-            model: config.model,
-            temperature: config.temperature,
-            max_tokens: config.max_tokens,
-            is_default: config.is_default,
-        });
-    };
-
-    const handleInputChange = (field: string, value: any) => {
-        setFormData(prev => ({
-            ...prev,
-            [field]: value
-        }));
-    };
-
-    const handleSave = async () => {
-        if (!selectedProvider) return;
-
-        // Validation
+    const handleSaveEdit = async (configId: string, formData: any) => {
         if (!formData.name.trim()) {
             toast.error('Please enter a configuration name');
             return;
@@ -186,38 +435,16 @@ export default function SettingsPage() {
             toast.error('Please enter a model name');
             return;
         }
-        if (selectedProvider !== 'ollama' && !formData.api_key.trim()) {
-            toast.error('Please enter an API key');
-            return;
-        }
 
         try {
             setSaving(true);
-            const request = {
-                name: formData.name,
-                provider: selectedProvider,
-                api_key: formData.api_key,
-                base_url: formData.base_url || null,
-                model: formData.model,
-                temperature: formData.temperature,
-                max_tokens: formData.max_tokens,
-                is_default: formData.is_default,
-            };
-
-            if (editingConfig) {
-                await updateApiConfig(editingConfig.id, request);
-                toast.success('Configuration updated successfully!');
-            } else {
-                await createApiConfig(request);
-                toast.success('Configuration created successfully!');
-            }
-
+            await updateApiConfig(configId, formData);
+            toast.success('Configuration updated successfully!');
+            setEditingConfigId(null);
             await loadConfigs();
-            handleCancel();
         } catch (error) {
             console.error('Failed to save configuration:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            toast.error(`Failed to save configuration: ${errorMessage}`);
+            toast.error('Failed to save configuration');
         } finally {
             setSaving(false);
         }
@@ -226,6 +453,7 @@ export default function SettingsPage() {
     const handleDelete = async (configId: string) => {
         try {
             await deleteApiConfig(configId);
+            setEditingConfigId(null);
             await loadConfigs();
             toast.success('Configuration deleted successfully');
         } catch (error) {
@@ -242,131 +470,6 @@ export default function SettingsPage() {
         }
     };
 
-    const handleTestConnection = async () => {
-        if (!selectedProvider || (!formData.api_key.trim() && selectedProvider !== 'ollama') || !formData.model.trim()) {
-            toast.error('Please fill in the required fields before testing');
-            return;
-        }
-
-        if (!formData.base_url.trim()) {
-            toast.error('Please enter an API URL before testing');
-            return;
-        }
-
-        try {
-            setTesting(true);
-
-            // For different providers, we need different test approaches
-            let testUrl = formData.base_url;
-            let testBody: any = {};
-            let headers: any = {
-                'Content-Type': 'application/json',
-            };
-
-            // Configure test based on provider
-            switch (selectedProvider) {
-                case 'openai':
-                    testBody = {
-                        model: formData.model,
-                        messages: [{ role: 'user', content: 'Hi' }],
-                        max_tokens: 1,
-                    };
-                    headers['Authorization'] = `Bearer ${formData.api_key}`;
-                    break;
-
-                case 'google':
-                    // Google Gemini has different endpoint structure
-                    testUrl = `${formData.base_url}/models/${formData.model}:generateContent`;
-                    testBody = {
-                        contents: [{ parts: [{ text: 'Hi' }] }],
-                        generationConfig: { maxOutputTokens: 1 }
-                    };
-                    headers['Authorization'] = `Bearer ${formData.api_key}`;
-                    break;
-
-                case 'anthropic':
-                    testBody = {
-                        model: formData.model,
-                        max_tokens: 1,
-                        messages: [{ role: 'user', content: 'Hi' }]
-                    };
-                    headers['Authorization'] = `Bearer ${formData.api_key}`;
-                    headers['anthropic-version'] = '2023-06-01';
-                    break;
-
-                case 'ollama':
-                    testUrl = `${formData.base_url}/api/generate`;
-                    testBody = {
-                        model: formData.model,
-                        prompt: 'Hi',
-                        stream: false
-                    };
-                    break;
-
-                default:
-                    testBody = {
-                        model: formData.model,
-                        messages: [{ role: 'user', content: 'Hi' }],
-                        max_tokens: 1,
-                    };
-                    if (formData.api_key) {
-                        headers['Authorization'] = `Bearer ${formData.api_key}`;
-                    }
-            }
-
-            const testPromise = fetch(testUrl, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(testBody),
-            });
-
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Connection timeout after 10 seconds')), 10000)
-            );
-
-            const response = await Promise.race([testPromise, timeoutPromise]) as Response;
-
-            if (response.ok) {
-                toast.success('✅ Connection successful! Your configuration is working correctly.');
-            } else if (response.status === 401 || response.status === 403) {
-                toast.warning('🔑 API endpoint reached, but authentication failed. Please check your API key.');
-            } else if (response.status === 404) {
-                toast.warning('❓ API endpoint not found. Please check your API URL and model name.');
-            } else {
-                toast.warning(`⚠️ API responded with status ${response.status}. Your configuration may need adjustments.`);
-            }
-        } catch (error: any) {
-            console.error('Connection test failed:', error);
-
-            // Handle specific error types
-            if (error.message?.includes('CORS') || error.message?.includes('Failed to fetch')) {
-                toast.info('ℹ️ CORS blocked (this is normal). Your configuration will work in the actual chat - browsers block direct API calls for security.');
-            } else if (error.message?.includes('timeout')) {
-                toast.error('⏱️ Connection timeout. Please check your network connection and API URL.');
-            } else if (error.message?.includes('NetworkError')) {
-                toast.error('🌐 Network error. Please check your internet connection.');
-            } else {
-                toast.error(`❌ Connection test failed: ${error.message || 'Unknown error'}`);
-            }
-        } finally {
-            setTesting(false);
-        }
-    };
-
-    const handleCancel = () => {
-        setSelectedProvider(null);
-        setEditingConfig(null);
-        setFormData({
-            name: "",
-            api_key: "",
-            base_url: "",
-            model: "",
-            temperature: 0.7,
-            max_tokens: null,
-            is_default: false,
-        });
-    };
-
     const handleSpeechEnabledChange = (enabled: boolean) => {
         setSpeechEnabled(enabled);
         localStorage.setItem('speechEnabled', JSON.stringify(enabled));
@@ -377,323 +480,257 @@ export default function SettingsPage() {
         localStorage.setItem('autoSpeak', JSON.stringify(enabled));
     };
 
-    const selectedTemplate = selectedProvider ? providerTemplates.find(p => p.id === selectedProvider) : null;
+    const handleCreateNew = async (formData: any) => {
+        if (!formData.name.trim()) {
+            toast.error('Please enter a configuration name');
+            return;
+        }
+        if (!formData.model.trim()) {
+            toast.error('Please enter a model name');
+            return;
+        }
+        if (formData.provider !== 'ollama' && !formData.api_key.trim()) {
+            toast.error('Please enter an API key');
+            return;
+        }
+
+        try {
+            setSaving(true);
+            await createApiConfig(formData);
+            toast.success('Configuration created successfully!');
+            setSelectedProviderForNew(null);
+            setShowAddNew(false);
+            await loadConfigs();
+        } catch (error) {
+            console.error('Failed to create configuration:', error);
+            toast.error('Failed to create configuration');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const tabs = [
+        { id: 'api' as TabType, label: 'API Configs', icon: <FaKey size={16} /> },
+        { id: 'agent' as TabType, label: 'Agent Mode', icon: <FaBrain size={16} /> },
+        { id: 'speech' as TabType, label: 'Speech', icon: <FaMicrophone size={16} /> },
+    ];
 
     return (
         <div className="h-full flex flex-col overflow-hidden bg-background">
+            {/* Header */}
+            <div className="flex items-center gap-4 px-6 py-4 border-b border-border/60 bg-card/50">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center shrink-0">
+                    <FaSlidersH size={20} className="text-primary" />
+                </div>
+                <div className="flex-1">
+                    <h1 className="text-xl font-bold text-foreground">Settings</h1>
+                    <p className="text-xs text-muted-foreground">Configure your AI providers and preferences</p>
+                </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex items-center gap-1 px-6 py-3 border-b border-border/40 bg-background">
+                {tabs.map((tab) => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${activeTab === tab.id
+                            ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                            }`}
+                    >
+                        {tab.icon}
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
+            {/* Content */}
             <ScrollArea className="flex-1 h-0">
-                <div className="p-6 min-h-full">
-                    <div className="max-w-5xl mx-auto space-y-8 pb-8">
-                        {/* Header */}
-                        <div className="flex items-start gap-4 pb-6 border-b border-border/60">
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center shrink-0">
-                                <FaCog size={24} className="text-primary" />
-                            </div>
-                            <div>
-                                <h1 className="text-2xl font-bold text-foreground mb-1">Settings</h1>
-                                <p className="text-sm text-muted-foreground">Configure your AI providers, speech settings, and agent preferences</p>
-                            </div>
-                        </div>
+                <div className="p-6">
+                    <div className="max-w-4xl mx-auto">
+                        {/* API Configurations Tab */}
+                        {activeTab === 'api' && (
+                            <div className="space-y-6">
+                                {/* Existing Configurations */}
+                                {!loading && configs.length > 0 && (
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <h2 className="text-lg font-semibold flex items-center gap-2">
+                                                <FaPlug className="text-primary" />
+                                                Your Configurations
+                                            </h2>
+                                            <Badge variant="secondary">{configs.length} active</Badge>
+                                        </div>
 
-                        {/* Speech Settings */}
-                        <SpeechSettings
-                            speechEnabled={speechEnabled}
-                            onSpeechEnabledChange={handleSpeechEnabledChange}
-                            autoSpeak={autoSpeak}
-                            onAutoSpeakChange={handleAutoSpeakChange}
-                        />
+                                        {configs.map((config) => {
+                                            const template = providerTemplates.find(p => p.id === config.provider);
+                                            const isEditing = editingConfigId === config.id;
 
-                        {/* Agent Mode */}
-                        <AgentMode />
+                                            if (isEditing) {
+                                                return (
+                                                    <ConfigEditForm
+                                                        key={config.id}
+                                                        config={config}
+                                                        providerTemplate={template!}
+                                                        onSave={(data) => handleSaveEdit(config.id, data)}
+                                                        onCancel={() => setEditingConfigId(null)}
+                                                        onDelete={() => handleDelete(config.id)}
+                                                        saving={saving}
+                                                    />
+                                                );
+                                            }
 
-                        <Separator />
+                                            return (
+                                                <div
+                                                    key={config.id}
+                                                    className="flex items-center justify-between p-4 rounded-xl border border-border/60 bg-card hover:border-primary/30 hover:shadow-md transition-all duration-200"
+                                                >
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${template?.color || 'from-gray-500 to-slate-600'} flex items-center justify-center text-white`}>
+                                                            {template?.icon}
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="font-semibold flex items-center gap-2">
+                                                                {config.name}
+                                                                {config.is_default && (
+                                                                    <Badge variant="default" className="gap-1 text-[10px]">
+                                                                        <FaCheck size={10} />
+                                                                        Default
+                                                                    </Badge>
+                                                                )}
+                                                            </h3>
+                                                            <p className="text-sm text-muted-foreground">
+                                                                {config.provider.toUpperCase()} • {config.model}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => setEditingConfigId(config.id)}
+                                                        className="h-8 w-8 p-0 rounded-lg hover:bg-primary/10 hover:text-primary"
+                                                    >
+                                                        <FaEdit size={14} />
+                                                    </Button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
 
-                        {/* Existing Configurations */}
-                        {!loading && configs.length > 0 && (
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Your Configurations</CardTitle>
-                                    <CardDescription>Manage your existing AI provider configurations</CardDescription>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    {configs.map((config) => (
-                                        <div
-                                            key={config.id}
-                                            className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                {providerTemplates.find(p => p.id === config.provider)?.icon}
+                                {/* Loading State */}
+                                {loading && (
+                                    <div className="flex flex-col items-center justify-center py-12 gap-3">
+                                        <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                                        <p className="text-sm text-muted-foreground">Loading configurations...</p>
+                                    </div>
+                                )}
+
+                                {/* Empty State */}
+                                {!loading && configs.length === 0 && (
+                                    <div className="text-center py-12 px-4 border-2 border-dashed border-border/60 rounded-xl">
+                                        <div className="w-12 h-12 rounded-xl bg-muted/50 flex items-center justify-center mx-auto mb-3">
+                                            <FaPlug size={20} className="text-muted-foreground/50" />
+                                        </div>
+                                        <h3 className="font-semibold text-foreground mb-1">No configurations yet</h3>
+                                        <p className="text-sm text-muted-foreground mb-4">Add your first AI provider to get started</p>
+                                    </div>
+                                )}
+
+                                {/* Add New Flow */}
+                                {!showAddNew ? (
+                                    <Card className="border-border/60 border-dashed">
+                                        <CardContent className="p-6">
+                                            <div className="text-center">
+                                                <Button
+                                                    className="gap-2"
+                                                    onClick={() => setShowAddNew(true)}
+                                                >
+                                                    <FaPlus size={14} />
+                                                    Add New Configuration
+                                                </Button>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ) : !selectedProviderForNew ? (
+                                    <Card className="border-border/60">
+                                        <CardHeader className="pb-4">
+                                            <div className="flex items-center justify-between">
                                                 <div>
-                                                    <h3 className="font-semibold flex items-center gap-2">
-                                                        {config.name}
-                                                        {config.is_default && (
-                                                            <Badge variant="default" className="gap-1">
-                                                                <FaCheck className="h-3 w-3" />
-                                                                Default
+                                                    <CardTitle className="text-lg flex items-center gap-2">
+                                                        <FaPlus className="text-primary" />
+                                                        Select Provider
+                                                    </CardTitle>
+                                                    <CardDescription>Choose an AI provider to configure</CardDescription>
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => setShowAddNew(false)}
+                                                    className="h-8 w-8 p-0"
+                                                >
+                                                    <FaTimes size={14} />
+                                                </Button>
+                                            </div>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {providerTemplates.map((provider) => (
+                                                    <div
+                                                        key={provider.id}
+                                                        onClick={() => setSelectedProviderForNew(provider)}
+                                                        className="relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:shadow-lg border-border hover:border-primary/50 hover:bg-muted/30 group"
+                                                    >
+                                                        {provider.popular && (
+                                                            <Badge className="absolute top-3 right-3 bg-green-500 hover:bg-green-500 text-[10px]">
+                                                                Popular
                                                             </Badge>
                                                         )}
-                                                    </h3>
-                                                    <p className="text-sm text-muted-foreground">
-                                                        {config.provider.toUpperCase()} • {config.model}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => handleEditConfig(config)}
-                                                    className="h-9 w-9 p-0"
-                                                >
-                                                    <FaEdit className="h-4 w-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => handleDelete(config.id)}
-                                                    className="h-9 w-9 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                >
-                                                    <FaTrash className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </CardContent>
-                            </Card>
-                        )}
-
-                        {/* Provider Selection */}
-                        {!selectedProvider && (
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Add New Configuration</CardTitle>
-                                    <CardDescription>Choose an AI provider to configure</CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                        {providerTemplates.map((provider) => (
-                                            <div
-                                                key={provider.id}
-                                                onClick={() => handleProviderSelect(provider.id)}
-                                                className="relative p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:shadow-lg border-border hover:border-primary/50 hover:bg-muted/30"
-                                            >
-                                                {/* Popular badge */}
-                                                {provider.popular && (
-                                                    <Badge className="absolute top-3 right-3 bg-green-500 hover:bg-green-500">
-                                                        Popular
-                                                    </Badge>
-                                                )}
-
-                                                <div className="flex items-start gap-3">
-                                                    <div className="text-2xl">{provider.icon}</div>
-                                                    <div className="flex-1">
-                                                        <h3 className="font-semibold text-lg">{provider.name}</h3>
-                                                        <p className="text-sm text-muted-foreground mt-1">
-                                                            {provider.description}
-                                                        </p>
+                                                        <div className="flex items-start gap-3">
+                                                            <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${provider.color} flex items-center justify-center text-white shadow-md group-hover:scale-110 transition-transform duration-200`}>
+                                                                {provider.icon}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <h3 className="font-semibold">{provider.name}</h3>
+                                                                <p className="text-xs text-muted-foreground mt-0.5">
+                                                                    {provider.description}
+                                                                </p>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )}
-
-                        {/* Configuration Form */}
-                        {selectedTemplate && (
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        {selectedTemplate.icon}
-                                        {editingConfig ? 'Edit' : 'Configure'} {selectedTemplate.name}
-                                    </CardTitle>
-                                    <CardDescription>
-                                        {editingConfig ? 'Update your' : 'Set up your'} {selectedTemplate.name} configuration
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent className="space-y-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {/* Configuration Name */}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="name">Configuration Name *</Label>
-                                            <Input
-                                                id="name"
-                                                placeholder="My OpenAI Config"
-                                                value={formData.name}
-                                                onChange={(e) => handleInputChange("name", e.target.value)}
-                                                required
-                                            />
-                                        </div>
-
-                                        {/* API Key Field */}
-                                        {selectedProvider !== 'ollama' && (
-                                            <div className="space-y-2">
-                                                <Label htmlFor="api_key">API Key *</Label>
-                                                <Input
-                                                    id="api_key"
-                                                    type="password"
-                                                    placeholder="Enter your API key"
-                                                    value={formData.api_key}
-                                                    onChange={(e) => handleInputChange("api_key", e.target.value)}
-                                                    className="font-mono"
-                                                    required
-                                                />
-                                            </div>
-                                        )}
-
-                                        {/* URL Field */}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="base_url">API URL</Label>
-                                            <Input
-                                                id="base_url"
-                                                type="url"
-                                                placeholder={selectedTemplate.defaultUrl || "Enter API URL"}
-                                                value={formData.base_url}
-                                                onChange={(e) => handleInputChange("base_url", e.target.value)}
-                                            />
-                                        </div>
-
-                                        {/* Model Field */}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="model">Model Name *</Label>
-                                            <Input
-                                                id="model"
-                                                placeholder="e.g., gpt-4, gemini-pro, llama2"
-                                                value={formData.model}
-                                                onChange={(e) => handleInputChange("model", e.target.value)}
-                                                required
-                                            />
-                                            <div className="flex flex-wrap gap-1 mt-1">
-                                                {selectedTemplate.defaultModels.map((model) => (
-                                                    <Badge
-                                                        key={model}
-                                                        variant="outline"
-                                                        className="cursor-pointer text-xs hover:bg-muted"
-                                                        onClick={() => handleInputChange("model", model)}
-                                                    >
-                                                        {model}
-                                                    </Badge>
                                                 ))}
                                             </div>
-                                        </div>
-
-                                        {/* Temperature */}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="temperature">Temperature</Label>
-                                            <Input
-                                                id="temperature"
-                                                type="number"
-                                                min="0"
-                                                max="2"
-                                                step="0.1"
-                                                value={formData.temperature}
-                                                onChange={(e) => handleInputChange("temperature", parseFloat(e.target.value))}
-                                            />
-                                            <p className="text-xs text-muted-foreground">Controls randomness (0 = focused, 2 = creative)</p>
-                                        </div>
-
-                                        {/* Max Tokens */}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="max_tokens">Max Tokens</Label>
-                                            <Input
-                                                id="max_tokens"
-                                                type="number"
-                                                min="1"
-                                                value={formData.max_tokens || ""}
-                                                onChange={(e) => handleInputChange("max_tokens", e.target.value ? parseInt(e.target.value) : null)}
-                                                placeholder="1000"
-                                            />
-                                            <p className="text-xs text-muted-foreground">Maximum response length (optional)</p>
-                                        </div>
-                                    </div>
-
-                                    <Separator />
-
-                                    {/* Default Switch */}
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <Label htmlFor="is_default" className="text-base font-medium">Default Configuration</Label>
-                                            <p className="text-sm text-muted-foreground">Use this as the default for new chats</p>
-                                        </div>
-                                        <Switch
-                                            id="is_default"
-                                            checked={formData.is_default}
-                                            onCheckedChange={(checked) => handleInputChange("is_default", checked)}
-                                        />
-                                    </div>
-
-                                    {/* Action Buttons */}
-                                    <div className="space-y-3">
-                                        <div className="flex gap-3">
-                                            <Button
-                                                onClick={handleSave}
-                                                disabled={saving}
-                                                className="px-6"
-                                            >
-                                                {saving ? (
-                                                    <>
-                                                        <FaSpinner className="mr-2 h-4 w-4 animate-spin" />
-                                                        Saving...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        {editingConfig ? 'Update' : 'Save'} Configuration
-                                                    </>
-                                                )}
-                                            </Button>
-
-                                            {selectedProvider !== 'ollama' && formData.api_key && (
-                                                <Button
-                                                    variant="outline"
-                                                    onClick={handleTestConnection}
-                                                    disabled={testing}
-                                                >
-                                                    {testing ? (
-                                                        <>
-                                                            <FaSpinner className="mr-2 h-4 w-4 animate-spin" />
-                                                            Testing...
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <FaPlug className="mr-2 h-4 w-4" />
-                                                            Test Connection
-                                                        </>
-                                                    )}
-                                                </Button>
-                                            )}
-
-                                            <Button variant="outline" onClick={handleCancel}>
-                                                Cancel
-                                            </Button>
-                                        </div>
-
-                                        {/* Test Connection Info */}
-                                        {selectedProvider !== 'ollama' && (
-                                            <div className="text-xs text-muted-foreground bg-muted/30 p-3 rounded-lg">
-                                                <p className="font-medium mb-1">💡 About Connection Testing:</p>
-                                                <p>
-                                                    Most AI APIs block direct browser requests (CORS policy). If you see a CORS error,
-                                                    don't worry - your configuration will still work in actual chats. The test helps
-                                                    verify your API URL format and credentials when possible.
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
+                                        </CardContent>
+                                    </Card>
+                                ) : (
+                                    <CreateConfigForm
+                                        providerTemplate={selectedProviderForNew}
+                                        onSave={handleCreateNew}
+                                        onCancel={() => {
+                                            setSelectedProviderForNew(null);
+                                            setShowAddNew(false);
+                                        }}
+                                        saving={saving}
+                                        configs={configs}
+                                    />
+                                )}
+                            </div>
                         )}
 
-                        {!selectedProvider && configs.length === 0 && !loading && (
-                            <Card>
-                                <CardContent className="text-center py-12">
-                                    <FaCog className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                                    <h3 className="text-lg font-medium mb-2">No Configurations Yet</h3>
-                                    <p className="text-muted-foreground">
-                                        Select an AI provider above to create your first configuration
-                                    </p>
-                                </CardContent>
-                            </Card>
+                        {/* Agent Mode Tab */}
+                        {activeTab === 'agent' && (
+                            <AgentMode />
+                        )}
+
+                        {/* Speech Settings Tab */}
+                        {activeTab === 'speech' && (
+                            <SpeechSettings
+                                speechEnabled={speechEnabled}
+                                onSpeechEnabledChange={handleSpeechEnabledChange}
+                                autoSpeak={autoSpeak}
+                                onAutoSpeakChange={handleAutoSpeakChange}
+                            />
                         )}
                     </div>
                 </div>

@@ -180,32 +180,24 @@ export default function AppLayout({ children }: AppLayoutProps) {
         >
           <SidebarHeader className="p-5 pb-4">
             {/* Logo */}
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
-                  <FaRobot className="text-primary-foreground" size={22} />
-                </div>
-                <div>
-                  <h1 className="font-bold text-lg leading-tight">ChatMe</h1>
-                  <p className="text-[11px] text-muted-foreground">AI Assistant</p>
-                </div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
+                <FaRobot className="text-primary-foreground" size={22} />
               </div>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleNewChat}
-                    className="h-9 w-9 rounded-lg hover:bg-primary/10 hover:text-primary"
-                  >
-                    <FaPlus size={16} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p className="text-xs">New chat (Ctrl+N)</p>
-                </TooltipContent>
-              </Tooltip>
+              <div>
+                <h1 className="font-bold text-lg leading-tight">ChatMe</h1>
+                <p className="text-[11px] text-muted-foreground">AI Assistant</p>
+              </div>
             </div>
+
+            {/* New Chat Button */}
+            <Button
+              onClick={handleNewChat}
+              className="w-full gap-2 h-10 mb-4 rounded-xl bg-primary hover:bg-primary/90 shadow-md shadow-primary/20 transition-all duration-200 hover:shadow-lg hover:shadow-primary/30"
+            >
+              <FaPlus size={16} />
+              <span>New Chat</span>
+            </Button>
 
             {/* Search */}
             <div className="relative">
