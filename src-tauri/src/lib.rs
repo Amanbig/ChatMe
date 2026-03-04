@@ -4,6 +4,8 @@ mod models;
 mod file_operations;
 mod agentic;
 mod system_operations;
+mod tools;
+mod tool_executor;
 
 use database::Database;
 use std::collections::HashMap;
@@ -37,6 +39,7 @@ pub fn run() {
                 commands::delete_api_config,
                 commands::send_ai_message,
                 commands::send_ai_message_streaming,
+                commands::send_ai_message_streaming_with_tools,
                 // File operations
                 commands::open_file_with_default_app,
                 commands::read_directory,

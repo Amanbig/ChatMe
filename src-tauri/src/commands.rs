@@ -5,6 +5,7 @@ use crate::file_operations::{
     read_file_contents, write_file_contents, DirectoryContents, SearchResult
 };
 use crate::agentic::{AgentSession, AgentAction, AgentCapability};
+use crate::tools::get_all_tool_definitions;
 use crate::system_operations::{
     launch_application, get_installed_applications, execute_terminal_command,
     perform_file_operation, get_running_processes, kill_process, check_permission_level,
@@ -186,7 +187,10 @@ pub async fn send_ai_message(
                     MessageRole::User => "user".to_string(),
                     MessageRole::Assistant => "assistant".to_string(),
                 },
-                content,
+                content: Some(content),
+                tool_calls: None,
+                tool_call_id: None,
+                name: None,
             }
         })
         .collect();
@@ -281,7 +285,10 @@ pub async fn send_ai_message_streaming(
                     MessageRole::User => "user".to_string(),
                     MessageRole::Assistant => "assistant".to_string(),
                 },
-                content,
+                content: Some(content),
+                tool_calls: None,
+                tool_call_id: None,
+                name: None,
             }
         })
         .collect();
@@ -610,6 +617,145 @@ pub async fn terminate_process(
     
     kill_process(pid)
         .map_err(|e| e.to_string())?;
-    
+
     Ok(format!("Successfully terminated process with PID: {}", pid))
+}
+
+#[tauri::command]
+pub async fn send_ai_message_streaming_with_tools(
+    window: tauri::Window,
+    db: State<'_, Database>,
+    agent_sessions: State<'_, Mutex<HashMap<String, AgentSession>>>,
+    chat_id: String,
+    user_message: String,
+    images: Option<Vec<String>>,
+    use_tools: bool,
+) -> Result<String, String> {
+    // Get chat and API config
+    let chat = db.get_chat(&chat_id).await.map_err(|e| e.to_string())?
+        .ok_or("Chat not found")?;
+
+    let api_config = if let Some(config_id) = &chat.api_config_id {
+        db.get_api_config(config_id).await.map_err(|e| e.to_string())?
+    } else {
+        db.get_default_api_config().await.map_err(|e| e.to_string())?
+    }.ok_or("No API configuration found")?;
+
+    // Create user message
+    let user_msg = db.create_message(
+        chat_id.clone(),
+        user_message.clone(),
+        MessageRole::User,
+        images
+    ).await.map_err(|e| e.to_string())?;
+
+    window.emit("message_created", &user_msg).map_err(|e| e.to_string())?;
+
+    // Get recent messages
+    let messages = db.get_messages(&chat_id).await.map_err(|e| e.to_string())?;
+
+    // Convert to chat format
+    let chat_messages: Vec<ChatMessage> = messages
+        .iter()
+        .rev()
+        .take(10)
+        .rev()
+        .map(|msg| {
+            let content = if let Some(images) = &msg.images {
+                if !images.is_empty() {
+                    let mut content_array = vec![];
+                    if !msg.content.is_empty() {
+                        content_array.push(json!({"type": "text", "text": msg.content}));
+                    }
+                    for image in images {
+                        content_array.push(json!({"type": "image_url", "image_url": {"url": image}}));
+                    }
+                    json!(content_array)
+                } else {
+                    json!(msg.content)
+                }
+            } else {
+                json!(msg.content)
+            };
+
+            ChatMessage {
+                role: match msg.role {
+                    MessageRole::User => "user".to_string(),
+                    MessageRole::Assistant => "assistant".to_string(),
+                },
+                content: Some(content),
+                tool_calls: None,
+                tool_call_id: None,
+                name: None,
+            }
+        })
+        .collect();
+
+    let assistant_msg_id = uuid::Uuid::new_v4().to_string();
+
+    window.emit("streaming_start", json!({
+        "message_id": assistant_msg_id,
+        "chat_id": chat_id
+    })).map_err(|e| e.to_string())?;
+
+    // If using tools, get agent session and tool definitions
+    if use_tools {
+        let session_id = format!("chat-{}", chat_id);
+        let mut sessions = agent_sessions.lock().map_err(|e| e.to_string())?;
+
+        if !sessions.contains_key(&session_id) {
+            sessions.insert(session_id.clone(), AgentSession::new(session_id.clone()));
+        }
+
+        let agent_session = sessions.get(&session_id).cloned();
+        drop(sessions); // Release lock
+
+        // Get tool definitions
+        let tools = get_all_tool_definitions();
+
+        // Use tool calling method
+        let (ai_response, turns) = db.send_chat_completion_with_tools(
+            &api_config,
+            chat_messages,
+            Some(&tools),
+            agent_session.as_ref(),
+            5 // max 5 iterations
+        ).await.map_err(|e| e.to_string())?;
+
+        // Emit tool execution events
+        for turn in &turns {
+            for execution in &turn.tool_executions {
+                window.emit("tool_execution_complete", json!({
+                    "message_id": assistant_msg_id,
+                    "execution": execution,
+                })).map_err(|e| e.to_string())?;
+            }
+        }
+
+        // Emit streaming complete
+        window.emit("streaming_complete", json!({
+            "message_id": assistant_msg_id,
+            "content": ai_response,
+            "chat_id": chat_id,
+            "turns": turns,
+        })).map_err(|e| e.to_string())?;
+
+        // Create final assistant message
+        let assistant_msg = db.create_message(
+            chat_id,
+            ai_response,
+            MessageRole::Assistant,
+            None
+        ).await.map_err(|e| e.to_string())?;
+
+        window.emit("final_message_created", json!({
+            "message": assistant_msg,
+            "tool_turns": turns,
+        })).map_err(|e| e.to_string())?;
+
+        Ok(assistant_msg.id)
+    } else {
+        // Fall back to regular streaming
+        send_ai_message_streaming(window, db, chat_id, user_message, images).await
+    }
 }

@@ -127,18 +127,78 @@ pub struct ChatCompletionRequest {
     pub max_tokens: Option<i32>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChatMessage {
-    pub role: String,
-    pub content: serde_json::Value, // Can be string or array of content objects
+    pub role: String, // "user" | "assistant" | "tool" | "system"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<serde_json::Value>, // Can be string or array, null for tool calls
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<ToolCall>>, // When assistant makes tool calls
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>, // When role is "tool"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>, // Tool name when role is "tool"
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChatCompletionResponse {
     pub choices: Vec<ChatChoice>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<serde_json::Value>, // Token usage stats
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChatChoice {
     pub message: ChatMessage,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finish_reason: Option<String>, // "stop" | "tool_calls" | "length"
+}
+
+// Tool Definition Types (OpenAI format as canonical)
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ToolDefinition {
+    #[serde(rename = "type")]
+    pub tool_type: String, // Always "function"
+    pub function: FunctionDefinition,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FunctionDefinition {
+    pub name: String,
+    pub description: String,
+    pub parameters: serde_json::Value, // JSON Schema object
+}
+
+// Tool Call Types (in LLM response)
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ToolCall {
+    pub id: String, // OpenAI requires unique ID per call
+    #[serde(rename = "type")]
+    pub call_type: String, // "function"
+    pub function: FunctionCall,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FunctionCall {
+    pub name: String,
+    pub arguments: String, // JSON string of parameters
+}
+
+// Tool Execution Tracking
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ToolExecution {
+    pub tool_call_id: String,
+    pub tool_name: String,
+    pub arguments: serde_json::Value,
+    pub result: Option<serde_json::Value>,
+    pub success: bool,
+    pub error_message: Option<String>,
+    pub timestamp: DateTime<Utc>,
+}
+
+// Conversation Turn (for multi-turn tool use)
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ConversationTurn {
+    pub assistant_message: ChatMessage,
+    pub tool_executions: Vec<ToolExecution>,
 }

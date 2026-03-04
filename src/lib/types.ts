@@ -145,3 +145,46 @@ export interface AgentParameter {
   required: boolean;
   default_value?: any;
 }
+
+// Tool Calling Types
+export interface ToolDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: any; // JSON Schema
+  };
+}
+
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string; // JSON string
+  };
+}
+
+export interface ToolExecution {
+  tool_call_id: string;
+  tool_name: string;
+  arguments: any;
+  result: any | null;
+  success: boolean;
+  error_message: string | null;
+  timestamp: string;
+}
+
+export interface ConversationTurn {
+  assistant_message: {
+    role: string;
+    content: string | null;
+    tool_calls: ToolCall[] | null;
+  };
+  tool_executions: ToolExecution[];
+}
+
+// Enhanced Message type with tool execution history
+export interface MessageWithTools extends Message {
+  tool_turns?: ConversationTurn[];
+}

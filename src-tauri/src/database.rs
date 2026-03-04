@@ -8,6 +8,9 @@ use serde_json::json;
 use tauri::Emitter;
 
 use crate::models::*;
+use crate::tools::{get_all_tool_definitions, anthropic_tool_to_openai, openai_tool_to_anthropic};
+use crate::tool_executor::ToolExecutor;
+use crate::agentic::AgentSession;
 
 pub struct Database {
     pool: Pool<Sqlite>,
@@ -394,8 +397,9 @@ impl Database {
                         if let Some(choice) = completion.choices.first() {
                             // Convert content Value to String
                             let content_str = match &choice.message.content {
-                                serde_json::Value::String(s) => s.clone(),
-                                other => other.to_string(),
+                                Some(serde_json::Value::String(s)) => s.clone(),
+                                Some(other) => other.to_string(),
+                                None => String::new(),
                             };
                             Ok(content_str)
                         } else {
@@ -417,7 +421,7 @@ impl Database {
                 let anthropic_messages: Vec<serde_json::Value> = messages.into_iter().map(|msg| {
                     json!({
                         "role": if msg.role == "assistant" { "assistant" } else { "user" },
-                        "content": msg.content
+                        "content": msg.content.unwrap_or(json!(""))
                     })
                 }).collect();
 
@@ -518,8 +522,9 @@ impl Database {
                             if let Some(choice) = completion.choices.first() {
                                 // Convert content Value to String
                                 let content_str = match &choice.message.content {
-                                    serde_json::Value::String(s) => s.clone(),
-                                    other => other.to_string(),
+                                    Some(serde_json::Value::String(s)) => s.clone(),
+                                    Some(other) => other.to_string(),
+                                    None => String::new(),
                                 };
                                 Ok(content_str)
                             } else {
@@ -751,5 +756,129 @@ impl Database {
                 Ok(response)
             }
         }
+    }
+
+    /// Send chat completion with native tool calling support (OpenAI only for now)
+    pub async fn send_chat_completion_with_tools(
+        &self,
+        config: &ApiConfig,
+        mut messages: Vec<ChatMessage>,
+        tools: Option<&[ToolDefinition]>,
+        agent_session: Option<&AgentSession>,
+        max_iterations: usize,
+    ) -> Result<(String, Vec<ConversationTurn>)> {
+        let client = Client::new();
+        let mut turns = Vec::new();
+        let mut iteration = 0;
+
+        loop {
+            iteration += 1;
+            if iteration > max_iterations {
+                return Err(anyhow::anyhow!("Max tool calling iterations ({}) exceeded", max_iterations));
+            }
+
+            // For now, only support OpenAI
+            if config.provider != ApiProvider::OpenAI {
+                // Fallback to regular completion for non-OpenAI providers
+                let text_response = self.send_chat_completion(config, messages).await?;
+                return Ok((text_response, turns));
+            }
+
+            // Send OpenAI request with tools
+            let response = self.send_openai_request_with_tools(&client, config, &messages, tools).await?;
+
+            let choice = response.choices.first()
+                .ok_or_else(|| anyhow::anyhow!("No response choices"))?;
+
+            let finish_reason = choice.finish_reason.as_deref().unwrap_or("stop");
+
+            if finish_reason == "tool_calls" {
+                // Assistant wants to call tools
+                let tool_calls = choice.message.tool_calls.clone()
+                    .ok_or_else(|| anyhow::anyhow!("No tool calls in response"))?;
+
+                // Execute tools
+                let session = agent_session
+                    .ok_or_else(|| anyhow::anyhow!("Agent session required for tool execution"))?;
+
+                let executor = ToolExecutor::new(session.clone());
+                let executions = executor.execute_tool_calls(tool_calls.clone()).await;
+
+                // Add assistant message with tool calls to history
+                messages.push(choice.message.clone());
+
+                // Convert executions to tool result messages
+                let tool_results = ToolExecutor::executions_to_tool_results_content(&executions);
+                for (tool_call_id, name, content) in tool_results {
+                    messages.push(ChatMessage {
+                        role: "tool".to_string(),
+                        content: Some(json!(content)),
+                        tool_call_id: Some(tool_call_id),
+                        name: Some(name),
+                        tool_calls: None,
+                    });
+                }
+
+                // Record this turn
+                turns.push(ConversationTurn {
+                    assistant_message: choice.message.clone(),
+                    tool_executions: executions,
+                });
+
+                // Continue loop to get next response
+                continue;
+            } else {
+                // Final response (stop, length, etc.)
+                let content = choice.message.content.clone()
+                    .and_then(|v| v.as_str().map(String::from))
+                    .unwrap_or_default();
+
+                return Ok((content, turns));
+            }
+        }
+    }
+
+    /// OpenAI-specific request with tools
+    async fn send_openai_request_with_tools(
+        &self,
+        client: &Client,
+        config: &ApiConfig,
+        messages: &[ChatMessage],
+        tools: Option<&[ToolDefinition]>,
+    ) -> Result<ChatCompletionResponse> {
+        let url = config.base_url.as_deref().unwrap_or("https://api.openai.com/v1/chat/completions");
+
+        let mut request_body = json!({
+            "model": config.model,
+            "messages": messages,
+            "temperature": config.temperature,
+            "max_tokens": config.max_tokens,
+        });
+
+        // Add tools if provided
+        if let Some(tools) = tools {
+            if !tools.is_empty() {
+                request_body["tools"] = serde_json::to_value(tools)?;
+            }
+        }
+
+        let response = client
+            .post(url)
+            .header("Authorization", format!("Bearer {}", config.api_key))
+            .header("Content-Type", "application/json")
+            .json(&request_body)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await?;
+            return Err(anyhow::anyhow!("OpenAI API request failed: {}", error_text));
+        }
+
+        let response_text = response.text().await?;
+        let completion: ChatCompletionResponse = serde_json::from_str(&response_text)
+            .map_err(|e| anyhow::anyhow!("Failed to parse response: {}. Body: {}", e, response_text))?;
+
+        Ok(completion)
     }
 }

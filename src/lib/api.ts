@@ -84,6 +84,20 @@ export async function sendAiMessageStreaming(chatId: string, userMessage: string
   return await invoke('send_ai_message_streaming', { chatId, userMessage, images });
 }
 
+export async function sendAiMessageStreamingWithTools(
+  chatId: string,
+  userMessage: string,
+  images?: string[],
+  useTools: boolean = false
+): Promise<string> {
+  return await invoke('send_ai_message_streaming_with_tools', {
+    chatId,
+    userMessage,
+    images,
+    useTools,
+  });
+}
+
 // File Operations
 export async function openFileWithDefaultApp(filePath: string): Promise<string> {
   return await invoke('open_file_with_default_app', { filePath });
