@@ -20,6 +20,7 @@ pub fn run() {
 
         tauri::Builder::default()
             .plugin(tauri_plugin_opener::init())
+            .plugin(tauri_plugin_http::init())
             .manage(db)
             .manage(agent_sessions)
             .invoke_handler(tauri::generate_handler![

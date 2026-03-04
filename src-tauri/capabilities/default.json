@@ -6,7 +6,9 @@
   "permissions": [
     "core:default",
     "opener:default",
-    "core:window:default", 
+    "http:default",
+    "http:allow-fetch",
+    "core:window:default",
     "core:window:allow-start-dragging",
     "core:window:allow-close",
     "core:window:allow-minimize",

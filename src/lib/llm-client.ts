@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-// import { GoogleGenerativeAI } from '@google/generative-ai'; // Will be used when Google is implemented
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import type { ApiConfig, Message, ToolDefinition, ToolExecution } from './types';
 import { getAgentToolDefinitions, executeAgentAction, createOrGetAgentSession } from './api';
 
@@ -28,8 +29,7 @@ interface StreamCallbacks {
 export class LLMClient {
   private openaiClient: OpenAI | null = null;
   private anthropicClient: Anthropic | null = null;
-  // Google client will be added when Google provider is fully implemented
-  // private googleClient: GoogleGenerativeAI | null = null;
+  private googleClient: GoogleGenerativeAI | null = null;
 
   constructor(private config: ApiConfig) {
     this.initializeClient();
@@ -41,19 +41,19 @@ export class LLMClient {
         this.openaiClient = new OpenAI({
           apiKey: this.config.api_key,
           baseURL: this.config.base_url || undefined,
-          dangerouslyAllowBrowser: true,
+          fetch: tauriFetch as any,
         });
         break;
       case 'anthropic':
         this.anthropicClient = new Anthropic({
           apiKey: this.config.api_key,
           baseURL: this.config.base_url || undefined,
-          dangerouslyAllowBrowser: true,
+          fetch: tauriFetch as any,
         });
         break;
       case 'google':
-        // Google implementation coming soon
-        throw new Error('Google provider not yet implemented in new architecture');
+        this.googleClient = new GoogleGenerativeAI(this.config.api_key);
+        break;
       case 'deepseek':
       case 'lmstudio':
       case 'mistral':
@@ -66,7 +66,7 @@ export class LLMClient {
         this.openaiClient = new OpenAI({
           apiKey: this.config.api_key,
           baseURL: this.config.base_url || this.getDefaultBaseURL(),
-          dangerouslyAllowBrowser: true,
+          fetch: tauriFetch as any,
         });
         break;
       case 'ollama':
@@ -74,7 +74,7 @@ export class LLMClient {
         this.openaiClient = new OpenAI({
           apiKey: 'ollama', // Ollama doesn't require an API key
           baseURL: this.config.base_url || 'http://localhost:11434/v1',
-          dangerouslyAllowBrowser: true,
+          fetch: tauriFetch as any,
         });
         break;
     }
@@ -165,6 +165,37 @@ export class LLMClient {
       } else if (this.config.provider === 'anthropic') {
         // Anthropic implementation
         const result = await this.handleAnthropicStream(llmMessages, tools, sessionId, callbacks);
+
+        if (result.toolCalls && result.toolCalls.length > 0) {
+          const executions = await this.executeTools(sessionId, result.toolCalls);
+          allExecutions.push(...executions);
+          executions.forEach(exec => callbacks?.onToolExecution?.(exec));
+
+          llmMessages.push({
+            role: 'assistant',
+            content: null,
+            tool_calls: result.toolCalls,
+          });
+
+          for (const execution of executions) {
+            llmMessages.push({
+              role: 'tool',
+              tool_call_id: execution.tool_call_id,
+              name: execution.tool_name,
+              content: execution.success
+                ? JSON.stringify(execution.result)
+                : JSON.stringify({ error: execution.error_message }),
+            });
+          }
+
+          continue;
+        } else {
+          callbacks?.onComplete?.(result.content, allExecutions);
+          return { content: result.content, executions: allExecutions };
+        }
+      } else if (this.config.provider === 'google') {
+        // Google Gemini implementation
+        const result = await this.handleGoogleStream(llmMessages, tools, sessionId, callbacks);
 
         if (result.toolCalls && result.toolCalls.length > 0) {
           const executions = await this.executeTools(sessionId, result.toolCalls);
@@ -329,6 +360,86 @@ export class LLMClient {
             arguments: JSON.stringify(event.content_block.input),
           },
         });
+      }
+    }
+
+    return { content: fullContent, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
+  }
+
+  private async handleGoogleStream(
+    messages: LLMMessage[],
+    tools: ToolDefinition[],
+    _sessionId: string,
+    callbacks?: StreamCallbacks
+  ): Promise<{ content: string; toolCalls?: any[] }> {
+    if (!this.googleClient) throw new Error('Google client not initialized');
+
+    const model = this.googleClient.getGenerativeModel({ model: this.config.model });
+
+    // Convert messages to Google format
+    const googleMessages = messages
+      .filter(m => m.role !== 'system')
+      .map(m => ({
+        role: m.role === 'user' ? 'user' : 'model',
+        parts: [{ text: m.content || '' }],
+      }));
+
+    // Extract system message if present
+    const systemMessage = messages.find(m => m.role === 'system');
+
+    const config: any = {
+      temperature: this.config.temperature,
+      maxOutputTokens: this.config.max_tokens || undefined,
+    };
+
+    if (systemMessage) {
+      config.systemInstruction = systemMessage.content;
+    }
+
+    if (tools.length > 0) {
+      // Convert to Google function calling format
+      config.tools = [{
+        functionDeclarations: tools.map(t => ({
+          name: t.function.name,
+          description: t.function.description,
+          parameters: t.function.parameters,
+        })),
+      }];
+    }
+
+    // Start chat
+    const chat = model.startChat({
+      generationConfig: config,
+      history: googleMessages.slice(0, -1), // All but last message
+    });
+
+    // Send last message and stream
+    const lastMessage = googleMessages[googleMessages.length - 1];
+    const result = await chat.sendMessageStream(lastMessage.parts[0].text);
+
+    let fullContent = '';
+    const toolCalls: any[] = [];
+
+    for await (const chunk of result.stream) {
+      const text = chunk.text();
+      if (text) {
+        fullContent += text;
+        callbacks?.onChunk?.(text, fullContent);
+      }
+
+      // Check for function calls
+      const functionCalls = chunk.functionCalls();
+      if (functionCalls && functionCalls.length > 0) {
+        for (const fc of functionCalls) {
+          toolCalls.push({
+            id: `google-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+            type: 'function',
+            function: {
+              name: fc.name,
+              arguments: JSON.stringify(fc.args),
+            },
+          });
+        }
       }
     }
 
