@@ -1,9 +1,16 @@
-import OpenAI from 'openai';
-import Anthropic from '@anthropic-ai/sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import type { ApiConfig, Message, ToolDefinition, ToolExecution } from './types';
 import { getAgentToolDefinitions, executeAgentAction, createOrGetAgentSession } from './api';
+
+// Simple UUID generator
+function generateUuid(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
 
 interface LLMMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
@@ -27,84 +34,7 @@ interface StreamCallbacks {
 }
 
 export class LLMClient {
-  private openaiClient: OpenAI | null = null;
-  private anthropicClient: Anthropic | null = null;
-  private googleClient: GoogleGenerativeAI | null = null;
-
-  constructor(private config: ApiConfig) {
-    this.initializeClient();
-  }
-
-  private initializeClient() {
-    switch (this.config.provider) {
-      case 'openai':
-        this.openaiClient = new OpenAI({
-          apiKey: this.config.api_key,
-          baseURL: this.config.base_url || undefined,
-          fetch: tauriFetch as any,
-          dangerouslyAllowBrowser: true, // Safe: using Tauri's native fetch, not browser
-        });
-        break;
-      case 'anthropic':
-        this.anthropicClient = new Anthropic({
-          apiKey: this.config.api_key,
-          baseURL: this.config.base_url || undefined,
-          fetch: tauriFetch as any,
-        });
-        break;
-      case 'google':
-        this.googleClient = new GoogleGenerativeAI(this.config.api_key);
-        break;
-      case 'deepseek':
-      case 'lmstudio':
-      case 'mistral':
-      case 'kimi':
-      case 'openrouter':
-      case 'together':
-      case 'groq':
-      case 'perplexity':
-        // These are OpenAI-compatible
-        this.openaiClient = new OpenAI({
-          apiKey: this.config.api_key,
-          baseURL: this.config.base_url || this.getDefaultBaseURL(),
-          fetch: tauriFetch as any,
-          dangerouslyAllowBrowser: true, // Safe: using Tauri's native fetch, not browser
-        });
-        break;
-      case 'ollama':
-        // Ollama is OpenAI-compatible
-        this.openaiClient = new OpenAI({
-          apiKey: 'ollama', // Ollama doesn't require an API key
-          baseURL: this.config.base_url || 'http://localhost:11434/v1',
-          fetch: tauriFetch as any,
-          dangerouslyAllowBrowser: true, // Safe: using Tauri's native fetch, not browser
-        });
-        break;
-    }
-  }
-
-  private getDefaultBaseURL(): string {
-    switch (this.config.provider) {
-      case 'deepseek':
-        return 'https://api.deepseek.com/v1';
-      case 'lmstudio':
-        return 'http://localhost:1234/v1';
-      case 'mistral':
-        return 'https://api.mistral.ai/v1';
-      case 'kimi':
-        return 'https://api.moonshot.cn/v1';
-      case 'openrouter':
-        return 'https://openrouter.ai/api/v1';
-      case 'together':
-        return 'https://api.together.xyz/v1';
-      case 'groq':
-        return 'https://api.groq.com/openai/v1';
-      case 'perplexity':
-        return 'https://api.perplexity.ai';
-      default:
-        return 'https://api.openai.com/v1';
-    }
-  }
+  constructor(private config: ApiConfig) {}
 
   /**
    * Send a message with tool calling support (streaming)
@@ -128,336 +58,120 @@ export class LLMClient {
     while (iteration < maxIterations) {
       iteration++;
 
-      if (this.config.provider === 'openai' || ['deepseek', 'lmstudio', 'mistral', 'ollama', 'kimi', 'openrouter', 'together', 'groq', 'perplexity'].includes(this.config.provider)) {
-        const result = await this.handleOpenAIStream(llmMessages, tools, sessionId, callbacks);
+      // Call Rust backend for streaming
+      const result = await this.streamViaRustBackend(
+        llmMessages,
+        tools,
+        callbacks
+      );
 
-        if (result.toolCalls && result.toolCalls.length > 0) {
-          // Execute tools
-          const executions = await this.executeTools(sessionId, result.toolCalls);
-          allExecutions.push(...executions);
+      // Check for tool calls
+      if (result.toolCalls && result.toolCalls.length > 0) {
+        // Execute tools (frontend logic)
+        const executions = await this.executeTools(sessionId, result.toolCalls);
+        allExecutions.push(...executions);
 
-          // Notify about tool executions
-          executions.forEach(exec => callbacks?.onToolExecution?.(exec));
+        // Notify callbacks
+        executions.forEach(exec => callbacks?.onToolExecution?.(exec));
 
-          // Add assistant message with tool calls
+        // Add assistant message with tool calls
+        llmMessages.push({
+          role: 'assistant',
+          content: result.content || null,
+          tool_calls: result.toolCalls,
+        });
+
+        // Add tool results
+        for (const execution of executions) {
           llmMessages.push({
-            role: 'assistant',
-            content: null,
-            tool_calls: result.toolCalls,
+            role: 'tool',
+            tool_call_id: execution.tool_call_id,
+            name: execution.tool_name,
+            content: execution.success
+              ? JSON.stringify(execution.result)
+              : JSON.stringify({ error: execution.error_message }),
           });
-
-          // Add tool results
-          for (const execution of executions) {
-            llmMessages.push({
-              role: 'tool',
-              tool_call_id: execution.tool_call_id,
-              name: execution.tool_name,
-              content: execution.success
-                ? JSON.stringify(execution.result)
-                : JSON.stringify({ error: execution.error_message }),
-            });
-          }
-
-          // Continue loop
-          continue;
-        } else {
-          // Final response
-          callbacks?.onComplete?.(result.content, allExecutions);
-          return { content: result.content, executions: allExecutions };
         }
-      } else if (this.config.provider === 'anthropic') {
-        // Anthropic implementation
-        const result = await this.handleAnthropicStream(llmMessages, tools, sessionId, callbacks);
 
-        if (result.toolCalls && result.toolCalls.length > 0) {
-          const executions = await this.executeTools(sessionId, result.toolCalls);
-          allExecutions.push(...executions);
-          executions.forEach(exec => callbacks?.onToolExecution?.(exec));
-
-          llmMessages.push({
-            role: 'assistant',
-            content: null,
-            tool_calls: result.toolCalls,
-          });
-
-          for (const execution of executions) {
-            llmMessages.push({
-              role: 'tool',
-              tool_call_id: execution.tool_call_id,
-              name: execution.tool_name,
-              content: execution.success
-                ? JSON.stringify(execution.result)
-                : JSON.stringify({ error: execution.error_message }),
-            });
-          }
-
-          continue;
-        } else {
-          callbacks?.onComplete?.(result.content, allExecutions);
-          return { content: result.content, executions: allExecutions };
-        }
-      } else if (this.config.provider === 'google') {
-        // Google Gemini implementation
-        const result = await this.handleGoogleStream(llmMessages, tools, sessionId, callbacks);
-
-        if (result.toolCalls && result.toolCalls.length > 0) {
-          const executions = await this.executeTools(sessionId, result.toolCalls);
-          allExecutions.push(...executions);
-          executions.forEach(exec => callbacks?.onToolExecution?.(exec));
-
-          llmMessages.push({
-            role: 'assistant',
-            content: null,
-            tool_calls: result.toolCalls,
-          });
-
-          for (const execution of executions) {
-            llmMessages.push({
-              role: 'tool',
-              tool_call_id: execution.tool_call_id,
-              name: execution.tool_name,
-              content: execution.success
-                ? JSON.stringify(execution.result)
-                : JSON.stringify({ error: execution.error_message }),
-            });
-          }
-
-          continue;
-        } else {
-          callbacks?.onComplete?.(result.content, allExecutions);
-          return { content: result.content, executions: allExecutions };
-        }
+        // Continue loop
+        continue;
       } else {
-        // Fallback for other providers without tool support
-        const content = await this.handleBasicStream(llmMessages, callbacks);
-        callbacks?.onComplete?.(content, []);
-        return { content, executions: [] };
+        // Final response
+        callbacks?.onComplete?.(result.content, allExecutions);
+        return { content: result.content, executions: allExecutions };
       }
     }
 
     throw new Error(`Maximum iterations (${maxIterations}) exceeded`);
   }
 
-  private async handleOpenAIStream(
+  /**
+   * Stream via Rust backend (replaces direct SDK calls)
+   */
+  private async streamViaRustBackend(
     messages: LLMMessage[],
     tools: ToolDefinition[],
-    _sessionId: string,
     callbacks?: StreamCallbacks
   ): Promise<{ content: string; toolCalls?: any[] }> {
-    if (!this.openaiClient) throw new Error('OpenAI client not initialized');
+    return new Promise(async (resolve, reject) => {
+      const streamId = generateUuid();
+      let fullContent = '';
+      let toolCalls: any[] = [];
 
-    const params: OpenAI.Chat.ChatCompletionCreateParams = {
-      model: this.config.model,
-      messages: messages as any,
-      temperature: this.config.temperature,
-      max_tokens: this.config.max_tokens || undefined,
-      stream: true,
-    };
-
-    if (tools.length > 0) {
-      params.tools = tools as any;
-    }
-
-    const stream = await this.openaiClient.chat.completions.create(params);
-
-    let fullContent = '';
-    const toolCalls: any[] = [];
-    const toolCallsMap = new Map<number, any>();
-
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta;
-
-      if (delta?.content) {
-        fullContent += delta.content;
-        callbacks?.onChunk?.(delta.content, fullContent);
-      }
-
-      if (delta?.tool_calls) {
-        for (const toolCall of delta.tool_calls) {
-          const index = toolCall.index;
-
-          if (!toolCallsMap.has(index)) {
-            toolCallsMap.set(index, {
-              id: toolCall.id || '',
-              type: 'function',
-              function: {
-                name: toolCall.function?.name || '',
-                arguments: toolCall.function?.arguments || '',
-              },
-            });
-          } else {
-            const existing = toolCallsMap.get(index);
-            if (toolCall.function?.name) {
-              existing.function.name += toolCall.function.name;
-            }
-            if (toolCall.function?.arguments) {
-              existing.function.arguments += toolCall.function.arguments;
-            }
-            if (toolCall.id) {
-              existing.id = toolCall.id;
-            }
-          }
+      // Listen for streaming events
+      const unlisten1 = await listen<{ chunk: string; full_content: string }>(
+        `streaming_chunk_${streamId}`,
+        (event) => {
+          fullContent = event.payload.full_content;
+          callbacks?.onChunk?.(event.payload.chunk, fullContent);
         }
-      }
+      );
 
-      // Check finish reason
-      if (chunk.choices[0]?.finish_reason === 'tool_calls') {
-        // Convert map to array
-        toolCallsMap.forEach(tc => toolCalls.push(tc));
-      }
-    }
+      const unlisten2 = await listen<{ tool_calls: any[] }>(
+        `streaming_tool_calls_${streamId}`,
+        (event) => {
+          toolCalls = event.payload.tool_calls;
+        }
+      );
 
-    return { content: fullContent, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
-  }
+      const unlisten3 = await listen(`streaming_complete_${streamId}`, () => {
+        unlisten1();
+        unlisten2();
+        unlisten3();
+        resolve({ content: fullContent, toolCalls: toolCalls.length > 0 ? toolCalls : undefined });
+      });
 
-  private async handleAnthropicStream(
-    messages: LLMMessage[],
-    tools: ToolDefinition[],
-    _sessionId: string,
-    callbacks?: StreamCallbacks
-  ): Promise<{ content: string; toolCalls?: any[] }> {
-    if (!this.anthropicClient) throw new Error('Anthropic client not initialized');
-
-    // Convert messages to Anthropic format
-    const anthropicMessages = messages
-      .filter(m => m.role !== 'system')
-      .map(m => ({
-        role: m.role === 'tool' ? 'user' : m.role,
-        content: m.content || (m.tool_call_id ? JSON.stringify({ tool_call_id: m.tool_call_id, result: m.content }) : ''),
-      }));
-
-    const params: any = {
-      model: this.config.model,
-      max_tokens: this.config.max_tokens || 4096,
-      messages: anthropicMessages,
-      temperature: this.config.temperature,
-      stream: true,
-    };
-
-    if (tools.length > 0) {
-      // Convert OpenAI tool format to Anthropic format
-      params.tools = tools.map(t => ({
-        name: t.function.name,
-        description: t.function.description,
-        input_schema: t.function.parameters,
-      }));
-    }
-
-    const stream = await this.anthropicClient.messages.create(params);
-
-    let fullContent = '';
-    const toolCalls: any[] = [];
-
-    for await (const event of stream as any) {
-      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-        fullContent += event.delta.text;
-        callbacks?.onChunk?.(event.delta.text, fullContent);
-      }
-
-      if (event.type === 'content_block_start' && event.content_block.type === 'tool_use') {
-        toolCalls.push({
-          id: event.content_block.id,
-          type: 'function',
-          function: {
-            name: event.content_block.name,
-            arguments: JSON.stringify(event.content_block.input),
-          },
+      // Start streaming via Rust backend
+      try {
+        await invoke('stream_llm_request', {
+          provider: this.config.provider,
+          apiKey: this.config.api_key,
+          baseUrl: this.config.base_url || null,
+          model: this.config.model,
+          messages: messages.map(m => ({
+            role: m.role,
+            content: m.content,
+            tool_calls: m.tool_calls,
+            tool_call_id: m.tool_call_id,
+            name: m.name,
+          })),
+          tools: tools.length > 0 ? tools : null,
+          temperature: this.config.temperature,
+          maxTokens: this.config.max_tokens || null,
+          streamId,
         });
+      } catch (error) {
+        unlisten1();
+        unlisten2();
+        unlisten3();
+        reject(error);
       }
-    }
-
-    return { content: fullContent, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
-  }
-
-  private async handleGoogleStream(
-    messages: LLMMessage[],
-    tools: ToolDefinition[],
-    _sessionId: string,
-    callbacks?: StreamCallbacks
-  ): Promise<{ content: string; toolCalls?: any[] }> {
-    if (!this.googleClient) throw new Error('Google client not initialized');
-
-    const model = this.googleClient.getGenerativeModel({ model: this.config.model });
-
-    // Convert messages to Google format
-    const googleMessages = messages
-      .filter(m => m.role !== 'system')
-      .map(m => ({
-        role: m.role === 'user' ? 'user' : 'model',
-        parts: [{ text: m.content || '' }],
-      }));
-
-    // Extract system message if present
-    const systemMessage = messages.find(m => m.role === 'system');
-
-    const config: any = {
-      temperature: this.config.temperature,
-      maxOutputTokens: this.config.max_tokens || undefined,
-    };
-
-    if (systemMessage) {
-      config.systemInstruction = systemMessage.content;
-    }
-
-    if (tools.length > 0) {
-      // Convert to Google function calling format
-      config.tools = [{
-        functionDeclarations: tools.map(t => ({
-          name: t.function.name,
-          description: t.function.description,
-          parameters: t.function.parameters,
-        })),
-      }];
-    }
-
-    // Start chat
-    const chat = model.startChat({
-      generationConfig: config,
-      history: googleMessages.slice(0, -1), // All but last message
     });
-
-    // Send last message and stream
-    const lastMessage = googleMessages[googleMessages.length - 1];
-    const result = await chat.sendMessageStream(lastMessage.parts[0].text);
-
-    let fullContent = '';
-    const toolCalls: any[] = [];
-
-    for await (const chunk of result.stream) {
-      const text = chunk.text();
-      if (text) {
-        fullContent += text;
-        callbacks?.onChunk?.(text, fullContent);
-      }
-
-      // Check for function calls
-      const functionCalls = chunk.functionCalls();
-      if (functionCalls && functionCalls.length > 0) {
-        for (const fc of functionCalls) {
-          toolCalls.push({
-            id: `google-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
-            type: 'function',
-            function: {
-              name: fc.name,
-              arguments: JSON.stringify(fc.args),
-            },
-          });
-        }
-      }
-    }
-
-    return { content: fullContent, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
   }
 
-  private async handleBasicStream(
-    _messages: LLMMessage[],
-    _callbacks?: StreamCallbacks
-  ): Promise<string> {
-    // Fallback for providers without native tool support
-    // This would use the old text-based command parsing
-    throw new Error('Provider not yet implemented with streaming');
-  }
-
+  /**
+   * Execute tools and return results
+   */
   private async executeTools(
     sessionId: string,
     toolCalls: any[]
@@ -501,6 +215,9 @@ export class LLMClient {
     return executions;
   }
 
+  /**
+   * Convert chat messages to LLM format
+   */
   private convertMessagesToLLMFormat(messages: Message[], useTools: boolean = false): LLMMessage[] {
     const llmMessages: LLMMessage[] = messages.map(msg => ({
       role: msg.role === 'user' ? 'user' : 'assistant',

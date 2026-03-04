@@ -1,7 +1,7 @@
 use crate::database::Database;
 use crate::models::*;
 use crate::file_operations::{
-    open_with_default_app, read_directory_contents, search_in_files, 
+    open_with_default_app, read_directory_contents, search_in_files,
     read_file_contents, write_file_contents, DirectoryContents, SearchResult
 };
 use crate::agentic::{AgentSession, AgentAction, AgentCapability};
@@ -11,6 +11,7 @@ use crate::system_operations::{
     perform_file_operation, get_running_processes, kill_process, check_permission_level,
     FileSystemOperation, FileOperationType, PermissionLevel, AppInfo, CommandResult, ProcessInfo
 };
+use crate::llm_streaming;
 use tauri::{State, Emitter};
 use serde_json::json;
 use std::collections::HashMap;
@@ -692,5 +693,68 @@ fn format_bytes(bytes: u64) -> String {
     let size = (bytes as f64) / k.powi(i as i32);
 
     format!("{:.2} {}", size, sizes[i.min(3)])
+}
+
+/// Stream LLM request through Rust backend (bypasses CORS and Tauri HTTP plugin issues)
+#[tauri::command]
+pub async fn stream_llm_request(
+    window: tauri::Window,
+    provider: String,
+    api_key: String,
+    base_url: Option<String>,
+    model: String,
+    messages: Vec<serde_json::Value>,
+    tools: Option<Vec<serde_json::Value>>,
+    temperature: f32,
+    max_tokens: Option<u32>,
+    stream_id: String,
+) -> Result<(), String> {
+    // Route to appropriate streaming function based on provider
+    match provider.as_str() {
+        "anthropic" => {
+            llm_streaming::stream_anthropic(
+                &window,
+                &api_key,
+                &model,
+                messages,
+                tools,
+                temperature,
+                max_tokens,
+                &stream_id,
+            )
+            .await
+        }
+        "google" => {
+            llm_streaming::stream_google(
+                &window,
+                &api_key,
+                &model,
+                messages,
+                tools,
+                temperature,
+                &stream_id,
+            )
+            .await
+        }
+        "openai" | "deepseek" | "mistral" | "lmstudio" | "kimi"
+        | "openrouter" | "together" | "groq" | "perplexity" | "ollama" | "custom" => {
+            let base_url = base_url.unwrap_or_else(|| {
+                llm_streaming::get_default_base_url(&provider)
+            });
+            llm_streaming::stream_openai_compatible(
+                &window,
+                &base_url,
+                &api_key,
+                &model,
+                messages,
+                tools,
+                temperature,
+                max_tokens,
+                &stream_id,
+            )
+            .await
+        }
+        _ => Err(format!("Provider '{}' is not yet supported for streaming", provider)),
+    }
 }
 

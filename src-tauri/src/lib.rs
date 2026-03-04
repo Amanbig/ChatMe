@@ -5,6 +5,7 @@ mod file_operations;
 mod agentic;
 mod system_operations;
 mod tools;
+mod llm_streaming;
 
 use database::Database;
 use std::collections::HashMap;
@@ -19,7 +20,6 @@ pub fn run() {
 
         tauri::Builder::default()
             .plugin(tauri_plugin_opener::init())
-            .plugin(tauri_plugin_http::init())
             .manage(db)
             .manage(agent_sessions)
             .invoke_handler(tauri::generate_handler![
@@ -59,7 +59,9 @@ pub fn run() {
                 commands::perform_file_system_operation,
                 commands::get_processes,
                 commands::terminate_process,
+                // LLM operations
                 commands::fetch_provider_models,
+                commands::stream_llm_request,
             ])
             .run(tauri::generate_context!())
             .expect("error while running tauri application");
