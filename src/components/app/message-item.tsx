@@ -8,9 +8,10 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
-import type { Message } from "@/lib/types";
+import type { Message, ToolExecution } from "@/lib/types";
 import { useTextToSpeech } from "../../hooks/use-text-to-speech";
 import CustomMarkdownRenderer from "./custom-markdown-renderer";
+import ToolExecutionDisplay from "./tool-execution-display";
 import { toast } from "sonner";
 
 interface MessageItemProps {
@@ -18,6 +19,7 @@ interface MessageItemProps {
     formatTime: (dateString: string) => string;
     copyToClipboard: (text: string) => void;
     autoSpeak?: boolean;
+    toolExecutions?: ToolExecution[];
 }
 
 // Parse AI thinking content
@@ -51,7 +53,7 @@ const parseAIThinking = (content: string) => {
     };
 };
 
-export default function MessageItem({ message, formatTime, copyToClipboard, autoSpeak = false }: MessageItemProps) {
+export default function MessageItem({ message, formatTime, copyToClipboard, autoSpeak = false, toolExecutions }: MessageItemProps) {
     const aiContent = message.role === "assistant" ? parseAIThinking(message.content) : null;
     const [isThinkingOpen, setIsThinkingOpen] = useState(false);
     const [copied, setCopied] = useState(false);
@@ -206,6 +208,11 @@ export default function MessageItem({ message, formatTime, copyToClipboard, auto
                                     </p>
                                 )}
                             </div>
+                        )}
+
+                        {/* Tool Executions */}
+                        {!isUser && toolExecutions && toolExecutions.length > 0 && (
+                            <ToolExecutionDisplay executions={toolExecutions} />
                         )}
                     </div>
 

@@ -7,10 +7,10 @@ import InputBox from "@/components/app/input-box";
 import MessageItem from "@/components/app/message-item";
 import StreamingMessageItem from "@/components/app/streaming-message-item";
 import { toast } from "sonner";
-import { getMessages, sendAiMessageStreaming, createMessage } from "@/lib/api";
+import { getMessages, sendAiMessageStreaming, sendAiMessageStreamingWithTools, createMessage } from "@/lib/api";
 import { handleAgentQuery, getAvailableAgentTools, parseAndExecuteCommands } from "@/lib/agent-utils";
 import { useAgent } from "@/contexts/AgentContext";
-import type { Message, StreamingMessage } from "@/lib/types";
+import type { Message, StreamingMessage, ToolExecution, ConversationTurn } from "@/lib/types";
 import { listen } from '@tauri-apps/api/event';
 import {
     FaRobot,
@@ -114,6 +114,8 @@ export default function HomePage() {
     const [streamingMessage, setStreamingMessage] = useState<StreamingMessage | null>(null);
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [toolExecutions, setToolExecutions] = useState<Map<string, ToolExecution[]>>(new Map());
+    const [conversationTurns, setConversationTurns] = useState<Map<string, ConversationTurn[]>>(new Map());
 
     const [autoSpeak] = useState(() => {
         const saved = localStorage.getItem('autoSpeak');
@@ -148,8 +150,19 @@ export default function HomePage() {
         let unlistenStreamingChunk: (() => void) | null = null;
         let unlistenStreamingComplete: (() => void) | null = null;
         let unlistenFinalMessageCreated: (() => void) | null = null;
+        let unlistenToolExecutionComplete: (() => void) | null = null;
 
         const setupListeners = async () => {
+            // Tool execution listener
+            unlistenToolExecutionComplete = await listen('tool_execution_complete', (event: any) => {
+                const { message_id, execution } = event.payload;
+                setToolExecutions(prev => {
+                    const newMap = new Map(prev);
+                    const existing = newMap.get(message_id) || [];
+                    newMap.set(message_id, [...existing, execution as ToolExecution]);
+                    return newMap;
+                });
+            });
             unlistenMessageCreated = await listen('message_created', (event: any) => {
                 const message = event.payload as Message;
                 if (message.chat_id === chatId) {
@@ -223,7 +236,17 @@ export default function HomePage() {
             });
 
             unlistenFinalMessageCreated = await listen('final_message_created', async (event: any) => {
-                const message = event.payload as Message;
+                const { message, tool_turns } = event.payload;
+
+                // Store conversation turns if present
+                if (tool_turns && tool_turns.length > 0) {
+                    setConversationTurns(prev => {
+                        const newMap = new Map(prev);
+                        newMap.set(message.id, tool_turns as ConversationTurn[]);
+                        return newMap;
+                    });
+                }
+
                 if (message.chat_id === chatId) {
                     let finalMessage = message;
 
@@ -280,6 +303,7 @@ export default function HomePage() {
             unlistenStreamingChunk?.();
             unlistenStreamingComplete?.();
             unlistenFinalMessageCreated?.();
+            unlistenToolExecutionComplete?.();
         };
     }, [chatId]);
 
@@ -358,13 +382,12 @@ export default function HomePage() {
                 return;
             }
 
-            let messageForLLM = content.trim();
+            // Use native tool calling if agent mode is active, otherwise use regular streaming
             if (isAgentActive) {
-                const toolsInfo = await getAvailableAgentTools();
-                messageForLLM = `${content.trim()}\n\n[AGENT MODE ACTIVE]\n${toolsInfo}\n\nWorking Directory: ${workingDirectory || 'Use get_current_directory() to find current location'}`;
+                await sendAiMessageStreamingWithTools(chatId, content.trim(), images, true);
+            } else {
+                await sendAiMessageStreaming(chatId, content.trim(), images);
             }
-
-            await sendAiMessageStreaming(chatId, messageForLLM, images);
 
         } catch (error) {
             console.error('Failed to send message:', error);
@@ -451,6 +474,7 @@ export default function HomePage() {
                                         formatTime={formatTime}
                                         copyToClipboard={copyToClipboard}
                                         autoSpeak={autoSpeak}
+                                        toolExecutions={toolExecutions.get(message.id) || undefined}
                                     />
                                 ))}
 
