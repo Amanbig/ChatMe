@@ -284,7 +284,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                                         role="button"
                                         tabIndex={0}
                                         className={`shrink-0 h-7 w-7 rounded-lg flex items-center justify-center transition-all duration-200 cursor-pointer ${deleteConfirm === chat.id
-                                          ? 'bg-destructive text-destructive-foreground'
+                                          ? 'bg-destructive text-destructive-foreground opacity-100'
                                           : 'opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive'
                                           }`}
                                         onClick={(e) => handleDeleteChat(chat.id, e)}

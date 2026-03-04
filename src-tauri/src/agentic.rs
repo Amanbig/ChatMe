@@ -461,9 +461,9 @@ impl AgentSession {
     }
     
     async fn execute_launch_application(&self, params: &HashMap<String, serde_json::Value>) -> Result<serde_json::Value> {
-        let app_path = params.get("path")
+        let app_path = params.get("app_name")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow!("Missing required parameter: path"))?;
+            .ok_or_else(|| anyhow!("Missing required parameter: app_name"))?;
         
         let args = params.get("arguments")
             .and_then(|v| v.as_array())
