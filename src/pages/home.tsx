@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams } from "react-router";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import InputBox from "@/components/app/input-box";
 import MessageItem from "@/components/app/message-item";
 import StreamingMessageItem from "@/components/app/streaming-message-item";
@@ -10,6 +12,99 @@ import { handleAgentQuery, getAvailableAgentTools, parseAndExecuteCommands } fro
 import { useAgent } from "@/contexts/AgentContext";
 import type { Message, StreamingMessage } from "@/lib/types";
 import { listen } from '@tauri-apps/api/event';
+import {
+    FaRobot,
+    FaLightbulb,
+    FaCode,
+    FaImage,
+    FaMicrophone,
+    FaBolt,
+    FaRocket,
+    FaBrain,
+    FaComments
+} from "react-icons/fa";
+
+// Welcome screen component
+function WelcomeScreen({ onSuggestion }: { onSuggestion: (text: string) => void }) {
+    const suggestions = [
+        { icon: <FaLightbulb size={18} />, text: "Help me brainstorm ideas for a project", color: "from-amber-500 to-orange-500" },
+        { icon: <FaCode size={18} />, text: "Explain how async/await works in JavaScript", color: "from-blue-500 to-cyan-500" },
+        { icon: <FaImage size={18} />, text: "Generate a creative image description", color: "from-purple-500 to-pink-500" },
+        { icon: <FaBolt size={18} />, text: "Write a Python script to automate file organization", color: "from-green-500 to-emerald-500" },
+    ];
+
+    return (
+        <div className="flex flex-col items-center justify-center min-h-[70vh] px-4 py-12">
+            {/* Hero */}
+            <div className="text-center mb-10">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent shadow-xl shadow-primary/20 mb-6 animate-in zoom-in-95 duration-300">
+                    <FaRobot size={40} className="text-primary-foreground" />
+                </div>
+                <h1 className="text-3xl font-bold mb-3 bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+                    What can I help you with?
+                </h1>
+                <p className="text-muted-foreground max-w-md mx-auto text-sm leading-relaxed">
+                    Chat with an AI assistant that can answer questions, help with coding,
+                    analyze images, and even control your computer with Agent Mode.
+                </p>
+            </div>
+
+            {/* Suggestions Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl w-full mb-10">
+                {suggestions.map((suggestion, index) => (
+                    <button
+                        key={index}
+                        onClick={() => onSuggestion(suggestion.text)}
+                        className="group flex items-center gap-4 p-4 rounded-xl border border-border/60 bg-card/50 hover:bg-card hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 text-left"
+                        style={{ animationDelay: `${index * 100}ms` }}
+                    >
+                        <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${suggestion.color} flex items-center justify-center text-white shadow-md group-hover:scale-110 transition-transform duration-200`}>
+                            {suggestion.icon}
+                        </div>
+                        <span className="text-sm font-medium text-foreground/90 group-hover:text-foreground">
+                            {suggestion.text}
+                        </span>
+                    </button>
+                ))}
+            </div>
+
+            {/* Features */}
+            <div className="flex flex-wrap justify-center gap-4 text-xs text-muted-foreground">
+                <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
+                    <FaBrain size={12} className="text-primary" />
+                    Reasoning AI
+                </Badge>
+                <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
+                    <FaImage size={12} className="text-primary" />
+                    Vision Support
+                </Badge>
+                <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
+                    <FaMicrophone size={12} className="text-primary" />
+                    Voice Input
+                </Badge>
+                <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
+                    <FaRocket size={12} className="text-primary" />
+                    Agent Mode
+                </Badge>
+            </div>
+        </div>
+    );
+}
+
+// Empty chat state
+function EmptyChatState() {
+    return (
+        <div className="flex flex-col items-center justify-center min-h-[50vh] px-4">
+            <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
+                <FaComments size={28} className="text-muted-foreground/50" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground/80 mb-2">Start the conversation</h3>
+            <p className="text-sm text-muted-foreground text-center max-w-sm">
+                Send a message to begin chatting. I can help with questions, coding, analysis, and more.
+            </p>
+        </div>
+    );
+}
 
 export default function HomePage() {
     const { chatId } = useParams<{ chatId: string }>();
@@ -18,16 +113,15 @@ export default function HomePage() {
     const [streamingMessage, setStreamingMessage] = useState<StreamingMessage | null>(null);
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
-    
-    // Speech settings from localStorage
+
     const [autoSpeak] = useState(() => {
         const saved = localStorage.getItem('autoSpeak');
         return saved ? JSON.parse(saved) : false;
     });
 
     const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const inputBoxRef = useRef<{ focus: () => void; insertText: (text: string) => void }>(null);
 
-    // Load messages when chat changes
     useEffect(() => {
         if (chatId) {
             loadMessages();
@@ -38,7 +132,6 @@ export default function HomePage() {
         }
     }, [chatId]);
 
-    // Auto-scroll to bottom when new messages are added or streaming updates
     useEffect(() => {
         if (scrollAreaRef.current) {
             const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
@@ -48,7 +141,6 @@ export default function HomePage() {
         }
     }, [messages, streamingMessage]);
 
-    // Set up event listeners for streaming
     useEffect(() => {
         let unlistenMessageCreated: (() => void) | null = null;
         let unlistenStreamingStart: (() => void) | null = null;
@@ -57,17 +149,13 @@ export default function HomePage() {
         let unlistenFinalMessageCreated: (() => void) | null = null;
 
         const setupListeners = async () => {
-            // Listen for new messages (user messages)
             unlistenMessageCreated = await listen('message_created', (event: any) => {
                 const message = event.payload as Message;
                 if (message.chat_id === chatId) {
-                    // Filter out enhanced agent messages (they contain agent instructions)
                     if (message.role === 'user' && message.content.includes('[AGENT MODE ACTIVE]')) {
-                        // This is an enhanced message with agent instructions, skip it
-                        // and create a clean user message instead
                         const cleanContent = message.content.split('\n\n[AGENT MODE ACTIVE]')[0];
                         const cleanMessage = { ...message, content: cleanContent };
-                        
+
                         setMessages(prev => {
                             const exists = prev.some(m => m.id === message.id);
                             if (!exists) {
@@ -77,9 +165,8 @@ export default function HomePage() {
                         });
                         return;
                     }
-                    
+
                     setMessages(prev => {
-                        // Check if message already exists to prevent duplicates
                         const exists = prev.some(m => m.id === message.id);
                         if (!exists) {
                             return [...prev, message];
@@ -89,7 +176,6 @@ export default function HomePage() {
                 }
             });
 
-            // Listen for streaming start
             unlistenStreamingStart = await listen('streaming_start', (event: any) => {
                 const { message_id } = event.payload;
                 setStreamingMessage({
@@ -101,7 +187,6 @@ export default function HomePage() {
                 setIsGenerating(true);
             });
 
-            // Listen for streaming chunks
             unlistenStreamingChunk = await listen('streaming_chunk', (event: any) => {
                 const { message_id, full_content } = event.payload;
                 setStreamingMessage(prev => {
@@ -117,47 +202,33 @@ export default function HomePage() {
                 });
             });
 
-            // Listen for streaming complete
             unlistenStreamingComplete = await listen('streaming_complete', async () => {
-                // If agent mode is active and there's a streaming message, process agent commands
                 if (isAgentActive && streamingMessage) {
                     try {
                         const processedContent = await parseAndExecuteCommands(streamingMessage.content);
-                        
-                        // Update the streaming message with processed content
                         setStreamingMessage(prev => prev ? {
                             ...prev,
                             content: processedContent,
                             isComplete: true
                         } : null);
-                        
-                        // Also update the final message in the database with processed content
-                        // This ensures the processed content (with executed commands) is saved
-                        // instead of the raw commands, providing better reload experience
-                        
                     } catch (error) {
                         console.error('Error processing agent commands:', error);
                         toast.error('Failed to execute agent commands');
                     }
                 }
-                
-                // Clear the streaming message and stop generating state
+
                 setStreamingMessage(null);
                 setIsGenerating(false);
             });
 
-            // Listen for final message created
             unlistenFinalMessageCreated = await listen('final_message_created', async (event: any) => {
                 const message = event.payload as Message;
                 if (message.chat_id === chatId) {
                     let finalMessage = message;
-                    
-                    // If agent mode is active and this is an assistant message, process agent commands
+
                     if (isAgentActive && message.role === 'assistant') {
                         try {
                             const processedContent = await parseAndExecuteCommands(message.content);
-                            
-                            // Update the message content if commands were processed
                             if (processedContent !== message.content) {
                                 finalMessage = { ...message, content: processedContent };
                             }
@@ -166,30 +237,26 @@ export default function HomePage() {
                             toast.error('Failed to execute agent commands');
                         }
                     }
-                    
-                    // Now filter based on the final message content (after command processing)
+
                     if (finalMessage.role === 'assistant' && finalMessage.content.includes('[EXECUTE:')) {
                         const lines = finalMessage.content.split('\n').filter(line => line.trim());
                         const executeLines = lines.filter(line => line.includes('[EXECUTE:'));
                         const nonExecuteLines = lines.filter(line => !line.includes('[EXECUTE:') && line.trim().length > 0);
-                        
-                        // If the message is mostly execute commands and has little meaningful content, don't add it
+
                         if (executeLines.length > 0 && (nonExecuteLines.length === 0 || executeLines.length >= lines.length * 0.8)) {
-                            return; // Skip adding this message
+                            return;
                         }
-                        
-                        // If there are execute commands but also meaningful content, clean the message
+
                         if (executeLines.length > 0 && nonExecuteLines.length > 0) {
                             const cleanContent = lines.filter(line => !line.includes('[EXECUTE:')).join('\n').trim();
                             if (cleanContent.length > 0) {
                                 finalMessage = { ...finalMessage, content: cleanContent };
                             } else {
-                                return; // Skip if no meaningful content left
+                                return;
                             }
                         }
                     }
-                    
-                    // Add the final processed message to state
+
                     setMessages(prev => {
                         const exists = prev.some(m => m.id === finalMessage.id);
                         if (!exists) {
@@ -221,44 +288,37 @@ export default function HomePage() {
         try {
             setLoading(true);
             const fetchedMessages = await getMessages(chatId);
-            
-            // Filter messages for display
+
             const displayMessages = fetchedMessages.map(message => {
-                // Clean user messages that contain agent instructions
                 if (message.role === 'user' && message.content.includes('[AGENT MODE ACTIVE]')) {
                     const cleanContent = message.content.split('\n\n[AGENT MODE ACTIVE]')[0].trim();
-                    // Only return the message if there's meaningful content left
                     if (cleanContent.length > 0) {
                         return { ...message, content: cleanContent };
                     }
-                    return null; // Filter out if no meaningful content
+                    return null;
                 }
-                
-                // Clean assistant messages that contain execute commands
+
                 if (message.role === 'assistant' && message.content.includes('[EXECUTE:')) {
-                    // Check if the message ONLY contains execute commands (no other useful content)
                     const lines = message.content.split('\n').filter(line => line.trim());
                     const executeLines = lines.filter(line => line.includes('[EXECUTE:'));
                     const nonExecuteLines = lines.filter(line => !line.includes('[EXECUTE:') && line.trim().length > 0);
-                    
-                    // If the message is mostly execute commands and has little meaningful content, filter it out
+
                     if (executeLines.length > 0 && (nonExecuteLines.length === 0 || executeLines.length >= lines.length * 0.8)) {
-                        return null; // This will be filtered out
+                        return null;
                     }
-                    
-                    // If there are execute commands but also meaningful content, remove just the execute commands
+
                     if (executeLines.length > 0 && nonExecuteLines.length > 0) {
                         const cleanContent = lines.filter(line => !line.includes('[EXECUTE:')).join('\n').trim();
                         if (cleanContent.length > 0) {
                             return { ...message, content: cleanContent };
                         }
-                        return null; // Filter out if no meaningful content left
+                        return null;
                     }
                 }
-                
+
                 return message;
-            }).filter(message => message !== null); // Remove null messages
-            
+            }).filter(message => message !== null);
+
             setMessages(displayMessages);
         } catch (error) {
             console.error('Failed to load messages:', error);
@@ -273,77 +333,38 @@ export default function HomePage() {
 
         try {
             setIsGenerating(true);
-            
-            // Try basic agent queries first (fallback for very simple operations)
+
             const agentResponse = await handleAgentQuery(content.trim(), workingDirectory);
-            
+
             if (agentResponse) {
-                // Create user message first with original content
                 const userMessage = await createMessage({
                     chat_id: chatId,
                     content: content.trim(),
                     role: 'user',
                     images
                 });
-                
-                // Add user message to state
+
                 setMessages(prev => [...prev, userMessage]);
-                
-                // Create assistant message with agent response
+
                 const assistantMessage = await createMessage({
                     chat_id: chatId,
                     content: agentResponse,
                     role: 'assistant'
                 });
-                
-                // Add assistant message to state
+
                 setMessages(prev => [...prev, assistantMessage]);
                 setIsGenerating(false);
                 return;
             }
-            
-            // Prepare message for LLM - enhance only if agent mode is active
+
             let messageForLLM = content.trim();
             if (isAgentActive) {
                 const toolsInfo = await getAvailableAgentTools();
-                messageForLLM = `${content.trim()}\n\n[AGENT MODE ACTIVE]
-You are an AI assistant with FULL SYSTEM ACCESS through Tauri commands. You CAN and SHOULD execute commands, launch applications, manage files, run terminal commands, and perform system operations as requested.
-
-${toolsInfo}
-
-Working Directory: ${workingDirectory || 'Use get_current_directory() to find current location'}
-
-IMPORTANT CONVERSATION STYLE:
-1. **Explain first**: Start by acknowledging the request and explaining what you're about to do
-2. **Execute inline**: Use [EXECUTE:...] commands right in your response where they make sense
-3. **Continue naturally**: After showing the results, continue your explanation or provide additional help
-4. **Be conversational**: Write as if you're having a natural conversation, not just listing commands
-
-EXAMPLE RESPONSE PATTERN:
-"I'll help you check the npm packages in your project. Let me first see what's in your package.json file.
-
-[EXECUTE:{"command":"read_file","params":{"filePath":"package.json"}}]
-
-Based on your package.json, I can see you have [explain findings]. Now let me check if everything is installed:
-
-[EXECUTE:{"command":"execute_command","params":{"command":"npm list --depth=0"}}]
-
-Great! Your dependencies are installed. Would you like me to update any packages or run the development server?"
-
-You have the ability to:
-- Execute terminal/shell commands (npm, git, python, etc.)
-- Launch applications (Chrome, VS Code, etc.)
-- Manage files (copy, move, delete, create)
-- Control processes (list, kill)
-- And much more!
-
-Always execute commands naturally within your response. Be helpful, informative, and proactive.`;
+                messageForLLM = `${content.trim()}\n\n[AGENT MODE ACTIVE]\n${toolsInfo}\n\nWorking Directory: ${workingDirectory || 'Use get_current_directory() to find current location'}`;
             }
-            
-            // sendAiMessageStreaming creates the user message, so we don't create it separately
-            // This prevents duplication and ensures only the original user message is saved
+
             await sendAiMessageStreaming(chatId, messageForLLM, images);
-            
+
         } catch (error) {
             console.error('Failed to send message:', error);
             setIsGenerating(false);
@@ -354,9 +375,9 @@ Always execute commands naturally within your response. Be helpful, informative,
 
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text).then(() => {
-            toast.success('Message copied to clipboard');
+            toast.success('Copied to clipboard');
         }).catch(() => {
-            toast.error('Failed to copy message');
+            toast.error('Failed to copy');
         });
     };
 
@@ -369,12 +390,20 @@ Always execute commands naturally within your response. Be helpful, informative,
         });
     };
 
+    const handleSuggestion = (text: string) => {
+        if (inputBoxRef.current) {
+            inputBoxRef.current.insertText(text);
+            inputBoxRef.current.focus();
+        }
+    };
+
+    // Welcome screen when no chat selected
     if (!chatId) {
         return (
-            <div className="flex flex-col h-full bg-background items-center justify-center">
-                <div className="text-center">
-                    <h2 className="text-xl font-semibold mb-2">Welcome to ChatMe</h2>
-                    <p className="text-muted-foreground mb-4">Select a chat from the sidebar or create a new one to get started.</p>
+            <div className="flex flex-col h-full bg-background">
+                <WelcomeScreen onSuggestion={handleSuggestion} />
+                <div className="flex-shrink-0 px-4 pb-4">
+                    <InputBox ref={inputBoxRef} onSendMessage={() => { }} disabled={true} />
                 </div>
             </div>
         );
@@ -382,22 +411,19 @@ Always execute commands naturally within your response. Be helpful, informative,
 
     return (
         <div className="flex flex-col h-full bg-background">
-            {/* Messages Area with proper scroll */}
+            {/* Messages Area */}
             <div className="flex-1 min-h-0 relative">
                 <ScrollArea ref={scrollAreaRef} className="h-full">
-                    <div className="max-w-6xl mx-auto p-4 pb-6">
+                    <div className="max-w-4xl mx-auto">
                         {loading ? (
-                            <div className="flex items-center justify-center h-32">
-                                <div className="text-muted-foreground">Loading messages...</div>
+                            <div className="flex flex-col items-center justify-center h-64 gap-4">
+                                <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                                <p className="text-sm text-muted-foreground">Loading messages...</p>
                             </div>
                         ) : messages.length === 0 && !streamingMessage ? (
-                            <div className="flex items-center justify-center min-h-[60vh]">
-                                <div className="text-center">
-                                    <p className="text-muted-foreground mb-4">No messages yet. Start the conversation!</p>
-                                </div>
-                            </div>
+                            <EmptyChatState />
                         ) : (
-                            <div className="space-y-4">
+                            <div className="space-y-6 p-4 pb-8">
                                 {messages.map((message) => (
                                     <MessageItem
                                         key={message.id}
@@ -421,13 +447,9 @@ Always execute commands naturally within your response. Be helpful, informative,
                 </ScrollArea>
             </div>
 
-            {/* Input Box - Fixed at bottom */}
+            {/* Input Box */}
             <div className="flex-shrink-0">
-                <div className="flex items-center gap-2 px-4 py-2 border-t border-border/50">
-                    <div className="flex-1">
-                        <InputBox onSendMessage={handleSendMessage} disabled={isGenerating} />
-                    </div>
-                </div>
+                <InputBox ref={inputBoxRef} onSendMessage={handleSendMessage} disabled={isGenerating} />
             </div>
         </div>
     );
