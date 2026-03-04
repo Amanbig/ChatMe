@@ -127,40 +127,9 @@ pub struct UpdateApiConfigRequest {
     pub is_default: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ChatCompletionRequest {
-    pub messages: Vec<ChatMessage>,
-    pub model: String,
-    pub temperature: f32,
-    pub max_tokens: Option<i32>,
-}
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ChatMessage {
-    pub role: String, // "user" | "assistant" | "tool" | "system"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub content: Option<serde_json::Value>, // Can be string or array, null for tool calls
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool_calls: Option<Vec<ToolCall>>, // When assistant makes tool calls
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool_call_id: Option<String>, // When role is "tool"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>, // Tool name when role is "tool"
-}
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ChatCompletionResponse {
-    pub choices: Vec<ChatChoice>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub usage: Option<serde_json::Value>, // Token usage stats
-}
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ChatChoice {
-    pub message: ChatMessage,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub finish_reason: Option<String>, // "stop" | "tool_calls" | "length"
-}
 
 // Tool Definition Types (OpenAI format as canonical)
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -204,9 +173,3 @@ pub struct ToolExecution {
     pub timestamp: DateTime<Utc>,
 }
 
-// Conversation Turn (for multi-turn tool use)
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ConversationTurn {
-    pub assistant_message: ChatMessage,
-    pub tool_executions: Vec<ToolExecution>,
-}
