@@ -646,7 +646,7 @@ pub async fn send_ai_message_streaming_with_tools(
         chat_id.clone(),
         user_message.clone(),
         MessageRole::User,
-        images
+        images.clone()
     ).await.map_err(|e| e.to_string())?;
 
     window.emit("message_created", &user_msg).map_err(|e| e.to_string())?;
@@ -701,14 +701,17 @@ pub async fn send_ai_message_streaming_with_tools(
     // If using tools, get agent session and tool definitions
     if use_tools {
         let session_id = format!("chat-{}", chat_id);
-        let mut sessions = agent_sessions.lock().map_err(|e| e.to_string())?;
 
-        if !sessions.contains_key(&session_id) {
-            sessions.insert(session_id.clone(), AgentSession::new(session_id.clone()));
-        }
+        // Get or create agent session (with explicit scope to drop lock)
+        let agent_session = {
+            let mut sessions = agent_sessions.lock().map_err(|e| e.to_string())?;
 
-        let agent_session = sessions.get(&session_id).cloned();
-        drop(sessions); // Release lock
+            if !sessions.contains_key(&session_id) {
+                sessions.insert(session_id.clone(), AgentSession::new(session_id.clone()));
+            }
+
+            sessions.get(&session_id).cloned()
+        }; // Lock is dropped here
 
         // Get tool definitions
         let tools = get_all_tool_definitions();

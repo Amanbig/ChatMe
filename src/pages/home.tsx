@@ -1,16 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import InputBox from "@/components/app/input-box";
 import MessageItem from "@/components/app/message-item";
 import StreamingMessageItem from "@/components/app/streaming-message-item";
 import { toast } from "sonner";
 import { getMessages, sendAiMessageStreaming, sendAiMessageStreamingWithTools, createMessage } from "@/lib/api";
-import { handleAgentQuery, getAvailableAgentTools, parseAndExecuteCommands } from "@/lib/agent-utils";
+import { handleAgentQuery, parseAndExecuteCommands } from "@/lib/agent-utils";
 import { useAgent } from "@/contexts/AgentContext";
-import type { Message, StreamingMessage, ToolExecution, ConversationTurn } from "@/lib/types";
+import type { Message, StreamingMessage, ToolExecution } from "@/lib/types";
 import { listen } from '@tauri-apps/api/event';
 import {
     FaRobot,
@@ -115,7 +114,6 @@ export default function HomePage() {
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
     const [toolExecutions, setToolExecutions] = useState<Map<string, ToolExecution[]>>(new Map());
-    const [conversationTurns, setConversationTurns] = useState<Map<string, ConversationTurn[]>>(new Map());
 
     const [autoSpeak] = useState(() => {
         const saved = localStorage.getItem('autoSpeak');
@@ -236,16 +234,7 @@ export default function HomePage() {
             });
 
             unlistenFinalMessageCreated = await listen('final_message_created', async (event: any) => {
-                const { message, tool_turns } = event.payload;
-
-                // Store conversation turns if present
-                if (tool_turns && tool_turns.length > 0) {
-                    setConversationTurns(prev => {
-                        const newMap = new Map(prev);
-                        newMap.set(message.id, tool_turns as ConversationTurn[]);
-                        return newMap;
-                    });
-                }
+                const { message } = event.payload;
 
                 if (message.chat_id === chatId) {
                     let finalMessage = message;
@@ -263,16 +252,16 @@ export default function HomePage() {
                     }
 
                     if (finalMessage.role === 'assistant' && finalMessage.content.includes('[EXECUTE:')) {
-                        const lines = finalMessage.content.split('\n').filter(line => line.trim());
-                        const executeLines = lines.filter(line => line.includes('[EXECUTE:'));
-                        const nonExecuteLines = lines.filter(line => !line.includes('[EXECUTE:') && line.trim().length > 0);
+                        const lines = finalMessage.content.split('\n').filter((line: string) => line.trim());
+                        const executeLines = lines.filter((line: string) => line.includes('[EXECUTE:'));
+                        const nonExecuteLines = lines.filter((line: string) => !line.includes('[EXECUTE:') && line.trim().length > 0);
 
                         if (executeLines.length > 0 && (nonExecuteLines.length === 0 || executeLines.length >= lines.length * 0.8)) {
                             return;
                         }
 
                         if (executeLines.length > 0 && nonExecuteLines.length > 0) {
-                            const cleanContent = lines.filter(line => !line.includes('[EXECUTE:')).join('\n').trim();
+                            const cleanContent = lines.filter((line: string) => !line.includes('[EXECUTE:')).join('\n').trim();
                             if (cleanContent.length > 0) {
                                 finalMessage = { ...finalMessage, content: cleanContent };
                             } else {

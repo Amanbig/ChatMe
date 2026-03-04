@@ -106,6 +106,9 @@ impl ToolExecutor {
         }).collect()
     }
 
+    // Parallel execution would require the futures crate
+    // Uncomment and add `futures = "0.3"` to Cargo.toml to enable
+    /*
     /// Execute tool calls in parallel (for independent tools)
     #[allow(dead_code)]
     pub async fn execute_tool_calls_parallel(
@@ -120,6 +123,7 @@ impl ToolExecutor {
 
         join_all(futures).await
     }
+    */
 }
 
 #[cfg(test)]

@@ -8,7 +8,6 @@ use serde_json::json;
 use tauri::Emitter;
 
 use crate::models::*;
-use crate::tools::{get_all_tool_definitions, anthropic_tool_to_openai, openai_tool_to_anthropic};
 use crate::tool_executor::ToolExecutor;
 use crate::agentic::AgentSession;
 
@@ -578,6 +577,105 @@ impl Database {
                     }
                 }
             },
+            ApiProvider::Mistral => {
+                let url = config.base_url.as_deref().unwrap_or("https://api.mistral.ai/v1/chat/completions");
+
+                let request_body = json!({
+                    "model": config.model,
+                    "messages": messages,
+                    "temperature": config.temperature,
+                    "max_tokens": config.max_tokens
+                });
+
+                let response = client
+                    .post(url)
+                    .header("Authorization", format!("Bearer {}", config.api_key))
+                    .header("Content-Type", "application/json")
+                    .json(&request_body)
+                    .send()
+                    .await?;
+
+                if !response.status().is_success() {
+                    let error_text = response.text().await?;
+                    return Err(anyhow::anyhow!("Mistral API request failed: {}", error_text));
+                }
+
+                let response_text = response.text().await?;
+
+                match serde_json::from_str::<ChatCompletionResponse>(&response_text) {
+                    Ok(completion) => {
+                        if let Some(choice) = completion.choices.first() {
+                            let content_str = match &choice.message.content {
+                                Some(serde_json::Value::String(s)) => s.clone(),
+                                Some(other) => other.to_string(),
+                                None => String::new(),
+                            };
+                            Ok(content_str)
+                        } else {
+                            Err(anyhow::anyhow!("No response choices from Mistral API"))
+                        }
+                    },
+                    Err(parse_error) => {
+                        eprintln!("Failed to parse Mistral API response: {}", parse_error);
+                        eprintln!("Response body: {}", response_text);
+                        Err(anyhow::anyhow!("Failed to parse Mistral API response: {}. Response: {}", parse_error, response_text))
+                    }
+                }
+            },
+            ApiProvider::DeepSeek | ApiProvider::LMStudio => {
+                // DeepSeek and LMStudio use OpenAI-compatible format
+                let default_url = if matches!(config.provider, ApiProvider::DeepSeek) {
+                    "https://api.deepseek.com/v1/chat/completions"
+                } else {
+                    "http://localhost:1234/v1/chat/completions"
+                };
+                let url = config.base_url.as_deref().unwrap_or(default_url);
+
+                let request_body = json!({
+                    "model": config.model,
+                    "messages": messages,
+                    "temperature": config.temperature,
+                    "max_tokens": config.max_tokens
+                });
+
+                let response = client
+                    .post(url)
+                    .header("Authorization", format!("Bearer {}", config.api_key))
+                    .header("Content-Type", "application/json")
+                    .json(&request_body)
+                    .send()
+                    .await?;
+
+                if !response.status().is_success() {
+                    let error_text = response.text().await?;
+                    let provider_name = if matches!(config.provider, ApiProvider::DeepSeek) { "DeepSeek" } else { "LMStudio" };
+                    return Err(anyhow::anyhow!("{} API request failed: {}", provider_name, error_text));
+                }
+
+                let response_text = response.text().await?;
+
+                match serde_json::from_str::<ChatCompletionResponse>(&response_text) {
+                    Ok(completion) => {
+                        if let Some(choice) = completion.choices.first() {
+                            let content_str = match &choice.message.content {
+                                Some(serde_json::Value::String(s)) => s.clone(),
+                                Some(other) => other.to_string(),
+                                None => String::new(),
+                            };
+                            Ok(content_str)
+                        } else {
+                            let provider_name = if matches!(config.provider, ApiProvider::DeepSeek) { "DeepSeek" } else { "LMStudio" };
+                            Err(anyhow::anyhow!("No response choices from {} API", provider_name))
+                        }
+                    },
+                    Err(parse_error) => {
+                        let provider_name = if matches!(config.provider, ApiProvider::DeepSeek) { "DeepSeek" } else { "LMStudio" };
+                        eprintln!("Failed to parse {} API response: {}", provider_name, parse_error);
+                        eprintln!("Response body: {}", response_text);
+                        Err(anyhow::anyhow!("Failed to parse {} API response: {}. Response: {}", provider_name, parse_error, response_text))
+                    }
+                }
+            },
             ApiProvider::Custom => {
                 // For custom providers, assume OpenAI-compatible API format
                 let url = config.base_url.as_deref().ok_or_else(|| {
@@ -618,8 +716,9 @@ impl Database {
                         if let Some(choice) = completion.choices.first() {
                             // Convert content Value to String
                             let content_str = match &choice.message.content {
-                                serde_json::Value::String(s) => s.clone(),
-                                other => other.to_string(),
+                                Some(serde_json::Value::String(s)) => s.clone(),
+                                Some(other) => other.to_string(),
+                                None => String::new(),
                             };
                             Ok(content_str)
                         } else {
@@ -777,15 +876,31 @@ impl Database {
                 return Err(anyhow::anyhow!("Max tool calling iterations ({}) exceeded", max_iterations));
             }
 
-            // For now, only support OpenAI
-            if config.provider != ApiProvider::OpenAI {
-                // Fallback to regular completion for non-OpenAI providers
-                let text_response = self.send_chat_completion(config, messages).await?;
-                return Ok((text_response, turns));
-            }
-
-            // Send OpenAI request with tools
-            let response = self.send_openai_request_with_tools(&client, config, &messages, tools).await?;
+            // Check if provider supports tool calling
+            let response = match config.provider {
+                ApiProvider::OpenAI => {
+                    // Native OpenAI tool calling
+                    self.send_openai_request_with_tools(&client, config, &messages, tools).await?
+                }
+                ApiProvider::DeepSeek | ApiProvider::LMStudio => {
+                    // DeepSeek and LMStudio are OpenAI-compatible
+                    self.send_openai_request_with_tools(&client, config, &messages, tools).await?
+                }
+                ApiProvider::Mistral => {
+                    // Mistral has native tool calling with similar format to OpenAI
+                    self.send_mistral_request_with_tools(&client, config, &messages, tools).await?
+                }
+                ApiProvider::Ollama => {
+                    // Ollama supports tools if model supports it (llama3.1+, mistral, etc.)
+                    // Uses OpenAI-compatible format
+                    self.send_openai_request_with_tools(&client, config, &messages, tools).await?
+                }
+                _ => {
+                    // Fallback to regular completion for other providers
+                    let text_response = self.send_chat_completion(config, messages).await?;
+                    return Ok((text_response, turns));
+                }
+            };
 
             let choice = response.choices.first()
                 .ok_or_else(|| anyhow::anyhow!("No response choices"))?;
@@ -878,6 +993,55 @@ impl Database {
         let response_text = response.text().await?;
         let completion: ChatCompletionResponse = serde_json::from_str(&response_text)
             .map_err(|e| anyhow::anyhow!("Failed to parse response: {}. Body: {}", e, response_text))?;
+
+        Ok(completion)
+    }
+
+    /// Mistral-specific request with tools
+    async fn send_mistral_request_with_tools(
+        &self,
+        client: &Client,
+        config: &ApiConfig,
+        messages: &[ChatMessage],
+        tools: Option<&[ToolDefinition]>,
+    ) -> Result<ChatCompletionResponse> {
+        let url = config.base_url.as_deref().unwrap_or("https://api.mistral.ai/v1/chat/completions");
+
+        let mut request_body = json!({
+            "model": config.model,
+            "messages": messages,
+            "temperature": config.temperature,
+        });
+
+        // Add max_tokens if provided
+        if let Some(max_tokens) = config.max_tokens {
+            request_body["max_tokens"] = json!(max_tokens);
+        }
+
+        // Add tools if provided (Mistral uses same format as OpenAI)
+        if let Some(tools) = tools {
+            if !tools.is_empty() {
+                request_body["tools"] = serde_json::to_value(tools)?;
+                request_body["tool_choice"] = json!("auto"); // Mistral requires tool_choice when tools are present
+            }
+        }
+
+        let response = client
+            .post(url)
+            .header("Authorization", format!("Bearer {}", config.api_key))
+            .header("Content-Type", "application/json")
+            .json(&request_body)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await?;
+            return Err(anyhow::anyhow!("Mistral API request failed: {}", error_text));
+        }
+
+        let response_text = response.text().await?;
+        let completion: ChatCompletionResponse = serde_json::from_str(&response_text)
+            .map_err(|e| anyhow::anyhow!("Failed to parse Mistral response: {}. Body: {}", e, response_text))?;
 
         Ok(completion)
     }

@@ -41,7 +41,7 @@ export interface ApiConfig {
   updated_at: string;
 }
 
-export type ApiProvider = 'openai' | 'anthropic' | 'google' | 'ollama' | 'custom';
+export type ApiProvider = 'openai' | 'anthropic' | 'google' | 'ollama' | 'mistral' | 'deepseek' | 'lmstudio' | 'custom';
 
 export interface CreateChatRequest {
   title: string;

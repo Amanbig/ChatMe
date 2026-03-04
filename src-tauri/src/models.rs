@@ -47,7 +47,7 @@ pub struct ApiConfig {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq)]
 #[sqlx(type_name = "TEXT")]
 #[serde(rename_all = "lowercase")]
 pub enum ApiProvider {
@@ -59,6 +59,12 @@ pub enum ApiProvider {
     Google,
     #[sqlx(rename = "ollama")]
     Ollama,
+    #[sqlx(rename = "mistral")]
+    Mistral,
+    #[sqlx(rename = "deepseek")]
+    DeepSeek,
+    #[sqlx(rename = "lmstudio")]
+    LMStudio,
     #[sqlx(rename = "custom")]
     Custom,
 }

@@ -9,7 +9,6 @@ import {
     FaFolder,
     FaTerminal,
     FaRocket,
-    FaCog,
     FaShieldAlt,
     FaBrain,
     FaCheck,
