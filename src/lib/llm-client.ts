@@ -42,6 +42,7 @@ export class LLMClient {
           apiKey: this.config.api_key,
           baseURL: this.config.base_url || undefined,
           fetch: tauriFetch as any,
+          dangerouslyAllowBrowser: true, // Safe: using Tauri's native fetch, not browser
         });
         break;
       case 'anthropic':
@@ -67,6 +68,7 @@ export class LLMClient {
           apiKey: this.config.api_key,
           baseURL: this.config.base_url || this.getDefaultBaseURL(),
           fetch: tauriFetch as any,
+          dangerouslyAllowBrowser: true, // Safe: using Tauri's native fetch, not browser
         });
         break;
       case 'ollama':
@@ -75,6 +77,7 @@ export class LLMClient {
           apiKey: 'ollama', // Ollama doesn't require an API key
           baseURL: this.config.base_url || 'http://localhost:11434/v1',
           fetch: tauriFetch as any,
+          dangerouslyAllowBrowser: true, // Safe: using Tauri's native fetch, not browser
         });
         break;
     }
