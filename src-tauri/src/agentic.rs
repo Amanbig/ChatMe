@@ -226,6 +226,89 @@ impl AgentSession {
                     },
                 ],
             },
+            AgentCapability {
+                name: "launch_application".to_string(),
+                description: "Launch an installed application".to_string(),
+                parameters: vec![
+                    AgentParameter {
+                        name: "app_name".to_string(),
+                        parameter_type: "string".to_string(),
+                        description: "Name or path of the application to launch".to_string(),
+                        required: true,
+                        default_value: None,
+                    },
+                ],
+            },
+            AgentCapability {
+                name: "get_installed_apps".to_string(),
+                description: "Get a list of installed applications on the system".to_string(),
+                parameters: vec![],
+            },
+            AgentCapability {
+                name: "execute_command".to_string(),
+                description: "Execute a terminal/shell command".to_string(),
+                parameters: vec![
+                    AgentParameter {
+                        name: "command".to_string(),
+                        parameter_type: "string".to_string(),
+                        description: "The command to execute".to_string(),
+                        required: true,
+                        default_value: None,
+                    },
+                    AgentParameter {
+                        name: "working_directory".to_string(),
+                        parameter_type: "string".to_string(),
+                        description: "Working directory for command execution".to_string(),
+                        required: false,
+                        default_value: None,
+                    },
+                ],
+            },
+            AgentCapability {
+                name: "file_operation".to_string(),
+                description: "Perform file system operations (copy, move, delete files/directories)".to_string(),
+                parameters: vec![
+                    AgentParameter {
+                        name: "operation".to_string(),
+                        parameter_type: "string".to_string(),
+                        description: "Type of operation: 'copy', 'move', 'delete', 'rename'".to_string(),
+                        required: true,
+                        default_value: None,
+                    },
+                    AgentParameter {
+                        name: "source".to_string(),
+                        parameter_type: "string".to_string(),
+                        description: "Source file or directory path".to_string(),
+                        required: true,
+                        default_value: None,
+                    },
+                    AgentParameter {
+                        name: "destination".to_string(),
+                        parameter_type: "string".to_string(),
+                        description: "Destination path (for copy, move, rename operations)".to_string(),
+                        required: false,
+                        default_value: None,
+                    },
+                ],
+            },
+            AgentCapability {
+                name: "get_processes".to_string(),
+                description: "Get a list of running processes on the system".to_string(),
+                parameters: vec![],
+            },
+            AgentCapability {
+                name: "kill_process".to_string(),
+                description: "Terminate a running process by PID".to_string(),
+                parameters: vec![
+                    AgentParameter {
+                        name: "pid".to_string(),
+                        parameter_type: "number".to_string(),
+                        description: "Process ID (PID) to terminate".to_string(),
+                        required: true,
+                        default_value: None,
+                    },
+                ],
+            },
         ]
     }
     
