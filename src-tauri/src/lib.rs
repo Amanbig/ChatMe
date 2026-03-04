@@ -5,7 +5,6 @@ mod file_operations;
 mod agentic;
 mod system_operations;
 mod tools;
-mod tool_executor;
 
 use database::Database;
 use std::collections::HashMap;

@@ -154,30 +154,3 @@ pub struct FunctionDefinition {
     pub parameters: serde_json::Value, // JSON Schema object
 }
 
-// Tool Call Types (in LLM response)
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ToolCall {
-    pub id: String, // OpenAI requires unique ID per call
-    #[serde(rename = "type")]
-    pub call_type: String, // "function"
-    pub function: FunctionCall,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FunctionCall {
-    pub name: String,
-    pub arguments: String, // JSON string of parameters
-}
-
-// Tool Execution Tracking
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ToolExecution {
-    pub tool_call_id: String,
-    pub tool_name: String,
-    pub arguments: serde_json::Value,
-    pub result: Option<serde_json::Value>,
-    pub success: bool,
-    pub error_message: Option<String>,
-    pub timestamp: DateTime<Utc>,
-}
-

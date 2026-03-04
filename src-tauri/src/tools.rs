@@ -1,4 +1,4 @@
-use crate::models::{ToolDefinition, FunctionDefinition, ToolCall, FunctionCall};
+use crate::models::{ToolDefinition, FunctionDefinition};
 use crate::agentic::{AgentCapability, AgentParameter, AgentSession};
 use serde_json::json;
 
@@ -58,39 +58,6 @@ pub fn get_all_tool_definitions() -> Vec<ToolDefinition> {
     capabilities.iter()
         .map(capability_to_tool_definition)
         .collect()
-}
-
-/// Convert Anthropic tool_use format to OpenAI ToolCall format
-pub fn anthropic_tool_to_openai(anthropic_tool: &serde_json::Value) -> Option<ToolCall> {
-    // Anthropic format:
-    // {
-    //   "type": "tool_use",
-    //   "id": "toolu_xxx",
-    //   "name": "tool_name",
-    //   "input": {...}
-    // }
-
-    let id = anthropic_tool.get("id")?.as_str()?;
-    let name = anthropic_tool.get("name")?.as_str()?;
-    let input = anthropic_tool.get("input")?;
-
-    Some(ToolCall {
-        id: id.to_string(),
-        call_type: "function".to_string(),
-        function: FunctionCall {
-            name: name.to_string(),
-            arguments: serde_json::to_string(input).ok()?,
-        },
-    })
-}
-
-/// Convert OpenAI ToolDefinition format to Anthropic tools format
-pub fn openai_tool_to_anthropic(tool_def: &ToolDefinition) -> serde_json::Value {
-    json!({
-        "name": tool_def.function.name,
-        "description": tool_def.function.description,
-        "input_schema": tool_def.function.parameters,
-    })
 }
 
 #[cfg(test)]

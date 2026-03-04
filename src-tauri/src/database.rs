@@ -3,13 +3,8 @@ use chrono::Utc;
 use sqlx::{migrate::MigrateDatabase, Pool, Sqlite, SqlitePool, Row};
 use std::path::PathBuf;
 use uuid::Uuid;
-use reqwest::Client;
-use serde_json::json;
-use tauri::Emitter;
 
 use crate::models::*;
-use crate::tool_executor::ToolExecutor;
-use crate::agentic::AgentSession;
 
 pub struct Database {
     pool: Pool<Sqlite>,
