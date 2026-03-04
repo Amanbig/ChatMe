@@ -65,6 +65,8 @@ pub enum ApiProvider {
     DeepSeek,
     #[sqlx(rename = "lmstudio")]
     LMStudio,
+    #[sqlx(rename = "kimi")]
+    Kimi,
     #[sqlx(rename = "custom")]
     Custom,
 }

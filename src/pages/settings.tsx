@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import SpeechSettings from "@/components/app/speech-settings";
 import AgentMode from "../components/app/agent-mode";
+import ModelSelector from "@/components/app/model-selector";
 import {
     FaRobot,
     FaGoogle,
@@ -76,6 +77,42 @@ const providerTemplates: ProviderTemplate[] = [
         defaultUrl: "https://api.anthropic.com/v1/messages",
         defaultModels: ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"],
         color: "from-orange-500 to-red-600"
+    },
+    {
+        id: "mistral",
+        name: "Mistral AI",
+        icon: <FaRobot className="text-amber-600" size={24} />,
+        description: "Mistral models with function calling",
+        defaultUrl: "https://api.mistral.ai/v1",
+        defaultModels: ["mistral-large-latest", "mistral-medium-latest", "mistral-small-latest"],
+        color: "from-amber-500 to-yellow-600"
+    },
+    {
+        id: "deepseek",
+        name: "DeepSeek",
+        icon: <FaBrain className="text-indigo-600" size={24} />,
+        description: "DeepSeek's powerful coding models",
+        defaultUrl: "https://api.deepseek.com/v1",
+        defaultModels: ["deepseek-chat", "deepseek-coder"],
+        color: "from-indigo-500 to-purple-600"
+    },
+    {
+        id: "kimi",
+        name: "Kimi (Moonshot)",
+        icon: <FaRobot className="text-pink-600" size={24} />,
+        description: "Moonshot AI's Kimi models",
+        defaultUrl: "https://api.moonshot.cn/v1",
+        defaultModels: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
+        color: "from-pink-500 to-rose-600"
+    },
+    {
+        id: "lmstudio",
+        name: "LM Studio",
+        icon: <FaCode className="text-teal-600" size={24} />,
+        description: "Local models via LM Studio",
+        defaultUrl: "http://localhost:1234/v1",
+        defaultModels: ["local-model"],
+        color: "from-teal-500 to-cyan-600"
     },
     {
         id: "ollama",
@@ -149,11 +186,13 @@ function ConfigEditForm({
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="edit-model">Model</Label>
-                        <Input
-                            id="edit-model"
+                        <ModelSelector
+                            provider={config.provider}
+                            apiKey={formData.api_key}
+                            baseUrl={formData.base_url}
                             value={formData.model}
-                            onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                            placeholder="gpt-4, gemini-pro, etc."
+                            onChange={(value) => setFormData({ ...formData, model: value })}
+                            placeholder="Select a model"
                         />
                     </div>
                 </div>
@@ -298,11 +337,13 @@ function CreateConfigForm({
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="new-model">Model</Label>
-                        <Input
-                            id="new-model"
+                        <ModelSelector
+                            provider={providerTemplate.id}
+                            apiKey={formData.api_key}
+                            baseUrl={formData.base_url}
                             value={formData.model}
-                            onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                            placeholder="gpt-4, gemini-pro, etc."
+                            onChange={(value) => setFormData({ ...formData, model: value })}
+                            placeholder="Select a model"
                         />
                     </div>
                 </div>

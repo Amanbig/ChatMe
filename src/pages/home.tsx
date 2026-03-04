@@ -6,10 +6,11 @@ import InputBox from "@/components/app/input-box";
 import MessageItem from "@/components/app/message-item";
 import StreamingMessageItem from "@/components/app/streaming-message-item";
 import { toast } from "sonner";
-import { getMessages, sendAiMessageStreaming, sendAiMessageStreamingWithTools, createMessage } from "@/lib/api";
+import { getMessages, createMessage, getChat, getDefaultApiConfig, getApiConfig } from "@/lib/api";
 import { handleAgentQuery, parseAndExecuteCommands } from "@/lib/agent-utils";
 import { useAgent } from "@/contexts/AgentContext";
-import type { Message, StreamingMessage, ToolExecution } from "@/lib/types";
+import type { Message, StreamingMessage, ToolExecution, ApiConfig } from "@/lib/types";
+import { LLMClient } from "@/lib/llm-client";
 import { listen } from '@tauri-apps/api/event';
 import {
     FaRobot,
@@ -371,18 +372,99 @@ export default function HomePage() {
                 return;
             }
 
-            // Use native tool calling if agent mode is active, otherwise use regular streaming
-            if (isAgentActive) {
-                await sendAiMessageStreamingWithTools(chatId, content.trim(), images, true);
+            // Create user message in database
+            const userMessage = await createMessage({
+                chat_id: chatId,
+                content: content.trim(),
+                role: 'user',
+                images
+            });
+
+            setMessages(prev => [...prev, userMessage]);
+
+            // Get API config for this chat
+            const chat = await getChat(chatId);
+            let apiConfig: ApiConfig | null = null;
+
+            if (chat?.api_config_id) {
+                apiConfig = await getApiConfig(chat.api_config_id);
             } else {
-                await sendAiMessageStreaming(chatId, content.trim(), images);
+                apiConfig = await getDefaultApiConfig();
             }
+
+            if (!apiConfig) {
+                throw new Error('No API configuration found. Please set up an API configuration in Settings.');
+            }
+
+            // Create LLM client
+            const llmClient = new LLMClient(apiConfig);
+
+            // Get all messages for context
+            const allMessages = await getMessages(chatId);
+
+            // Setup streaming message
+            const streamingId = `streaming-${Date.now()}`;
+            setStreamingMessage({
+                id: streamingId,
+                content: '',
+                isStreaming: true,
+                isComplete: false,
+            });
+
+            // Send message with streaming
+            await llmClient.sendMessageStreaming(
+                chatId,
+                allMessages,
+                isAgentActive, // Use tools if agent mode is active
+                {
+                    onChunk: (_chunk, fullContent) => {
+                        setStreamingMessage({
+                            id: streamingId,
+                            content: fullContent,
+                            isStreaming: true,
+                            isComplete: false,
+                        });
+                    },
+                    onToolExecution: (execution) => {
+                        // Update tool executions for the streaming message
+                        setToolExecutions(prev => {
+                            const newMap = new Map(prev);
+                            const existing = newMap.get(streamingId) || [];
+                            newMap.set(streamingId, [...existing, execution]);
+                            return newMap;
+                        });
+                    },
+                    onComplete: async (content, allExecutions) => {
+                        // Save assistant message to database
+                        const assistantMessage = await createMessage({
+                            chat_id: chatId,
+                            content: content,
+                            role: 'assistant',
+                        });
+
+                        // Move tool executions from streaming ID to actual message ID
+                        if (allExecutions.length > 0) {
+                            setToolExecutions(prev => {
+                                const newMap = new Map(prev);
+                                newMap.delete(streamingId);
+                                newMap.set(assistantMessage.id, allExecutions);
+                                return newMap;
+                            });
+                        }
+
+                        // Update messages
+                        setMessages(prev => [...prev, assistantMessage]);
+                        setStreamingMessage(null);
+                        setIsGenerating(false);
+                    }
+                }
+            );
 
         } catch (error) {
             console.error('Failed to send message:', error);
             setIsGenerating(false);
             setStreamingMessage(null);
-            toast.error('Failed to send message. Please check your configuration and try again.');
+            toast.error(error instanceof Error ? error.message : 'Failed to send message. Please check your configuration and try again.');
         }
     };
 

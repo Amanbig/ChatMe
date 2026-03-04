@@ -37,9 +37,6 @@ pub fn run() {
                 commands::get_default_api_config,
                 commands::update_api_config,
                 commands::delete_api_config,
-                commands::send_ai_message,
-                commands::send_ai_message_streaming,
-                commands::send_ai_message_streaming_with_tools,
                 // File operations
                 commands::open_file_with_default_app,
                 commands::read_directory,
@@ -50,6 +47,7 @@ pub fn run() {
                 // Agentic mode
                 commands::create_agent_session,
                 commands::get_agent_capabilities,
+                commands::get_agent_tool_definitions,
                 commands::execute_agent_action,
                 commands::get_agent_session,
                 commands::create_or_get_agent_session,

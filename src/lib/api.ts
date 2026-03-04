@@ -1,10 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { 
-  Chat, 
-  Message, 
-  ChatWithLastMessage, 
-  CreateChatRequest, 
-  CreateMessageRequest, 
+import type {
+  Chat,
+  Message,
+  ChatWithLastMessage,
+  CreateChatRequest,
+  CreateMessageRequest,
   UpdateChatRequest,
   ApiConfig,
   CreateApiConfigRequest,
@@ -13,7 +13,8 @@ import type {
   SearchResult,
   AgentSession,
   AgentAction,
-  AgentCapability
+  AgentCapability,
+  ToolDefinition
 } from './types';
 
 // Chat operations
@@ -75,29 +76,6 @@ export async function deleteApiConfig(configId: string): Promise<void> {
   return await invoke('delete_api_config', { configId });
 }
 
-// AI Chat operations
-export async function sendAiMessage(chatId: string, userMessage: string): Promise<Message> {
-  return await invoke('send_ai_message', { chatId, userMessage });
-}
-
-export async function sendAiMessageStreaming(chatId: string, userMessage: string, images?: string[]): Promise<string> {
-  return await invoke('send_ai_message_streaming', { chatId, userMessage, images });
-}
-
-export async function sendAiMessageStreamingWithTools(
-  chatId: string,
-  userMessage: string,
-  images?: string[],
-  useTools: boolean = false
-): Promise<string> {
-  return await invoke('send_ai_message_streaming_with_tools', {
-    chatId,
-    userMessage,
-    images,
-    useTools,
-  });
-}
-
 // File Operations
 export async function openFileWithDefaultApp(filePath: string): Promise<string> {
   return await invoke('open_file_with_default_app', { filePath });
@@ -140,6 +118,10 @@ export async function createAgentSession(sessionId: string): Promise<AgentSessio
 
 export async function getAgentCapabilities(): Promise<AgentCapability[]> {
   return await invoke('get_agent_capabilities');
+}
+
+export async function getAgentToolDefinitions(): Promise<ToolDefinition[]> {
+  return await invoke('get_agent_tool_definitions');
 }
 
 export async function executeAgentAction(

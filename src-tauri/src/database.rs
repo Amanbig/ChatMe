@@ -622,10 +622,12 @@ impl Database {
                     }
                 }
             },
-            ApiProvider::DeepSeek | ApiProvider::LMStudio => {
-                // DeepSeek and LMStudio use OpenAI-compatible format
+            ApiProvider::DeepSeek | ApiProvider::LMStudio | ApiProvider::Kimi => {
+                // DeepSeek, LMStudio, and Kimi use OpenAI-compatible format
                 let default_url = if matches!(config.provider, ApiProvider::DeepSeek) {
                     "https://api.deepseek.com/v1/chat/completions"
+                } else if matches!(config.provider, ApiProvider::Kimi) {
+                    "https://api.moonshot.cn/v1/chat/completions"
                 } else {
                     "http://localhost:1234/v1/chat/completions"
                 };
@@ -648,7 +650,13 @@ impl Database {
 
                 if !response.status().is_success() {
                     let error_text = response.text().await?;
-                    let provider_name = if matches!(config.provider, ApiProvider::DeepSeek) { "DeepSeek" } else { "LMStudio" };
+                    let provider_name = if matches!(config.provider, ApiProvider::DeepSeek) {
+                        "DeepSeek"
+                    } else if matches!(config.provider, ApiProvider::Kimi) {
+                        "Kimi"
+                    } else {
+                        "LMStudio"
+                    };
                     return Err(anyhow::anyhow!("{} API request failed: {}", provider_name, error_text));
                 }
 

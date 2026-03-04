@@ -386,6 +386,11 @@ pub async fn get_agent_capabilities() -> Result<Vec<AgentCapability>, String> {
 }
 
 #[tauri::command]
+pub async fn get_agent_tool_definitions() -> Result<Vec<ToolDefinition>, String> {
+    Ok(get_all_tool_definitions())
+}
+
+#[tauri::command]
 pub async fn execute_agent_action(
     agent_sessions: State<'_, Mutex<HashMap<String, AgentSession>>>,
     session_id: String,
