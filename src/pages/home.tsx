@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useParams } from "react-router";
+import { useParams, useNavigate } from "react-router";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -108,6 +108,7 @@ function EmptyChatState() {
 
 export default function HomePage() {
     const { chatId } = useParams<{ chatId: string }>();
+    const navigate = useNavigate();
     const { isAgentActive, workingDirectory } = useAgent();
     const [messages, setMessages] = useState<Message[]>([]);
     const [streamingMessage, setStreamingMessage] = useState<StreamingMessage | null>(null);
@@ -399,11 +400,30 @@ export default function HomePage() {
 
     // Welcome screen when no chat selected
     if (!chatId) {
+        const handleStartChat = async (content: string, images?: string[]) => {
+            if (!content.trim() && !images?.length) return;
+
+            try {
+                // Create a new chat
+                const { createChat } = await import('@/lib/api');
+                const newChat = await createChat({ title: content.slice(0, 50) || "New Chat" });
+
+                // Navigate to the new chat
+                navigate(`/chat/${newChat.id}`);
+
+                // Small delay to let the chat load, then the message will be sent via normal flow
+                toast.success('New chat created!');
+            } catch (error) {
+                console.error('Failed to create chat:', error);
+                toast.error('Failed to create chat. Please try again.');
+            }
+        };
+
         return (
             <div className="flex flex-col h-full bg-background">
                 <WelcomeScreen onSuggestion={handleSuggestion} />
                 <div className="flex-shrink-0 px-4 pb-4">
-                    <InputBox ref={inputBoxRef} onSendMessage={() => { }} disabled={true} />
+                    <InputBox ref={inputBoxRef} onSendMessage={handleStartChat} disabled={false} />
                 </div>
             </div>
         );
