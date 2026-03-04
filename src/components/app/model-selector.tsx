@@ -31,7 +31,8 @@ export default function ModelSelector({
 
   // Fetch models when provider or API key changes
   useEffect(() => {
-    if (provider && apiKey) {
+    // Load models if provider is set and either has API key OR is a provider that doesn't need one
+    if (provider && (apiKey || provider === 'ollama' || provider === 'lmstudio')) {
       loadModels();
     }
   }, [provider, apiKey, baseUrl]);
@@ -101,17 +102,29 @@ export default function ModelSelector({
     );
   }
 
-  // If no models available, fall back to text input
+  // If no models available, fall back to text input with retry button
   if (models.length === 0) {
     return (
       <div className="space-y-2">
-        <Input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-        />
+        <div className="flex gap-2">
+          <Input
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            className="flex-1"
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={loadModels}
+            disabled={loading}
+            title="Retry fetching models"
+          >
+            <FaSync size={14} />
+          </Button>
+        </div>
         <p className="text-xs text-muted-foreground">
-          No models found. Enter model name manually.
+          No models found. Enter model name manually or click refresh to retry.
         </p>
       </div>
     );

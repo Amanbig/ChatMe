@@ -58,6 +58,10 @@ export class LLMClient {
       case 'lmstudio':
       case 'mistral':
       case 'kimi':
+      case 'openrouter':
+      case 'together':
+      case 'groq':
+      case 'perplexity':
         // These are OpenAI-compatible
         this.openaiClient = new OpenAI({
           apiKey: this.config.api_key,
@@ -86,6 +90,14 @@ export class LLMClient {
         return 'https://api.mistral.ai/v1';
       case 'kimi':
         return 'https://api.moonshot.cn/v1';
+      case 'openrouter':
+        return 'https://openrouter.ai/api/v1';
+      case 'together':
+        return 'https://api.together.xyz/v1';
+      case 'groq':
+        return 'https://api.groq.com/openai/v1';
+      case 'perplexity':
+        return 'https://api.perplexity.ai';
       default:
         return 'https://api.openai.com/v1';
     }
@@ -103,7 +115,7 @@ export class LLMClient {
     const sessionId = `chat-${chatId}`;
     await createOrGetAgentSession(sessionId);
 
-    const llmMessages = this.convertMessagesToLLMFormat(messages);
+    const llmMessages = this.convertMessagesToLLMFormat(messages, useTools);
     const tools = useTools ? await getAgentToolDefinitions() : [];
     const allExecutions: ToolExecution[] = [];
 
@@ -113,7 +125,7 @@ export class LLMClient {
     while (iteration < maxIterations) {
       iteration++;
 
-      if (this.config.provider === 'openai' || ['deepseek', 'lmstudio', 'mistral', 'ollama'].includes(this.config.provider)) {
+      if (this.config.provider === 'openai' || ['deepseek', 'lmstudio', 'mistral', 'ollama', 'kimi', 'openrouter', 'together', 'groq', 'perplexity'].includes(this.config.provider)) {
         const result = await this.handleOpenAIStream(llmMessages, tools, sessionId, callbacks);
 
         if (result.toolCalls && result.toolCalls.length > 0) {
@@ -375,10 +387,34 @@ export class LLMClient {
     return executions;
   }
 
-  private convertMessagesToLLMFormat(messages: Message[]): LLMMessage[] {
-    return messages.map(msg => ({
+  private convertMessagesToLLMFormat(messages: Message[], useTools: boolean = false): LLMMessage[] {
+    const llmMessages: LLMMessage[] = messages.map(msg => ({
       role: msg.role === 'user' ? 'user' : 'assistant',
       content: msg.content,
     }));
+
+    // Add system message if tools are enabled
+    if (useTools) {
+      llmMessages.unshift({
+        role: 'system',
+        content: `You are an AI assistant with access to powerful tools for interacting with the user's computer. You have the following capabilities:
+
+- File operations: Read, write, search files and directories
+- Terminal commands: Execute shell commands
+- Process management: List and control running processes
+- Application control: Launch applications
+
+When the user asks you to perform a task that requires these capabilities, USE the tools directly - don't explain how to use them or show JSON examples. Just call the appropriate tool and provide the results in a natural, conversational way.
+
+For example:
+- If asked "list files", use the list_directory tool and show the results
+- If asked "search for X", use the search_files tool and report what you found
+- If asked "read file Y", use the read_file tool and discuss the contents
+
+Be proactive and helpful. Use tools whenever they can help accomplish the user's goals.`,
+      });
+    }
+
+    return llmMessages;
   }
 }

@@ -67,6 +67,14 @@ pub enum ApiProvider {
     LMStudio,
     #[sqlx(rename = "kimi")]
     Kimi,
+    #[sqlx(rename = "openrouter")]
+    OpenRouter,
+    #[sqlx(rename = "together")]
+    Together,
+    #[sqlx(rename = "groq")]
+    Groq,
+    #[sqlx(rename = "perplexity")]
+    Perplexity,
     #[sqlx(rename = "custom")]
     Custom,
 }

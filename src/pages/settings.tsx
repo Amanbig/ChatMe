@@ -106,6 +106,44 @@ const providerTemplates: ProviderTemplate[] = [
         color: "from-pink-500 to-rose-600"
     },
     {
+        id: "openrouter",
+        name: "OpenRouter",
+        icon: <FaRobot className="text-sky-600" size={24} />,
+        description: "Access 100+ models via unified API",
+        defaultUrl: "https://openrouter.ai/api/v1",
+        defaultModels: ["openai/gpt-4-turbo", "anthropic/claude-3-opus", "google/gemini-pro"],
+        popular: true,
+        color: "from-sky-500 to-blue-600"
+    },
+    {
+        id: "together",
+        name: "Together AI",
+        icon: <FaBrain className="text-violet-600" size={24} />,
+        description: "Fast inference for open-source models",
+        defaultUrl: "https://api.together.xyz/v1",
+        defaultModels: ["mistralai/Mixtral-8x7B-Instruct-v0.1", "meta-llama/Llama-3-70b-chat-hf"],
+        color: "from-violet-500 to-purple-600"
+    },
+    {
+        id: "groq",
+        name: "Groq",
+        icon: <FaRobot className="text-emerald-600" size={24} />,
+        description: "Fastest LLM inference available",
+        defaultUrl: "https://api.groq.com/openai/v1",
+        defaultModels: ["llama3-70b-8192", "mixtral-8x7b-32768", "gemma-7b-it"],
+        popular: true,
+        color: "from-emerald-500 to-green-600"
+    },
+    {
+        id: "perplexity",
+        name: "Perplexity",
+        icon: <FaCode className="text-cyan-600" size={24} />,
+        description: "Perplexity's search-powered models",
+        defaultUrl: "https://api.perplexity.ai",
+        defaultModels: ["llama-3-sonar-large-32k-online", "llama-3-sonar-small-32k-chat"],
+        color: "from-cyan-500 to-teal-600"
+    },
+    {
         id: "lmstudio",
         name: "LM Studio",
         icon: <FaCode className="text-teal-600" size={24} />,
@@ -119,7 +157,7 @@ const providerTemplates: ProviderTemplate[] = [
         name: "Ollama",
         icon: <FaCog className="text-gray-600" size={24} />,
         description: "Local models via Ollama",
-        defaultUrl: "http://localhost:11434",
+        defaultUrl: "http://localhost:11434/v1",
         defaultModels: ["llama2", "codellama", "mistral", "neural-chat"],
         color: "from-gray-500 to-slate-600"
     },
@@ -433,6 +471,7 @@ export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState<TabType>('api');
     const [configs, setConfigs] = useState<ApiConfig[]>([]);
     const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -453,6 +492,16 @@ export default function SettingsPage() {
     useEffect(() => {
         loadConfigs();
     }, []);
+
+    // Auto-reset delete confirmation after 3 seconds
+    useEffect(() => {
+        if (deleteConfirmId) {
+            const timer = setTimeout(() => {
+                setDeleteConfirmId(null);
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [deleteConfirmId]);
 
     const loadConfigs = async () => {
         try {
@@ -646,14 +695,38 @@ export default function SettingsPage() {
                                                             </p>
                                                         </div>
                                                     </div>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => setEditingConfigId(config.id)}
-                                                        className="h-8 w-8 p-0 rounded-lg hover:bg-primary/10 hover:text-primary"
-                                                    >
-                                                        <FaEdit size={14} />
-                                                    </Button>
+                                                    <div className="flex items-center gap-2">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => setEditingConfigId(config.id)}
+                                                            className="h-8 w-8 p-0 rounded-lg hover:bg-primary/10 hover:text-primary"
+                                                            title="Edit configuration"
+                                                        >
+                                                            <FaEdit size={14} />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (deleteConfirmId === config.id) {
+                                                                    handleDelete(config.id);
+                                                                    setDeleteConfirmId(null);
+                                                                } else {
+                                                                    setDeleteConfirmId(config.id);
+                                                                }
+                                                            }}
+                                                            className={`h-8 w-8 p-0 rounded-lg transition-all ${
+                                                                deleteConfirmId === config.id
+                                                                    ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                                                                    : 'hover:bg-destructive/10 hover:text-destructive'
+                                                            }`}
+                                                            title={deleteConfirmId === config.id ? "Click again to confirm" : "Delete configuration"}
+                                                        >
+                                                            <FaTrash size={14} />
+                                                        </Button>
+                                                    </div>
                                                 </div>
                                             );
                                         })}

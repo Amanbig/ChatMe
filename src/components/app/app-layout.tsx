@@ -280,15 +280,23 @@ export default function AppLayout({ children }: AppLayoutProps) {
                                   {/* Delete Button */}
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <button
-                                        className={`shrink-0 h-7 w-7 rounded-lg flex items-center justify-center transition-all duration-200 ${deleteConfirm === chat.id
+                                      <div
+                                        role="button"
+                                        tabIndex={0}
+                                        className={`shrink-0 h-7 w-7 rounded-lg flex items-center justify-center transition-all duration-200 cursor-pointer ${deleteConfirm === chat.id
                                           ? 'bg-destructive text-destructive-foreground'
                                           : 'opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive'
                                           }`}
                                         onClick={(e) => handleDeleteChat(chat.id, e)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            handleDeleteChat(chat.id, e as any);
+                                          }
+                                        }}
                                       >
                                         <FaTrash size={12} />
-                                      </button>
+                                      </div>
                                     </TooltipTrigger>
                                     <TooltipContent side="left">
                                       <p className="text-xs">

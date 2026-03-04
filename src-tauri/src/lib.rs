@@ -59,6 +59,7 @@ pub fn run() {
                 commands::perform_file_system_operation,
                 commands::get_processes,
                 commands::terminate_process,
+                commands::fetch_provider_models,
             ])
             .run(tauri::generate_context!())
             .expect("error while running tauri application");

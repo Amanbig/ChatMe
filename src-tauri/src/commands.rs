@@ -425,3 +425,272 @@ pub async fn terminate_process(
     Ok(format!("Successfully terminated process with PID: {}", pid))
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct ModelInfo {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+}
+
+/// Fetch available models from provider API (bypasses CORS)
+#[tauri::command]
+pub async fn fetch_provider_models(
+    provider: String,
+    api_key: String,
+    base_url: Option<String>,
+) -> Result<Vec<ModelInfo>, String> {
+    let client = reqwest::Client::new();
+
+    match provider.as_str() {
+        "openai" => {
+            let url = base_url.unwrap_or_else(|| "https://api.openai.com/v1".to_string());
+            fetch_openai_models(&client, &api_key, &url).await
+        }
+        "anthropic" => {
+            Ok(get_anthropic_models())
+        }
+        "deepseek" => {
+            let url = base_url.unwrap_or_else(|| "https://api.deepseek.com/v1".to_string());
+            fetch_openai_compatible_models(&client, &api_key, &url).await
+        }
+        "lmstudio" => {
+            let url = base_url.unwrap_or_else(|| "http://localhost:1234/v1".to_string());
+            fetch_openai_compatible_models(&client, &api_key, &url).await
+        }
+        "mistral" => {
+            let url = base_url.unwrap_or_else(|| "https://api.mistral.ai/v1".to_string());
+            fetch_openai_compatible_models(&client, &api_key, &url).await
+        }
+        "kimi" => {
+            let url = base_url.unwrap_or_else(|| "https://api.moonshot.cn/v1".to_string());
+            fetch_openai_compatible_models(&client, &api_key, &url).await
+        }
+        "openrouter" => {
+            let url = base_url.unwrap_or_else(|| "https://openrouter.ai/api/v1".to_string());
+            fetch_openai_compatible_models(&client, &api_key, &url).await
+        }
+        "together" => {
+            let url = base_url.unwrap_or_else(|| "https://api.together.xyz/v1".to_string());
+            fetch_openai_compatible_models(&client, &api_key, &url).await
+        }
+        "groq" => {
+            let url = base_url.unwrap_or_else(|| "https://api.groq.com/openai/v1".to_string());
+            fetch_openai_compatible_models(&client, &api_key, &url).await
+        }
+        "perplexity" => {
+            let url = base_url.unwrap_or_else(|| "https://api.perplexity.ai".to_string());
+            fetch_openai_compatible_models(&client, &api_key, &url).await
+        }
+        "ollama" => {
+            let mut url = base_url.unwrap_or_else(|| "http://localhost:11434".to_string());
+            // Strip /v1 suffix for Ollama
+            if url.ends_with("/v1") || url.ends_with("/v1/") {
+                url = url.trim_end_matches('/').trim_end_matches("/v1").to_string();
+            }
+            fetch_ollama_models(&client, &url).await
+        }
+        "google" => {
+            Ok(get_google_models())
+        }
+        "custom" => {
+            if let Some(url) = base_url {
+                fetch_openai_compatible_models(&client, &api_key, &url).await
+            } else {
+                Ok(vec![])
+            }
+        }
+        _ => Ok(vec![]),
+    }
+}
+
+async fn fetch_openai_models(
+    client: &reqwest::Client,
+    api_key: &str,
+    base_url: &str,
+) -> Result<Vec<ModelInfo>, String> {
+    let url = format!("{}/models", base_url);
+
+    let response = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch models: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("API returned error: {}", response.status()));
+    }
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    let models = json["data"]
+        .as_array()
+        .ok_or("Invalid response format")?
+        .iter()
+        .filter_map(|m| {
+            let id = m["id"].as_str()?;
+            if id.contains("gpt") {
+                Some(ModelInfo {
+                    id: id.to_string(),
+                    name: id.to_string(),
+                    description: None,
+                })
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    Ok(models)
+}
+
+async fn fetch_openai_compatible_models(
+    client: &reqwest::Client,
+    api_key: &str,
+    base_url: &str,
+) -> Result<Vec<ModelInfo>, String> {
+    let url = format!("{}/models", base_url);
+
+    let response = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch models: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("API returned error: {}", response.status()));
+    }
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    let models = json["data"]
+        .as_array()
+        .ok_or("Invalid response format")?
+        .iter()
+        .filter_map(|m| {
+            let id = m["id"].as_str()?;
+            Some(ModelInfo {
+                id: id.to_string(),
+                name: id.to_string(),
+                description: None,
+            })
+        })
+        .collect();
+
+    Ok(models)
+}
+
+async fn fetch_ollama_models(
+    client: &reqwest::Client,
+    base_url: &str,
+) -> Result<Vec<ModelInfo>, String> {
+    let url = format!("{}/api/tags", base_url);
+
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch Ollama models: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Ollama API returned error: {}", response.status()));
+    }
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
+
+    let models = json["models"]
+        .as_array()
+        .ok_or("Invalid Ollama response format")?
+        .iter()
+        .filter_map(|m| {
+            let name = m["name"].as_str()?;
+            let size = m["size"].as_u64().unwrap_or(0);
+            Some(ModelInfo {
+                id: name.to_string(),
+                name: name.to_string(),
+                description: Some(format!("Size: {}", format_bytes(size))),
+            })
+        })
+        .collect();
+
+    Ok(models)
+}
+
+fn get_anthropic_models() -> Vec<ModelInfo> {
+    vec![
+        ModelInfo {
+            id: "claude-3-5-sonnet-20241022".to_string(),
+            name: "Claude 3.5 Sonnet".to_string(),
+            description: Some("Most intelligent model".to_string()),
+        },
+        ModelInfo {
+            id: "claude-3-5-haiku-20241022".to_string(),
+            name: "Claude 3.5 Haiku".to_string(),
+            description: Some("Fastest model".to_string()),
+        },
+        ModelInfo {
+            id: "claude-3-opus-20240229".to_string(),
+            name: "Claude 3 Opus".to_string(),
+            description: Some("Powerful model for complex tasks".to_string()),
+        },
+        ModelInfo {
+            id: "claude-3-sonnet-20240229".to_string(),
+            name: "Claude 3 Sonnet".to_string(),
+            description: Some("Balanced model".to_string()),
+        },
+        ModelInfo {
+            id: "claude-3-haiku-20240307".to_string(),
+            name: "Claude 3 Haiku".to_string(),
+            description: Some("Fast and efficient".to_string()),
+        },
+    ]
+}
+
+fn get_google_models() -> Vec<ModelInfo> {
+    vec![
+        ModelInfo {
+            id: "gemini-2.0-flash-exp".to_string(),
+            name: "Gemini 2.0 Flash (Experimental)".to_string(),
+            description: Some("Latest experimental model".to_string()),
+        },
+        ModelInfo {
+            id: "gemini-1.5-pro".to_string(),
+            name: "Gemini 1.5 Pro".to_string(),
+            description: Some("Most capable model".to_string()),
+        },
+        ModelInfo {
+            id: "gemini-1.5-flash".to_string(),
+            name: "Gemini 1.5 Flash".to_string(),
+            description: Some("Fast and efficient".to_string()),
+        },
+        ModelInfo {
+            id: "gemini-1.0-pro".to_string(),
+            name: "Gemini 1.0 Pro".to_string(),
+            description: Some("Stable production model".to_string()),
+        },
+    ]
+}
+
+fn format_bytes(bytes: u64) -> String {
+    if bytes == 0 {
+        return "0 Bytes".to_string();
+    }
+
+    let k: f64 = 1024.0;
+    let sizes = ["Bytes", "KB", "MB", "GB"];
+    let i = (bytes as f64).log(k).floor() as usize;
+    let size = (bytes as f64) / k.powi(i as i32);
+
+    format!("{:.2} {}", size, sizes[i.min(3)])
+}
+
