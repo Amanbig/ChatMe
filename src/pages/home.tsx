@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate, useLocation } from "react-router";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import InputBox from "@/components/app/input-box";
@@ -109,12 +109,14 @@ function EmptyChatState() {
 export default function HomePage() {
     const { chatId } = useParams<{ chatId: string }>();
     const navigate = useNavigate();
+    const location = useLocation();
     const { isAgentActive, workingDirectory } = useAgent();
     const [messages, setMessages] = useState<Message[]>([]);
     const [streamingMessage, setStreamingMessage] = useState<StreamingMessage | null>(null);
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
     const [toolExecutions, setToolExecutions] = useState<Map<string, ToolExecution[]>>(new Map());
+    const hasAutoSentRef = useRef(false);
 
     const [autoSpeak] = useState(() => {
         const saved = localStorage.getItem('autoSpeak');
@@ -131,6 +133,7 @@ export default function HomePage() {
             setMessages([]);
             setStreamingMessage(null);
             setLoading(false);
+            hasAutoSentRef.current = false;
         }
     }, [chatId]);
 
@@ -343,6 +346,112 @@ export default function HomePage() {
         }
     };
 
+    // Auto-send LLM response when coming from welcome screen
+    useEffect(() => {
+        const autoSendMessage = async () => {
+            const locationState = location.state as { autoSend?: boolean } | null;
+
+            if (!chatId || !locationState?.autoSend || hasAutoSentRef.current || loading || isGenerating) {
+                return;
+            }
+
+            hasAutoSentRef.current = true;
+
+            // Clear the navigation state to prevent re-triggering
+            navigate(location.pathname, { replace: true, state: {} });
+
+            try {
+                setIsGenerating(true);
+
+                // Get API config for this chat
+                const chat = await getChat(chatId);
+                let apiConfig: ApiConfig | null = null;
+
+                if (chat?.api_config_id) {
+                    apiConfig = await getApiConfig(chat.api_config_id);
+                } else {
+                    apiConfig = await getDefaultApiConfig();
+                }
+
+                if (!apiConfig) {
+                    throw new Error('No API configuration found. Please set up an API configuration in Settings.');
+                }
+
+                // Create LLM client
+                const llmClient = new LLMClient(apiConfig);
+
+                // Get all messages for context
+                const allMessages = await getMessages(chatId);
+
+                // Setup streaming message
+                const streamingId = `streaming-${Date.now()}`;
+                setStreamingMessage({
+                    id: streamingId,
+                    content: '',
+                    isStreaming: true,
+                    isComplete: false,
+                });
+
+                // Send message with streaming
+                await llmClient.sendMessageStreaming(
+                    chatId,
+                    allMessages,
+                    isAgentActive,
+                    {
+                        onChunk: (_chunk, fullContent) => {
+                            setStreamingMessage({
+                                id: streamingId,
+                                content: fullContent,
+                                isStreaming: true,
+                                isComplete: false,
+                            });
+                        },
+                        onToolExecution: (execution) => {
+                            setToolExecutions(prev => {
+                                const newMap = new Map(prev);
+                                const existing = newMap.get(streamingId) || [];
+                                newMap.set(streamingId, [...existing, execution]);
+                                return newMap;
+                            });
+                        },
+                        onComplete: async (content, allExecutions) => {
+                            // Save assistant message to database
+                            const assistantMessage = await createMessage({
+                                chat_id: chatId,
+                                content: content,
+                                role: 'assistant',
+                            });
+
+                            // Move tool executions from streaming ID to actual message ID
+                            if (allExecutions.length > 0) {
+                                setToolExecutions(prev => {
+                                    const newMap = new Map(prev);
+                                    newMap.delete(streamingId);
+                                    newMap.set(assistantMessage.id, allExecutions);
+                                    return newMap;
+                                });
+                            }
+
+                            // Update messages
+                            setMessages(prev => [...prev, assistantMessage]);
+                            setStreamingMessage(null);
+                            setIsGenerating(false);
+                        }
+                    }
+                );
+            } catch (error) {
+                console.error('Failed to auto-send message:', error);
+                setIsGenerating(false);
+                setStreamingMessage(null);
+                toast.error(error instanceof Error ? error.message : 'Failed to send message. Please try again.');
+            }
+        };
+
+        if (!loading) {
+            autoSendMessage();
+        }
+    }, [chatId, loading, location.state]);
+
     const handleSendMessage = async (content: string, images?: string[]) => {
         if (!chatId || (!content.trim() && !images?.length) || isGenerating) return;
 
@@ -498,18 +607,30 @@ export default function HomePage() {
             if (!content.trim() && !images?.length) return;
 
             try {
+                setIsGenerating(true);
+
                 // Create a new chat
                 const { createChat } = await import('@/lib/api');
                 const newChat = await createChat({ title: content.slice(0, 50) || "New Chat" });
 
-                // Navigate to the new chat
-                navigate(`/chat/${newChat.id}`);
+                // Create user message immediately
+                const userMessage = await createMessage({
+                    chat_id: newChat.id,
+                    content: content.trim(),
+                    role: 'user',
+                    images
+                });
 
-                // Small delay to let the chat load, then the message will be sent via normal flow
+                // Navigate to the new chat
+                navigate(`/chat/${newChat.id}`, {
+                    state: { autoSend: true, initialMessage: userMessage.id }
+                });
+
                 toast.success('New chat created!');
             } catch (error) {
                 console.error('Failed to create chat:', error);
                 toast.error('Failed to create chat. Please try again.');
+                setIsGenerating(false);
             }
         };
 
