@@ -346,12 +346,8 @@ pub async fn request_permission(
                 .map_err(|e| e.to_string())?;
             println!("[RUST] Updated permission status to: {}", status);
 
-            if approved {
-                Ok(true)
-            } else {
-                // Permission denied - return error to stop execution
-                Err(format!("Permission denied for operation: {}", operation))
-            }
+            // Return the approval status - frontend will handle stopping execution if denied
+            Ok(approved)
         }
         Err(e) => Err(e),
     }

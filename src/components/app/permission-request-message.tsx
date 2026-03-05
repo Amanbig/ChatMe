@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,16 @@ export default function PermissionRequestMessage({
     onStatusUpdate
 }: PermissionRequestMessageProps) {
     const [responding, setResponding] = useState(false);
+    const [expanded, setExpanded] = useState(permissionRequest.status === 'pending');
+
+    // Auto-collapse when permission is resolved
+    useEffect(() => {
+        if (permissionRequest.status !== 'pending') {
+            // Wait a moment before collapsing so user sees the result
+            const timer = setTimeout(() => setExpanded(false), 2000);
+            return () => clearTimeout(timer);
+        }
+    }, [permissionRequest.status]);
 
     const getLevelIcon = () => {
         switch (permissionRequest.level) {
@@ -101,6 +111,22 @@ export default function PermissionRequestMessage({
         }
     };
 
+    // Collapsed view for resolved permissions
+    if (permissionRequest.status !== 'pending' && !expanded) {
+        return (
+            <div
+                onClick={() => setExpanded(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-muted/30 border border-muted-foreground/20 rounded-md cursor-pointer hover:bg-muted/50 transition-colors"
+            >
+                {getLevelIcon()}
+                <span className="text-xs text-muted-foreground flex-1">
+                    Permission {permissionRequest.status === 'approved' ? 'granted' : 'denied'}: {permissionRequest.operation}
+                </span>
+                {getStatusBadge()}
+            </div>
+        );
+    }
+
     return (
         <Card className={`border-2 ${getLevelColor()} shadow-sm`}>
             <CardHeader className="pb-3">
@@ -109,7 +135,17 @@ export default function PermissionRequestMessage({
                         {getLevelIcon()}
                         <span className="font-semibold text-sm">Permission Required</span>
                     </div>
-                    {getStatusBadge()}
+                    <div className="flex items-center gap-2">
+                        {getStatusBadge()}
+                        {permissionRequest.status !== 'pending' && (
+                            <button
+                                onClick={() => setExpanded(false)}
+                                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                                Collapse
+                            </button>
+                        )}
+                    </div>
                 </div>
             </CardHeader>
 

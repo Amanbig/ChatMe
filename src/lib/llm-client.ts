@@ -74,6 +74,17 @@ export class LLMClient {
         // Notify callbacks
         executions.forEach(exec => callbacks?.onToolExecution?.(exec));
 
+        // Check if any permission was denied
+        const permissionDenied = executions.some(
+          exec => !exec.success && exec.error_message?.includes('Permission denied')
+        );
+
+        if (permissionDenied) {
+          // Stop the loop if permission was denied - wait for user to approve or provide new input
+          callbacks?.onComplete?.(result.content || '', allExecutions);
+          return { content: result.content || '', executions: allExecutions };
+        }
+
         // Add assistant message with tool calls
         llmMessages.push({
           role: 'assistant',
