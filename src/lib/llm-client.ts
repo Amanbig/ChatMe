@@ -14,7 +14,7 @@ function generateUuid(): string {
 
 interface LLMMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
-  content: string | null;
+  content: string | null | any[]; // Support multimodal content (text + images)
   tool_calls?: Array<{
     id: string;
     type: 'function';
@@ -219,10 +219,60 @@ export class LLMClient {
    * Convert chat messages to LLM format
    */
   private convertMessagesToLLMFormat(messages: Message[], useTools: boolean = false): LLMMessage[] {
-    const llmMessages: LLMMessage[] = messages.map(msg => ({
-      role: msg.role === 'user' ? 'user' : 'assistant',
-      content: msg.content,
-    }));
+    const llmMessages: LLMMessage[] = messages.map(msg => {
+      // Handle messages with images (multimodal content)
+      if (msg.images && msg.images.length > 0) {
+        // Convert to multimodal format
+        const contentArray: any[] = [];
+
+        // Add text content first
+        if (msg.content) {
+          contentArray.push({
+            type: 'text',
+            text: msg.content,
+          });
+        }
+
+        // Add images based on provider format
+        for (const imageData of msg.images) {
+          if (this.config.provider === 'anthropic') {
+            // Anthropic format: extract base64 data and media type
+            const matches = imageData.match(/^data:([^;]+);base64,(.*)$/);
+            if (matches) {
+              const mediaType = matches[1];
+              const base64Data = matches[2];
+              contentArray.push({
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: mediaType,
+                  data: base64Data,
+                },
+              });
+            }
+          } else {
+            // OpenAI-compatible format (includes OpenAI, DeepSeek, LMStudio, etc.)
+            contentArray.push({
+              type: 'image_url',
+              image_url: {
+                url: imageData, // data:image/...;base64,... format
+              },
+            });
+          }
+        }
+
+        return {
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: contentArray as any,
+        };
+      }
+
+      // Regular text-only message
+      return {
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content,
+      };
+    });
 
     // Add system message if tools are enabled
     if (useTools) {
