@@ -6,8 +6,10 @@ mod agentic;
 mod system_operations;
 mod tools;
 mod llm_streaming;
+mod permission_manager;
 
 use database::Database;
+use permission_manager::PermissionManager;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use agentic::AgentSession;
@@ -17,11 +19,13 @@ pub fn run() {
     tauri::async_runtime::block_on(async {
         let db = Database::new().await.expect("Failed to initialize database");
         let agent_sessions: Mutex<HashMap<String, AgentSession>> = Mutex::new(HashMap::new());
+        let permission_manager = PermissionManager::new();
 
         tauri::Builder::default()
             .plugin(tauri_plugin_opener::init())
             .manage(db)
             .manage(agent_sessions)
+            .manage(permission_manager)
             .invoke_handler(tauri::generate_handler![
                 commands::create_chat,
                 commands::get_chats,
@@ -53,6 +57,7 @@ pub fn run() {
                 commands::create_or_get_agent_session,
                 // System operations with permissions
                 commands::request_permission,
+                commands::respond_to_permission,
                 commands::launch_app,
                 commands::get_installed_apps,
                 commands::execute_command,

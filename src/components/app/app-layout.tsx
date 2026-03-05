@@ -36,6 +36,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAgent } from "@/contexts/AgentContext";
 import ThemeToggle from "./theme-toggle";
+import PermissionDialog from "./permission-dialog";
 import type { ChatWithLastMessage } from "@/lib/types";
 
 interface AppLayoutProps {
@@ -442,6 +443,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
             {children}
           </div>
         </SidebarInset>
+
+        {/* Global Permission Dialog */}
+        <PermissionDialog />
       </>
     </TooltipProvider>
   );

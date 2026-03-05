@@ -1,154 +1,151 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import {
     AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
     AlertDialogContent,
     AlertDialogDescription,
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-} from "../ui/alert-dialog";
-import { Badge } from "../ui/badge";
-import { FaExclamationTriangle, FaInfoCircle, FaShieldAlt } from "react-icons/fa";
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FaExclamationTriangle, FaShieldAlt, FaInfoCircle } from "react-icons/fa";
 
 interface PermissionRequest {
+    id: string;
     operation: string;
     description: string;
     level: "Safe" | "Moderate" | "Dangerous";
     details: Record<string, string>;
-    callback_id?: string;
 }
 
 export default function PermissionDialog() {
-    const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null);
-    const [pendingRequests, setPendingRequests] = useState<PermissionRequest[]>([]);
+    const [request, setRequest] = useState<PermissionRequest | null>(null);
+    const [responding, setResponding] = useState(false);
 
     useEffect(() => {
-        // Listen for permission requests from the backend
         const unlisten = listen<PermissionRequest>("permission_request", (event) => {
-            const request = event.payload;
-            
-            // If there's no current request, show it immediately
-            if (!permissionRequest) {
-                setPermissionRequest(request);
-            } else {
-                // Otherwise, queue it
-                setPendingRequests(prev => [...prev, request]);
-            }
+            setRequest(event.payload);
         });
 
         return () => {
-            unlisten.then(fn => fn());
+            unlisten.then((fn) => fn());
         };
-    }, [permissionRequest]);
-
-    // Process next request in queue when current one is handled
-    useEffect(() => {
-        if (!permissionRequest && pendingRequests.length > 0) {
-            const [next, ...remaining] = pendingRequests;
-            setPermissionRequest(next);
-            setPendingRequests(remaining);
-        }
-    }, [permissionRequest, pendingRequests]);
+    }, []);
 
     const handleResponse = async (approved: boolean) => {
-        if (permissionRequest?.callback_id) {
-            try {
-                // Send response back to backend
-                await invoke("handle_permission_response", {
-                    callbackId: permissionRequest.callback_id,
-                    approved
-                });
-            } catch (error) {
-                console.error("Failed to send permission response:", error);
-            }
+        if (!request) return;
+
+        setResponding(true);
+        try {
+            await invoke("respond_to_permission", {
+                requestId: request.id,
+                approved,
+            });
+            setRequest(null);
+        } catch (error) {
+            console.error("Failed to respond to permission:", error);
+        } finally {
+            setResponding(false);
         }
-        setPermissionRequest(null);
     };
 
-    if (!permissionRequest) return null;
+    if (!request) return null;
 
     const getLevelIcon = () => {
-        switch (permissionRequest.level) {
-            case "Safe":
-                return <FaInfoCircle className="h-5 w-5 text-green-500" />;
-            case "Moderate":
-                return <FaShieldAlt className="h-5 w-5 text-yellow-500" />;
+        switch (request.level) {
             case "Dangerous":
-                return <FaExclamationTriangle className="h-5 w-5 text-red-500" />;
+                return <FaExclamationTriangle className="text-destructive" size={24} />;
+            case "Moderate":
+                return <FaShieldAlt className="text-yellow-500" size={24} />;
+            default:
+                return <FaInfoCircle className="text-blue-500" size={24} />;
         }
     };
 
-    const getLevelBadge = () => {
-        switch (permissionRequest.level) {
-            case "Safe":
-                return <Badge className="bg-green-100 text-green-800">Safe</Badge>;
-            case "Moderate":
-                return <Badge className="bg-yellow-100 text-yellow-800">Moderate</Badge>;
+    const getLevelColor = () => {
+        switch (request.level) {
             case "Dangerous":
-                return <Badge variant="destructive">Dangerous</Badge>;
+                return "border-destructive/50 bg-destructive/5";
+            case "Moderate":
+                return "border-yellow-500/50 bg-yellow-500/5";
+            default:
+                return "border-blue-500/50 bg-blue-500/5";
         }
     };
 
     return (
-        <AlertDialog open={true}>
-            <AlertDialogContent>
+        <AlertDialog open={!!request}>
+            <AlertDialogContent className="sm:max-w-[500px]">
                 <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-2">
+                    <div className="flex items-center gap-3 mb-2">
                         {getLevelIcon()}
-                        Permission Required
-                        {getLevelBadge()}
-                    </AlertDialogTitle>
-                    <AlertDialogDescription className="space-y-3">
-                        <div>
-                            <strong>Operation:</strong> {permissionRequest.operation}
-                        </div>
-                        <div>
-                            <strong>Description:</strong> {permissionRequest.description}
-                        </div>
-                        
-                        {Object.keys(permissionRequest.details).length > 0 && (
-                            <div className="mt-3 p-3 bg-muted rounded-lg">
-                                <strong className="block mb-2">Details:</strong>
-                                {Object.entries(permissionRequest.details).map(([key, value]) => (
-                                    <div key={key} className="text-sm">
-                                        <span className="font-medium capitalize">{key.replace(/_/g, " ")}:</span>{" "}
-                                        <code className="bg-background px-1 py-0.5 rounded text-xs">{value}</code>
+                        <AlertDialogTitle className="text-xl">Permission Required</AlertDialogTitle>
+                    </div>
+                    <AlertDialogDescription>
+                        The application is requesting permission to perform an operation.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+
+                <div className="space-y-4">
+                    {/* Operation Info */}
+                    <Alert className={getLevelColor()}>
+                        <AlertDescription>
+                            <div className="space-y-2">
+                                <div>
+                                    <span className="font-semibold">Operation:</span> {request.operation}
+                                </div>
+                                <div>
+                                    <span className="font-semibold">Description:</span> {request.description}
+                                </div>
+                            </div>
+                        </AlertDescription>
+                    </Alert>
+
+                    {/* Details */}
+                    {Object.keys(request.details).length > 0 && (
+                        <div className="rounded-lg border p-3 bg-muted/30">
+                            <div className="text-sm font-semibold mb-2">Details:</div>
+                            <div className="space-y-1 text-sm">
+                                {Object.entries(request.details).map(([key, value]) => (
+                                    <div key={key} className="flex gap-2">
+                                        <span className="text-muted-foreground capitalize">{key}:</span>
+                                        <span className="font-mono text-xs break-all">{value}</span>
                                     </div>
                                 ))}
                             </div>
-                        )}
+                        </div>
+                    )}
 
-                        {permissionRequest.level === "Dangerous" && (
-                            <div className="mt-3 p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
-                                <strong className="text-red-600 dark:text-red-400">⚠️ Warning:</strong>
-                                <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                                    This operation could potentially harm your system or delete important files. 
-                                    Only approve if you fully understand the consequences.
-                                </p>
-                            </div>
-                        )}
+                    {/* Warning for dangerous operations */}
+                    {request.level === "Dangerous" && (
+                        <Alert variant="destructive">
+                            <FaExclamationTriangle className="h-4 w-4" />
+                            <AlertDescription>
+                                <strong>Warning:</strong> This is a potentially dangerous operation.
+                                Only approve if you understand what it does.
+                            </AlertDescription>
+                        </Alert>
+                    )}
+                </div>
 
-                        {pendingRequests.length > 0 && (
-                            <div className="text-sm text-muted-foreground">
-                                {pendingRequests.length} more permission{pendingRequests.length > 1 ? "s" : ""} pending
-                            </div>
-                        )}
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => handleResponse(false)}>
-                        Deny
-                    </AlertDialogCancel>
-                    <AlertDialogAction 
-                        onClick={() => handleResponse(true)}
-                        className={permissionRequest.level === "Dangerous" ? "bg-red-600 hover:bg-red-700" : ""}
+                <AlertDialogFooter className="gap-2 sm:gap-0">
+                    <Button
+                        variant="outline"
+                        onClick={() => handleResponse(false)}
+                        disabled={responding}
                     >
-                        {permissionRequest.level === "Dangerous" ? "I Understand, Allow" : "Allow"}
-                    </AlertDialogAction>
+                        Deny
+                    </Button>
+                    <Button
+                        variant={request.level === "Dangerous" ? "destructive" : "default"}
+                        onClick={() => handleResponse(true)}
+                        disabled={responding}
+                    >
+                        {responding ? "Processing..." : "Allow"}
+                    </Button>
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>

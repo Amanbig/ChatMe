@@ -12,6 +12,7 @@ use crate::system_operations::{
     FileSystemOperation, FileOperationType, PermissionLevel, AppInfo, CommandResult, ProcessInfo
 };
 use crate::llm_streaming;
+use crate::permission_manager::{PermissionManager, create_permission_request};
 use tauri::{State, Emitter};
 use serde_json::json;
 use std::collections::HashMap;
@@ -244,26 +245,46 @@ pub async fn create_or_get_agent_session(
 #[tauri::command]
 pub async fn request_permission(
     window: tauri::Window,
+    permission_manager: State<'_, PermissionManager>,
     operation: String,
     parameters: HashMap<String, serde_json::Value>,
 ) -> Result<bool, String> {
-    let permission = check_permission_level(&operation, &parameters);
-    
-    // Emit permission request to frontend
-    window.emit("permission_request", json!({
-        "operation": permission.operation,
-        "description": permission.description,
-        "level": permission.level,
-        "details": permission.details,
-    })).map_err(|e| e.to_string())?;
-    
-    // In a real implementation, you would wait for user response
-    // For now, we'll return based on permission level
-    match permission.level {
-        PermissionLevel::Safe => Ok(true),
-        PermissionLevel::Moderate => Ok(true), // Should wait for user confirmation
-        PermissionLevel::Dangerous => Ok(false), // Should require explicit permission
+    let perm_check = check_permission_level(&operation, &parameters);
+
+    // Convert to our permission request type
+    let mut details = HashMap::new();
+    for (k, v) in perm_check.details {
+        details.insert(k, v);
     }
+
+    let level_converted = match perm_check.level {
+        PermissionLevel::Safe => crate::permission_manager::PermissionLevel::Safe,
+        PermissionLevel::Moderate => crate::permission_manager::PermissionLevel::Moderate,
+        PermissionLevel::Dangerous => crate::permission_manager::PermissionLevel::Dangerous,
+    };
+
+    let request = create_permission_request(
+        &perm_check.operation,
+        perm_check.description,
+        level_converted,
+        details,
+    );
+
+    // Emit permission request to frontend
+    window.emit("permission_request", &request)
+        .map_err(|e| e.to_string())?;
+
+    // Wait for user response
+    permission_manager.request_permission(request).await
+}
+
+#[tauri::command]
+pub async fn respond_to_permission(
+    permission_manager: State<'_, PermissionManager>,
+    request_id: String,
+    approved: bool,
+) -> Result<(), String> {
+    permission_manager.respond_to_permission(request_id, approved).await
 }
 
 #[tauri::command]
