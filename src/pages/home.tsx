@@ -137,6 +137,37 @@ export default function HomePage() {
         }
     }, [chatId]);
 
+    // Listen for permission messages created by the backend
+    useEffect(() => {
+        if (!chatId) return;
+
+        const setupListener = async () => {
+            const unlisten = await listen<Message>('permission_message_created', (event) => {
+                console.log('Permission message received:', event.payload);
+
+                // Only add if it's for the current chat
+                if (event.payload.chat_id === chatId) {
+                    setMessages(prev => {
+                        // Check if message already exists
+                        const exists = prev.some(m => m.id === event.payload.id);
+                        if (!exists) {
+                            return [...prev, event.payload];
+                        }
+                        return prev;
+                    });
+                }
+            });
+
+            return unlisten;
+        };
+
+        const listenerPromise = setupListener();
+
+        return () => {
+            listenerPromise.then(unlisten => unlisten());
+        };
+    }, [chatId]);
+
     useEffect(() => {
         if (scrollAreaRef.current) {
             const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
@@ -601,6 +632,22 @@ export default function HomePage() {
         }
     };
 
+    const handlePermissionStatusUpdate = (permissionId: string, status: 'approved' | 'denied') => {
+        setMessages(prev => prev.map(msg => {
+            if (msg.permission_request?.id === permissionId) {
+                return {
+                    ...msg,
+                    permission_request: {
+                        ...msg.permission_request,
+                        status,
+                        updated_at: new Date().toISOString()
+                    }
+                };
+            }
+            return msg;
+        }));
+    };
+
     // Welcome screen when no chat selected
     if (!chatId) {
         const handleStartChat = async (content: string, images?: string[]) => {
@@ -667,6 +714,7 @@ export default function HomePage() {
                                         copyToClipboard={copyToClipboard}
                                         autoSpeak={autoSpeak}
                                         toolExecutions={toolExecutions.get(message.id) || undefined}
+                                        onPermissionStatusUpdate={handlePermissionStatusUpdate}
                                     />
                                 ))}
 

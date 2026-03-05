@@ -10,9 +10,23 @@ export interface Message {
   id: string;
   chat_id: string;
   content: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   created_at: string;
   images?: string[]; // Array of base64 encoded images
+  permission_request_id?: string;
+  permission_request?: PermissionRequest;
+}
+
+export interface PermissionRequest {
+  id: string;
+  chat_id: string;
+  operation: string;
+  description: string;
+  level: 'Safe' | 'Moderate' | 'Dangerous';
+  details: Record<string, string>;
+  status: 'pending' | 'approved' | 'denied';
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ChatWithLastMessage {

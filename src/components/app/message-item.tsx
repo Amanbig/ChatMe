@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FaUser, FaRobot, FaCopy, FaThumbsUp, FaThumbsDown, FaChevronDown, FaChevronUp, FaBrain, FaVolumeUp, FaStop, FaCheck, FaClock } from "react-icons/fa";
+import { FaUser, FaRobot, FaCopy, FaThumbsUp, FaThumbsDown, FaChevronDown, FaChevronUp, FaBrain, FaVolumeUp, FaStop, FaCheck, FaClock, FaShieldAlt } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -12,6 +12,7 @@ import type { Message, ToolExecution } from "@/lib/types";
 import { useTextToSpeech } from "../../hooks/use-text-to-speech";
 import CustomMarkdownRenderer from "./custom-markdown-renderer";
 import ToolExecutionDisplay from "./tool-execution-display";
+import PermissionRequestMessage from "./permission-request-message";
 import { toast } from "sonner";
 
 interface MessageItemProps {
@@ -20,6 +21,7 @@ interface MessageItemProps {
     copyToClipboard: (text: string) => void;
     autoSpeak?: boolean;
     toolExecutions?: ToolExecution[];
+    onPermissionStatusUpdate?: (requestId: string, status: 'approved' | 'denied') => void;
 }
 
 // Parse AI thinking content
@@ -53,7 +55,7 @@ const parseAIThinking = (content: string) => {
     };
 };
 
-export default function MessageItem({ message, formatTime, copyToClipboard, autoSpeak = false, toolExecutions }: MessageItemProps) {
+export default function MessageItem({ message, formatTime, copyToClipboard, autoSpeak = false, toolExecutions, onPermissionStatusUpdate }: MessageItemProps) {
     const aiContent = message.role === "assistant" ? parseAIThinking(message.content) : null;
     const [isThinkingOpen, setIsThinkingOpen] = useState(false);
     const [copied, setCopied] = useState(false);
@@ -105,15 +107,25 @@ export default function MessageItem({ message, formatTime, copyToClipboard, auto
     };
 
     const isUser = message.role === "user";
+    const isSystem = message.role === "system";
+    const isPermissionRequest = !!message.permission_request;
 
     return (
         <TooltipProvider delayDuration={200}>
             <div className={`flex gap-4 ${isUser ? "justify-end" : "justify-start"} message-animate group`}>
-                {/* AI Avatar */}
+                {/* AI/System Avatar */}
                 {!isUser && (
                     <div className="flex-shrink-0 mt-1">
-                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
-                            <FaRobot size={16} className="text-primary-foreground" />
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-lg ${
+                            isSystem
+                                ? "bg-gradient-to-br from-yellow-500 to-orange-500 shadow-yellow-500/20"
+                                : "bg-gradient-to-br from-primary to-accent shadow-primary/20"
+                        }`}>
+                            {isSystem ? (
+                                <FaShieldAlt size={16} className="text-white" />
+                            ) : (
+                                <FaRobot size={16} className="text-primary-foreground" />
+                            )}
                         </div>
                     </div>
                 )}
@@ -121,8 +133,10 @@ export default function MessageItem({ message, formatTime, copyToClipboard, auto
                 <div className={`flex flex-col max-w-[85%] ${isUser ? "items-end" : "items-start"} gap-1.5`}>
                     {/* Sender Label */}
                     <div className="flex items-center gap-2 px-1">
-                        <span className={`text-xs font-medium ${isUser ? "text-muted-foreground" : "text-primary"}`}>
-                            {isUser ? "You" : "AI Assistant"}
+                        <span className={`text-xs font-medium ${
+                            isUser ? "text-muted-foreground" : isSystem ? "text-yellow-600 dark:text-yellow-500" : "text-primary"
+                        }`}>
+                            {isUser ? "You" : isSystem ? "System" : "AI Assistant"}
                         </span>
                         {aiContent?.hasThinking && (
                             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 gap-1">
@@ -195,23 +209,35 @@ export default function MessageItem({ message, formatTime, copyToClipboard, auto
                             </div>
                         )}
 
-                        {/* Message Text */}
-                        {!isUser ? (
-                            <div className="text-sm markdown-content leading-relaxed">
-                                <CustomMarkdownRenderer content={aiContent?.final || message.content} />
-                            </div>
-                        ) : (
-                            <div>
-                                {message.content && (
-                                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                                        {message.content}
-                                    </p>
+                        {/* Permission Request */}
+                        {isPermissionRequest && message.permission_request && (
+                            <PermissionRequestMessage
+                                permissionRequest={message.permission_request}
+                                onStatusUpdate={onPermissionStatusUpdate || (() => {})}
+                            />
+                        )}
+
+                        {/* Message Text - only show if not a permission request or has additional content */}
+                        {!isPermissionRequest && (
+                            <>
+                                {!isUser ? (
+                                    <div className="text-sm markdown-content leading-relaxed">
+                                        <CustomMarkdownRenderer content={aiContent?.final || message.content} />
+                                    </div>
+                                ) : (
+                                    <div>
+                                        {message.content && (
+                                            <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                                                {message.content}
+                                            </p>
+                                        )}
+                                    </div>
                                 )}
-                            </div>
+                            </>
                         )}
 
                         {/* Tool Executions */}
-                        {!isUser && toolExecutions && toolExecutions.length > 0 && (
+                        {!isUser && !isPermissionRequest && toolExecutions && toolExecutions.length > 0 && (
                             <ToolExecutionDisplay executions={toolExecutions} />
                         )}
                     </div>

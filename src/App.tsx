@@ -8,7 +8,6 @@ import AppLayout from "./components/app/app-layout";
 import SettingsPage from "./pages/settings";
 import HomePage from "./pages/home";
 import { Toaster } from "./components/ui/sonner";
-import PermissionDialog from "./components/app/permission-dialog";
 
 const router = createBrowserRouter([
   {
@@ -43,7 +42,6 @@ function App() {
       <AgentProvider>
         <SidebarProvider defaultOpen={false}>
           <Toaster />
-          <PermissionDialog />
           <RouterProvider router={router} />
         </SidebarProvider>
       </AgentProvider>

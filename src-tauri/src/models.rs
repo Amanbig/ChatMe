@@ -20,6 +20,23 @@ pub struct Message {
     pub created_at: DateTime<Utc>,
     #[sqlx(skip)]
     pub images: Option<Vec<String>>,
+    pub permission_request_id: Option<String>,
+    #[sqlx(skip)]
+    pub permission_request: Option<PermissionRequest>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct PermissionRequest {
+    pub id: String,
+    pub chat_id: String,
+    pub operation: String,
+    pub description: String,
+    pub level: String, // "Safe" | "Moderate" | "Dangerous"
+    #[sqlx(skip)]
+    pub details: std::collections::HashMap<String, String>,
+    pub status: String, // "pending" | "approved" | "denied"
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
@@ -30,6 +47,8 @@ pub enum MessageRole {
     User,
     #[sqlx(rename = "assistant")]
     Assistant,
+    #[sqlx(rename = "system")]
+    System,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -104,6 +123,7 @@ pub struct CreateMessageRequest {
     pub content: String,
     pub role: MessageRole,
     pub images: Option<Vec<String>>,
+    pub permission_request_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

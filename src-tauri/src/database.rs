@@ -142,10 +142,10 @@ impl Database {
     }
 
     // Message operations
-    pub async fn create_message(&self, chat_id: String, content: String, role: MessageRole, images: Option<Vec<String>>) -> Result<Message> {
+    pub async fn create_message(&self, chat_id: String, content: String, role: MessageRole, images: Option<Vec<String>>, permission_request_id: Option<String>) -> Result<Message> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now();
-        
+
         // Serialize images to JSON string if present
         let images_json = match images.as_ref() {
             Some(imgs) if !imgs.is_empty() => Some(serde_json::to_string(imgs)?),
@@ -153,7 +153,7 @@ impl Database {
         };
 
         sqlx::query(
-            "INSERT INTO messages (id, chat_id, content, role, created_at, images) VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO messages (id, chat_id, content, role, created_at, images, permission_request_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(&id)
         .bind(&chat_id)
@@ -161,6 +161,7 @@ impl Database {
         .bind(&role)
         .bind(now)
         .bind(&images_json)
+        .bind(&permission_request_id)
         .execute(&self.pool)
         .await?;
 
@@ -178,15 +179,26 @@ impl Database {
             role,
             created_at: now,
             images,
+            permission_request_id,
+            permission_request: None,
         })
     }
 
     pub async fn get_messages(&self, chat_id: &str) -> Result<Vec<Message>> {
-        // Use the full query with images column
-        let rows = sqlx::query("SELECT id, chat_id, content, role, created_at, images FROM messages WHERE chat_id = ? ORDER BY created_at ASC")
-            .bind(chat_id)
-            .fetch_all(&self.pool)
-            .await?;
+        // Query messages with optional permission_request join
+        let rows = sqlx::query(
+            "SELECT
+                m.id, m.chat_id, m.content, m.role, m.created_at, m.images, m.permission_request_id,
+                p.id as perm_id, p.chat_id as perm_chat_id, p.operation, p.description, p.level,
+                p.details, p.status, p.created_at as perm_created_at, p.updated_at as perm_updated_at
+            FROM messages m
+            LEFT JOIN permission_requests p ON m.permission_request_id = p.id
+            WHERE m.chat_id = ?
+            ORDER BY m.created_at ASC"
+        )
+        .bind(chat_id)
+        .fetch_all(&self.pool)
+        .await?;
 
         let mut messages = Vec::new();
         for row in rows {
@@ -194,6 +206,7 @@ impl Database {
             let role = match role_str.as_str() {
                 "user" => MessageRole::User,
                 "assistant" => MessageRole::Assistant,
+                "system" => MessageRole::System,
                 _ => return Err(anyhow::anyhow!("Invalid message role: {}", role_str)),
             };
 
@@ -203,6 +216,31 @@ impl Database {
                 None => None,
             };
 
+            let permission_request_id: Option<String> = row.try_get("permission_request_id")?;
+
+            // Build permission_request if joined
+            let permission_request = if let Some(perm_id) = row.try_get::<Option<String>, _>("perm_id")? {
+                let details_json: Option<String> = row.try_get("details")?;
+                let details = match details_json {
+                    Some(json_str) => serde_json::from_str(&json_str).unwrap_or_default(),
+                    None => std::collections::HashMap::new(),
+                };
+
+                Some(crate::models::PermissionRequest {
+                    id: perm_id,
+                    chat_id: row.try_get("perm_chat_id")?,
+                    operation: row.try_get("operation")?,
+                    description: row.try_get("description")?,
+                    level: row.try_get("level")?,
+                    details,
+                    status: row.try_get("status")?,
+                    created_at: row.try_get("perm_created_at")?,
+                    updated_at: row.try_get("perm_updated_at")?,
+                })
+            } else {
+                None
+            };
+
             messages.push(Message {
                 id: row.try_get("id")?,
                 chat_id: row.try_get("chat_id")?,
@@ -210,6 +248,8 @@ impl Database {
                 role,
                 created_at: row.try_get("created_at")?,
                 images,
+                permission_request_id,
+                permission_request,
             });
         }
 
@@ -223,6 +263,123 @@ impl Database {
             .await?;
 
         Ok(())
+    }
+
+    // Permission operations
+    pub async fn create_permission_request(
+        &self,
+        chat_id: String,
+        operation: String,
+        description: String,
+        level: String,
+        details: std::collections::HashMap<String, String>,
+        status: String,
+    ) -> Result<crate::models::PermissionRequest> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now();
+
+        // Serialize details to JSON string
+        let details_json = serde_json::to_string(&details)?;
+
+        sqlx::query(
+            "INSERT INTO permission_requests (id, chat_id, operation, description, level, details, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind(&id)
+        .bind(&chat_id)
+        .bind(&operation)
+        .bind(&description)
+        .bind(&level)
+        .bind(&details_json)
+        .bind(&status)
+        .bind(now)
+        .bind(now)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(crate::models::PermissionRequest {
+            id,
+            chat_id,
+            operation,
+            description,
+            level,
+            details,
+            status,
+            created_at: now,
+            updated_at: now,
+        })
+    }
+
+    pub async fn get_permission_request(&self, permission_id: &str) -> Result<Option<crate::models::PermissionRequest>> {
+        let row = sqlx::query(
+            "SELECT id, chat_id, operation, description, level, details, status, created_at, updated_at FROM permission_requests WHERE id = ?"
+        )
+        .bind(permission_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match row {
+            Some(row) => {
+                let details_json: String = row.try_get("details")?;
+                let details = serde_json::from_str(&details_json).unwrap_or_default();
+
+                Ok(Some(crate::models::PermissionRequest {
+                    id: row.try_get("id")?,
+                    chat_id: row.try_get("chat_id")?,
+                    operation: row.try_get("operation")?,
+                    description: row.try_get("description")?,
+                    level: row.try_get("level")?,
+                    details,
+                    status: row.try_get("status")?,
+                    created_at: row.try_get("created_at")?,
+                    updated_at: row.try_get("updated_at")?,
+                }))
+            }
+            None => Ok(None),
+        }
+    }
+
+    pub async fn update_permission_status(&self, permission_id: &str, status: String) -> Result<()> {
+        let now = Utc::now();
+
+        sqlx::query(
+            "UPDATE permission_requests SET status = ?, updated_at = ? WHERE id = ?"
+        )
+        .bind(&status)
+        .bind(now)
+        .bind(permission_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn get_chat_permissions(&self, chat_id: &str) -> Result<Vec<crate::models::PermissionRequest>> {
+        let rows = sqlx::query(
+            "SELECT id, chat_id, operation, description, level, details, status, created_at, updated_at FROM permission_requests WHERE chat_id = ? ORDER BY created_at DESC"
+        )
+        .bind(chat_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut permissions = Vec::new();
+        for row in rows {
+            let details_json: String = row.try_get("details")?;
+            let details = serde_json::from_str(&details_json).unwrap_or_default();
+
+            permissions.push(crate::models::PermissionRequest {
+                id: row.try_get("id")?,
+                chat_id: row.try_get("chat_id")?,
+                operation: row.try_get("operation")?,
+                description: row.try_get("description")?,
+                level: row.try_get("level")?,
+                details,
+                status: row.try_get("status")?,
+                created_at: row.try_get("created_at")?,
+                updated_at: row.try_get("updated_at")?,
+            });
+        }
+
+        Ok(permissions)
     }
 
     // API Configuration operations

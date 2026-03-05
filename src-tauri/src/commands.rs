@@ -56,7 +56,7 @@ pub async fn create_message(
     db: State<'_, Database>,
     request: CreateMessageRequest,
 ) -> Result<Message, String> {
-    db.create_message(request.chat_id, request.content, request.role, request.images)
+    db.create_message(request.chat_id, request.content, request.role, request.images, request.permission_request_id)
         .await
         .map_err(|e| e.to_string())
 }
@@ -245,6 +245,7 @@ pub async fn create_or_get_agent_session(
 #[tauri::command]
 pub async fn request_permission(
     window: tauri::Window,
+    db: State<'_, Database>,
     permission_manager: State<'_, PermissionManager>,
     operation: String,
     parameters: HashMap<String, serde_json::Value>,
@@ -258,53 +259,120 @@ pub async fn request_permission(
         details.insert(k, v);
     }
 
+    let level_str = match perm_check.level {
+        PermissionLevel::Safe => "Safe",
+        PermissionLevel::Moderate => "Moderate",
+        PermissionLevel::Dangerous => "Dangerous",
+    };
+
     let level_converted = match perm_check.level {
         PermissionLevel::Safe => crate::permission_manager::PermissionLevel::Safe,
         PermissionLevel::Moderate => crate::permission_manager::PermissionLevel::Moderate,
         PermissionLevel::Dangerous => crate::permission_manager::PermissionLevel::Dangerous,
     };
 
-    let request = create_permission_request(
-        &perm_check.operation,
-        perm_check.description,
-        level_converted,
-        details,
-        chat_id,
-    );
-
-    println!("[RUST] request_permission called for ID: {}, chat_id: {:?}, level: {:?}",
-             request.id, request.chat_id, request.level);
+    println!("[RUST] request_permission called for operation: {}, chat_id: {:?}, level: {:?}",
+             operation, chat_id, level_str);
 
     // Check if this should be auto-approved (Safe or cached permission)
-    let should_show_dialog = request.level != crate::permission_manager::PermissionLevel::Safe
+    let should_request_permission = level_converted != crate::permission_manager::PermissionLevel::Safe
         && !permission_manager.is_permission_cached(
-            request.chat_id.clone(),
-            request.operation.clone()
+            chat_id.clone(),
+            operation.clone()
         ).await;
 
-    // Only emit event if we need user input
-    if should_show_dialog {
-        println!("[RUST] Emitting permission request to frontend");
-        window.emit("permission_request", &request)
-            .map_err(|e| e.to_string())?;
-    } else {
-        println!("[RUST] Skipping dialog emission (Safe operation or cached permission)");
+    // If Safe or cached, auto-approve
+    if !should_request_permission {
+        println!("[RUST] Auto-approving (Safe operation or cached permission)");
+        return Ok(true);
     }
 
-    // Wait for user response (or auto-approve if Safe/cached)
-    let result = permission_manager.request_permission(request).await;
+    // Create permission record in database
+    let chat_id_str = chat_id.clone().ok_or_else(|| "chat_id required for permission request".to_string())?;
+
+    let permission = db.create_permission_request(
+        chat_id_str.clone(),
+        operation.clone(),
+        perm_check.description.clone(),
+        level_str.to_string(),
+        details.clone(),
+        "pending".to_string(),
+    ).await.map_err(|e| e.to_string())?;
+
+    println!("[RUST] Created permission record with ID: {}", permission.id);
+
+    // Create system message linked to this permission
+    let mut message = db.create_message(
+        chat_id_str.clone(),
+        format!("Permission required for operation: {}", operation),
+        MessageRole::System,
+        None,
+        Some(permission.id.clone()),
+    ).await.map_err(|e| e.to_string())?;
+
+    println!("[RUST] Created system message with ID: {}", message.id);
+
+    // Populate the permission_request field for the message
+    message.permission_request = Some(permission.clone());
+
+    // Emit event to notify frontend of new permission message
+    window.emit("permission_message_created", &message)
+        .map_err(|e| e.to_string())?;
+
+    println!("[RUST] Emitted permission_message_created event");
+
+    // Create permission manager request for oneshot channel communication
+    // IMPORTANT: Use the same ID as the database permission so frontend can respond
+    let pm_request = crate::permission_manager::PermissionRequest {
+        id: permission.id.clone(), // Use the database permission ID
+        operation: perm_check.operation.clone(),
+        description: perm_check.description.clone(),
+        level: level_converted,
+        details,
+        chat_id,
+    };
+
+    // Wait for user response via permission manager
+    let result = permission_manager.request_permission(pm_request).await;
 
     println!("[RUST] Permission response received: {:?}", result);
-    result
+
+    // Update database with result
+    match result {
+        Ok(approved) => {
+            let status = if approved { "approved" } else { "denied" };
+            db.update_permission_status(&permission.id, status.to_string())
+                .await
+                .map_err(|e| e.to_string())?;
+            println!("[RUST] Updated permission status to: {}", status);
+
+            if approved {
+                Ok(true)
+            } else {
+                // Permission denied - return error to stop execution
+                Err(format!("Permission denied for operation: {}", operation))
+            }
+        }
+        Err(e) => Err(e),
+    }
 }
 
 #[tauri::command]
 pub async fn respond_to_permission(
+    db: State<'_, Database>,
     permission_manager: State<'_, PermissionManager>,
     request_id: String,
     approved: bool,
 ) -> Result<(), String> {
     println!("[RUST] respond_to_permission called for ID: {}, approved: {}", request_id, approved);
+
+    // Update database
+    let status = if approved { "approved" } else { "denied" };
+    db.update_permission_status(&request_id, status.to_string())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Notify permission manager (oneshot channel)
     let result = permission_manager.respond_to_permission(request_id.clone(), approved).await;
     println!("[RUST] respond_to_permission result for ID {}: {:?}", request_id, result);
     result
