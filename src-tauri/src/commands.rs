@@ -340,9 +340,10 @@ pub async fn request_permission(
 
     // Create permission manager request for oneshot channel communication
     // IMPORTANT: Use the same ID as the database permission so frontend can respond
+    // IMPORTANT: Use the original operation name (snake_case) for cache consistency
     let pm_request = crate::permission_manager::PermissionRequest {
         id: permission.id.clone(), // Use the database permission ID
-        operation: perm_check.operation.clone(),
+        operation: operation.clone(), // Use snake_case tool name for cache consistency
         description: perm_check.description.clone(),
         level: level_converted,
         details,
