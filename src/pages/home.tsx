@@ -431,6 +431,9 @@ export default function HomePage() {
                 // Track saved executions to avoid duplicates
                 const savedExecutions = new Set<string>();
 
+                // Track current streaming content using ref to avoid stale closure
+                const currentContentRef = { current: '' };
+
                 // Send message with streaming (CLI-style iterations)
                 await llmClient.sendMessageStreaming(
                     chatId,
@@ -438,16 +441,17 @@ export default function HomePage() {
                     isAgentActive,
                     {
                         onChunk: (_chunk, fullContent) => {
-                            setStreamingMessage(prev => ({
+                            currentContentRef.current = fullContent;
+                            setStreamingMessage({
                                 id: streamingId,
                                 content: fullContent,
                                 isStreaming: true,
                                 isComplete: false,
-                            }));
+                            });
                         },
                         onToolExecution: async (execution) => {
-                            // Get current streaming content
-                            const currentContent = streamingMessage?.content || '';
+                            // Get current streaming content from ref
+                            const currentContent = currentContentRef.current;
 
                             // If there's reasoning text, save it as an intermediate message
                             if (currentContent.trim()) {
@@ -470,6 +474,7 @@ export default function HomePage() {
                                 setMessages(prev => [...prev, intermediateMessage]);
 
                                 // Reset streaming for next iteration
+                                currentContentRef.current = '';
                                 streamingId = `streaming-${Date.now()}-${execution.tool_call_id}`;
                                 setStreamingMessage({
                                     id: streamingId,
@@ -605,6 +610,9 @@ export default function HomePage() {
             // Track saved executions to avoid duplicates
             const savedExecutions = new Set<string>();
 
+            // Track current streaming content using ref to avoid stale closure
+            const currentContentRef = { current: '' };
+
             // Send message with streaming (CLI-style iterations)
             await llmClient.sendMessageStreaming(
                 chatId,
@@ -612,16 +620,17 @@ export default function HomePage() {
                 isAgentActive, // Use tools if agent mode is active
                 {
                     onChunk: (_chunk, fullContent) => {
-                        setStreamingMessage(prev => ({
+                        currentContentRef.current = fullContent;
+                        setStreamingMessage({
                             id: streamingId,
                             content: fullContent,
                             isStreaming: true,
                             isComplete: false,
-                        }));
+                        });
                     },
                     onToolExecution: async (execution) => {
-                        // Get current streaming content
-                        const currentContent = streamingMessage?.content || '';
+                        // Get current streaming content from ref
+                        const currentContent = currentContentRef.current;
 
                         // If there's reasoning text, save it as an intermediate message
                         if (currentContent.trim()) {
@@ -644,6 +653,7 @@ export default function HomePage() {
                             setMessages(prev => [...prev, intermediateMessage]);
 
                             // Reset streaming for next iteration
+                            currentContentRef.current = '';
                             streamingId = `streaming-${Date.now()}-${execution.tool_call_id}`;
                             setStreamingMessage({
                                 id: streamingId,
