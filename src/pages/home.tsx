@@ -420,7 +420,7 @@ export default function HomePage() {
                 const allMessages = await getMessages(chatId);
 
                 // Setup streaming message
-                const streamingId = `streaming-${Date.now()}`;
+                let streamingId = `streaming-${Date.now()}`;
                 setStreamingMessage({
                     id: streamingId,
                     content: '',
@@ -428,48 +428,94 @@ export default function HomePage() {
                     isComplete: false,
                 });
 
-                // Send message with streaming
+                // Track saved executions to avoid duplicates
+                const savedExecutions = new Set<string>();
+
+                // Send message with streaming (CLI-style iterations)
                 await llmClient.sendMessageStreaming(
                     chatId,
                     allMessages,
                     isAgentActive,
                     {
                         onChunk: (_chunk, fullContent) => {
-                            setStreamingMessage({
+                            setStreamingMessage(prev => ({
                                 id: streamingId,
                                 content: fullContent,
                                 isStreaming: true,
                                 isComplete: false,
-                            });
+                            }));
                         },
-                        onToolExecution: (execution) => {
-                            setToolExecutions(prev => {
-                                const newMap = new Map(prev);
-                                const existing = newMap.get(streamingId) || [];
-                                newMap.set(streamingId, [...existing, execution]);
-                                return newMap;
-                            });
-                        },
-                        onComplete: async (content, allExecutions) => {
-                            // Save assistant message to database
-                            const assistantMessage = await createMessage({
-                                chat_id: chatId,
-                                content: content,
-                                role: 'assistant',
-                            });
+                        onToolExecution: async (execution) => {
+                            // Get current streaming content
+                            const currentContent = streamingMessage?.content || '';
 
-                            // Move tool executions from streaming ID to actual message ID
-                            if (allExecutions.length > 0) {
+                            // If there's reasoning text, save it as an intermediate message
+                            if (currentContent.trim()) {
+                                const intermediateMessage = await createMessage({
+                                    chat_id: chatId,
+                                    content: currentContent,
+                                    role: 'assistant',
+                                });
+
+                                // Save tool execution for this intermediate message
                                 setToolExecutions(prev => {
                                     const newMap = new Map(prev);
-                                    newMap.delete(streamingId);
-                                    newMap.set(assistantMessage.id, allExecutions);
+                                    newMap.set(intermediateMessage.id, [execution]);
                                     return newMap;
                                 });
+
+                                savedExecutions.add(execution.tool_call_id);
+
+                                // Add message to display
+                                setMessages(prev => [...prev, intermediateMessage]);
+
+                                // Reset streaming for next iteration
+                                streamingId = `streaming-${Date.now()}-${execution.tool_call_id}`;
+                                setStreamingMessage({
+                                    id: streamingId,
+                                    content: '',
+                                    isStreaming: true,
+                                    isComplete: false,
+                                });
+                            } else {
+                                // No reasoning text yet, accumulate tool executions
+                                setToolExecutions(prev => {
+                                    const newMap = new Map(prev);
+                                    const existing = newMap.get(streamingId) || [];
+                                    newMap.set(streamingId, [...existing, execution]);
+                                    return newMap;
+                                });
+                                savedExecutions.add(execution.tool_call_id);
+                            }
+                        },
+                        onComplete: async (content, allExecutions) => {
+                            // Filter out already-saved executions
+                            const remainingExecutions = allExecutions.filter(
+                                exec => !savedExecutions.has(exec.tool_call_id)
+                            );
+
+                            // Save final assistant message if there's content
+                            if (content.trim()) {
+                                const assistantMessage = await createMessage({
+                                    chat_id: chatId,
+                                    content: content,
+                                    role: 'assistant',
+                                });
+
+                                // Add remaining tool executions to final message
+                                if (remainingExecutions.length > 0) {
+                                    setToolExecutions(prev => {
+                                        const newMap = new Map(prev);
+                                        newMap.delete(streamingId);
+                                        newMap.set(assistantMessage.id, remainingExecutions);
+                                        return newMap;
+                                    });
+                                }
+
+                                // Update messages
+                                setMessages(prev => [...prev, assistantMessage]);
                             }
 
-                            // Update messages
-                            setMessages(prev => [...prev, assistantMessage]);
                             setStreamingMessage(null);
                             setIsGenerating(false);
                         }
@@ -548,7 +594,7 @@ export default function HomePage() {
             const allMessages = await getMessages(chatId);
 
             // Setup streaming message
-            const streamingId = `streaming-${Date.now()}`;
+            let streamingId = `streaming-${Date.now()}`;
             setStreamingMessage({
                 id: streamingId,
                 content: '',
@@ -556,49 +602,94 @@ export default function HomePage() {
                 isComplete: false,
             });
 
-            // Send message with streaming
+            // Track saved executions to avoid duplicates
+            const savedExecutions = new Set<string>();
+
+            // Send message with streaming (CLI-style iterations)
             await llmClient.sendMessageStreaming(
                 chatId,
                 allMessages,
                 isAgentActive, // Use tools if agent mode is active
                 {
                     onChunk: (_chunk, fullContent) => {
-                        setStreamingMessage({
+                        setStreamingMessage(prev => ({
                             id: streamingId,
                             content: fullContent,
                             isStreaming: true,
                             isComplete: false,
-                        });
+                        }));
                     },
-                    onToolExecution: (execution) => {
-                        // Update tool executions for the streaming message
-                        setToolExecutions(prev => {
-                            const newMap = new Map(prev);
-                            const existing = newMap.get(streamingId) || [];
-                            newMap.set(streamingId, [...existing, execution]);
-                            return newMap;
-                        });
-                    },
-                    onComplete: async (content, allExecutions) => {
-                        // Save assistant message to database
-                        const assistantMessage = await createMessage({
-                            chat_id: chatId,
-                            content: content,
-                            role: 'assistant',
-                        });
+                    onToolExecution: async (execution) => {
+                        // Get current streaming content
+                        const currentContent = streamingMessage?.content || '';
 
-                        // Move tool executions from streaming ID to actual message ID
-                        if (allExecutions.length > 0) {
+                        // If there's reasoning text, save it as an intermediate message
+                        if (currentContent.trim()) {
+                            const intermediateMessage = await createMessage({
+                                chat_id: chatId,
+                                content: currentContent,
+                                role: 'assistant',
+                            });
+
+                            // Save tool execution for this intermediate message
                             setToolExecutions(prev => {
                                 const newMap = new Map(prev);
-                                newMap.delete(streamingId);
-                                newMap.set(assistantMessage.id, allExecutions);
+                                newMap.set(intermediateMessage.id, [execution]);
                                 return newMap;
                             });
+
+                            savedExecutions.add(execution.tool_call_id);
+
+                            // Add message to display
+                            setMessages(prev => [...prev, intermediateMessage]);
+
+                            // Reset streaming for next iteration
+                            streamingId = `streaming-${Date.now()}-${execution.tool_call_id}`;
+                            setStreamingMessage({
+                                id: streamingId,
+                                content: '',
+                                isStreaming: true,
+                                isComplete: false,
+                            });
+                        } else {
+                            // No reasoning text yet, accumulate tool executions
+                            setToolExecutions(prev => {
+                                const newMap = new Map(prev);
+                                const existing = newMap.get(streamingId) || [];
+                                newMap.set(streamingId, [...existing, execution]);
+                                return newMap;
+                            });
+                            savedExecutions.add(execution.tool_call_id);
+                        }
+                    },
+                    onComplete: async (content, allExecutions) => {
+                        // Filter out already-saved executions
+                        const remainingExecutions = allExecutions.filter(
+                            exec => !savedExecutions.has(exec.tool_call_id)
+                        );
+
+                        // Save final assistant message if there's content
+                        if (content.trim()) {
+                            const assistantMessage = await createMessage({
+                                chat_id: chatId,
+                                content: content,
+                                role: 'assistant',
+                            });
+
+                            // Add remaining tool executions to final message
+                            if (remainingExecutions.length > 0) {
+                                setToolExecutions(prev => {
+                                    const newMap = new Map(prev);
+                                    newMap.delete(streamingId);
+                                    newMap.set(assistantMessage.id, remainingExecutions);
+                                    return newMap;
+                                });
+                            }
+
+                            // Update messages
+                            setMessages(prev => [...prev, assistantMessage]);
                         }
 
-                        // Update messages
-                        setMessages(prev => [...prev, assistantMessage]);
                         setStreamingMessage(null);
                         setIsGenerating(false);
                     }

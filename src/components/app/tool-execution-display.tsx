@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { FaCheck, FaTimes, FaTools, FaChevronDown, FaChevronUp } from 'react-icons/fa';
+import { FaCheck, FaTimes, FaTools, FaChevronDown, FaChevronUp, FaCog } from 'react-icons/fa';
 import type { ToolExecution } from '@/lib/types';
 import { useState } from 'react';
 
@@ -28,98 +28,95 @@ export default function ToolExecutionDisplay({ executions }: ToolExecutionDispla
   }
 
   return (
-    <div className="space-y-2 my-3">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-        <FaTools size={14} />
-        <span className="font-medium">Tool Executions ({executions.length})</span>
-      </div>
-
+    <div className="space-y-1.5 my-2">
       {executions.map((exec) => {
         const isExpanded = expandedExecutions.has(exec.tool_call_id);
 
+        // Get a short summary of arguments for compact view
+        const getArgsSummary = () => {
+          const args = exec.arguments;
+          const keys = Object.keys(args);
+          if (keys.length === 0) return '';
+          if (keys.length === 1) {
+            const value = args[keys[0]];
+            const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
+            return valueStr.length > 40 ? valueStr.substring(0, 40) + '...' : valueStr;
+          }
+          return `${keys.length} parameters`;
+        };
+
         return (
-          <Card
-            key={exec.tool_call_id}
-            className="border-l-4 border-l-primary/50 bg-muted/30"
-          >
-            <CardHeader className="py-2 px-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FaTools className="text-primary" size={12} />
-                  <CardTitle className="text-sm font-medium">
-                    {exec.tool_name}
-                  </CardTitle>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant={exec.success ? "default" : "destructive"}
-                    className="text-xs"
-                  >
-                    {exec.success ? (
-                      <>
-                        <FaCheck size={10} className="mr-1" />
-                        Success
-                      </>
-                    ) : (
-                      <>
-                        <FaTimes size={10} className="mr-1" />
-                        Failed
-                      </>
-                    )}
-                  </Badge>
-                  <button
-                    onClick={() => toggleExpanded(exec.tool_call_id)}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {isExpanded ? (
-                      <FaChevronUp size={12} />
-                    ) : (
-                      <FaChevronDown size={12} />
-                    )}
-                  </button>
-                </div>
+          <div key={exec.tool_call_id}>
+            {/* Compact CLI-style display */}
+            <div
+              onClick={() => toggleExpanded(exec.tool_call_id)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-muted/40 border-l-2 border-l-primary/60 rounded-r cursor-pointer hover:bg-muted/60 transition-colors group"
+            >
+              <FaCog className={`${exec.success ? 'text-green-500' : 'text-destructive'} text-xs`} />
+              <span className="text-xs font-mono text-foreground/90">
+                {exec.tool_name}
+              </span>
+              {getArgsSummary() && (
+                <span className="text-xs text-muted-foreground font-mono truncate flex-1">
+                  ({getArgsSummary()})
+                </span>
+              )}
+              <div className="flex items-center gap-2 ml-auto">
+                {exec.success ? (
+                  <FaCheck className="text-green-500 text-xs" />
+                ) : (
+                  <FaTimes className="text-destructive text-xs" />
+                )}
+                <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                  {isExpanded ? 'collapse' : 'expand'}
+                </span>
               </div>
-            </CardHeader>
+            </div>
 
+            {/* Expanded details */}
             {isExpanded && (
-              <CardContent className="py-2 px-3 text-xs space-y-2">
-                <details className="cursor-pointer">
-                  <summary className="font-medium text-muted-foreground mb-1">
-                    Arguments
-                  </summary>
-                  <pre className="bg-background/50 p-2 rounded text-xs overflow-x-auto border">
-                    {JSON.stringify(exec.arguments, null, 2)}
-                  </pre>
-                </details>
-
-                {exec.success && exec.result && (
-                  <details className="cursor-pointer">
-                    <summary className="font-medium text-muted-foreground mb-1">
-                      Result
-                    </summary>
-                    <pre className="bg-background/50 p-2 rounded text-xs overflow-x-auto border">
-                      {typeof exec.result === 'string'
-                        ? exec.result
-                        : JSON.stringify(exec.result, null, 2)}
-                    </pre>
-                  </details>
-                )}
-
-                {!exec.success && exec.error_message && (
-                  <div className="mt-2">
-                    <p className="font-medium text-destructive mb-1">Error:</p>
-                    <p className="text-destructive/80 bg-destructive/10 p-2 rounded border border-destructive/20">
-                      {exec.error_message}
+              <Card className="ml-6 mt-1 border-l-2 border-l-primary/40 bg-muted/20">
+                <CardContent className="py-2 px-3 text-xs space-y-2">
+                  <div>
+                    <p className="font-medium text-muted-foreground mb-1 text-[10px] uppercase tracking-wide">
+                      Arguments
                     </p>
+                    <pre className="bg-background/50 p-2 rounded text-xs overflow-x-auto border font-mono">
+                      {JSON.stringify(exec.arguments, null, 2)}
+                    </pre>
                   </div>
-                )}
 
-                <div className="text-[10px] text-muted-foreground pt-1 border-t">
-                  Executed at: {new Date(exec.timestamp).toLocaleTimeString()}
-                </div>
-              </CardContent>
+                  {exec.success && exec.result && (
+                    <div>
+                      <p className="font-medium text-muted-foreground mb-1 text-[10px] uppercase tracking-wide">
+                        Result
+                      </p>
+                      <pre className="bg-background/50 p-2 rounded text-xs overflow-x-auto border font-mono max-h-40">
+                        {typeof exec.result === 'string'
+                          ? exec.result
+                          : JSON.stringify(exec.result, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+
+                  {!exec.success && exec.error_message && (
+                    <div>
+                      <p className="font-medium text-destructive mb-1 text-[10px] uppercase tracking-wide">
+                        Error
+                      </p>
+                      <p className="text-destructive/90 bg-destructive/10 p-2 rounded border border-destructive/20 text-xs font-mono">
+                        {exec.error_message}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="text-[10px] text-muted-foreground pt-1 border-t font-mono">
+                    {new Date(exec.timestamp).toLocaleTimeString()}
+                  </div>
+                </CardContent>
+              </Card>
             )}
-          </Card>
+          </div>
         );
       })}
     </div>
