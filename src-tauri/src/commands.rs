@@ -280,14 +280,21 @@ pub async fn request_permission(
         operation.clone()
     ).await;
 
+    println!("[RUST] Cache check result for operation '{}' in chat {:?}: is_cached = {}",
+             operation, chat_id, is_cached);
+
     let is_pending = permission_manager.has_pending_permission(
         chat_id.clone(),
         &operation
     ).await;
 
+    println!("[RUST] Pending check result for operation '{}' in chat {:?}: is_pending = {}",
+             operation, chat_id, is_pending);
+
     // If Safe or cached, auto-approve
     if level_converted == crate::permission_manager::PermissionLevel::Safe || is_cached {
-        println!("[RUST] Auto-approving (Safe operation or cached permission)");
+        println!("[RUST] ✅ Auto-approving: Safe={}, Cached={}",
+                 level_converted == crate::permission_manager::PermissionLevel::Safe, is_cached);
         return Ok(true);
     }
 

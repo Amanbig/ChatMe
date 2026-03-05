@@ -193,11 +193,21 @@ impl PermissionManager {
 
     /// Check if a permission is cached for a chat
     pub async fn is_permission_cached(&self, chat_id: Option<String>, operation: String) -> bool {
-        if let Some(chat_id) = chat_id {
+        if let Some(ref chat_id_str) = chat_id {
             let cache = self.approved_cache.lock().await;
-            if let Some(approved_ops) = cache.get(&chat_id) {
-                return approved_ops.contains(&operation);
+            println!("[RUST PermMgr] Checking cache for chat_id: {}, operation: {}", chat_id_str, operation);
+
+            if let Some(approved_ops) = cache.get(chat_id_str) {
+                let ops_vec: Vec<&String> = approved_ops.iter().collect();
+                println!("[RUST PermMgr] Found {} cached operations for this chat: {:?}", ops_vec.len(), ops_vec);
+                let result = approved_ops.contains(&operation);
+                println!("[RUST PermMgr] Operation '{}' {} in cache", operation, if result { "FOUND" } else { "NOT FOUND" });
+                return result;
+            } else {
+                println!("[RUST PermMgr] No cached operations found for chat_id: {}", chat_id_str);
             }
+        } else {
+            println!("[RUST PermMgr] chat_id is None, cannot check cache");
         }
         false
     }
