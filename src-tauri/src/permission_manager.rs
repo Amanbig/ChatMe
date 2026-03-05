@@ -21,7 +21,6 @@ pub struct PermissionRequest {
 }
 
 pub struct PendingPermission {
-    pub request: PermissionRequest,
     pub sender: oneshot::Sender<bool>,
 }
 
@@ -50,7 +49,6 @@ impl PermissionManager {
         {
             let mut pending = self.pending.lock().await;
             pending.insert(id.clone(), PendingPermission {
-                request,
                 sender: tx,
             });
         }
@@ -84,16 +82,6 @@ impl PermissionManager {
         if let Some(pending_request) = pending.remove(&request_id) {
             pending_request.sender.send(approved)
                 .map_err(|_| "Failed to send permission response".to_string())?;
-            Ok(())
-        } else {
-            Err("Permission request not found".to_string())
-        }
-    }
-
-    pub async fn cancel_permission(&self, request_id: String) -> Result<(), String> {
-        let mut pending = self.pending.lock().await;
-
-        if pending.remove(&request_id).is_some() {
             Ok(())
         } else {
             Err("Permission request not found".to_string())

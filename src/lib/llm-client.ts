@@ -184,6 +184,25 @@ export class LLMClient {
       try {
         const args = JSON.parse(toolCall.function.arguments);
 
+        // Request permission for dangerous operations
+        const permissionGranted = await invoke<boolean>('request_permission', {
+          operation: toolCall.function.name,
+          parameters: args,
+        });
+
+        if (!permissionGranted) {
+          executions.push({
+            tool_call_id: toolCall.id,
+            tool_name: toolCall.function.name,
+            arguments: args,
+            result: null,
+            success: false,
+            error_message: 'Permission denied by user. Do not retry this operation.',
+            timestamp: startTime,
+          });
+          continue;
+        }
+
         const result = await executeAgentAction(
           sessionId,
           toolCall.function.name,
@@ -200,13 +219,15 @@ export class LLMClient {
           timestamp: startTime,
         });
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+
         executions.push({
           tool_call_id: toolCall.id,
           tool_name: toolCall.function.name,
           arguments: {},
           result: null,
           success: false,
-          error_message: error instanceof Error ? error.message : String(error),
+          error_message: errorMessage,
           timestamp: startTime,
         });
       }

@@ -5,8 +5,8 @@ use anyhow::{Result, anyhow};
 use crate::file_operations::{read_directory_contents, search_in_files, read_file_contents, write_file_contents, open_with_default_app};
 use crate::system_operations::{
     get_installed_applications, launch_application, execute_terminal_command,
-    perform_file_operation, get_running_processes, kill_process, check_permission_level,
-    FileSystemOperation, FileOperationType, PermissionLevel};
+    perform_file_operation, get_running_processes, kill_process,
+    FileSystemOperation, FileOperationType};
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AgentAction {
     pub action_type: String,
@@ -496,13 +496,8 @@ impl AgentSession {
                 self.current_directory.lock().ok()
                     .map(|dir| dir.clone())
             });
-        
-        // Check permission level
-        let permission = check_permission_level("execute_command", params);
-        if permission.level == PermissionLevel::Dangerous {
-            return Err(anyhow!("Command requires explicit user permission: {}", command));
-        }
-        
+
+        // Permission is checked at frontend level before this is called
         let result = execute_terminal_command(command, working_dir.as_deref())?;
         Ok(serde_json::to_value(result)?)
     }
@@ -554,13 +549,8 @@ impl AgentSession {
             .and_then(|v| v.as_u64())
             .map(|v| v as u32)
             .ok_or_else(|| anyhow!("Missing required parameter: pid"))?;
-        
-        // Check permission level
-        let permission = check_permission_level("kill_process", params);
-        if permission.level == PermissionLevel::Dangerous {
-            return Err(anyhow!("Killing process requires explicit user permission: PID {}", pid));
-        }
-        
+
+        // Permission is checked at frontend level before this is called
         kill_process(pid)?;
         Ok(serde_json::Value::String(format!("Successfully terminated process with PID: {}", pid)))
     }
