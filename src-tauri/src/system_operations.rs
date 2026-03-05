@@ -512,11 +512,87 @@ pub fn check_permission_level(operation: &str, params: &HashMap<String, serde_js
                 }
             }
         },
-        
+
+        "launch_application" => {
+            if let Some(app_name) = params.get("app_name").and_then(|v| v.as_str()) {
+                details.insert("application".to_string(), app_name.to_string());
+                OperationPermission {
+                    operation: "Launch Application".to_string(),
+                    description: format!("Launch application: {}", app_name),
+                    level: PermissionLevel::Moderate,
+                    details,
+                }
+            } else {
+                OperationPermission {
+                    operation: "Launch Application".to_string(),
+                    description: "Launch unknown application".to_string(),
+                    level: PermissionLevel::Moderate,
+                    details,
+                }
+            }
+        },
+
+        "write_file" => {
+            if let Some(path) = params.get("file_path").and_then(|v| v.as_str()) {
+                details.insert("path".to_string(), path.to_string());
+
+                // Check if it's a system file
+                let system_dirs = vec![
+                    "C:\\Windows", "C:\\Program Files", "/usr", "/bin", "/etc",
+                    "/System", "/Library", "/Applications"
+                ];
+
+                let is_system = system_dirs.iter()
+                    .any(|dir| path.starts_with(dir));
+
+                OperationPermission {
+                    operation: "Write File".to_string(),
+                    description: format!("Write to file: {}", path),
+                    level: if is_system {
+                        PermissionLevel::Dangerous
+                    } else {
+                        PermissionLevel::Moderate
+                    },
+                    details,
+                }
+            } else {
+                OperationPermission {
+                    operation: "Write File".to_string(),
+                    description: "Write to unknown file".to_string(),
+                    level: PermissionLevel::Moderate,
+                    details,
+                }
+            }
+        },
+
+        "read_file" | "search_files" | "read_directory" | "list_directory" | "open_file" => {
+            if let Some(path) = params.get("file_path")
+                .or_else(|| params.get("directory_path"))
+                .and_then(|v| v.as_str())
+            {
+                details.insert("path".to_string(), path.to_string());
+            }
+            OperationPermission {
+                operation: operation.to_string(),
+                description: format!("Read operation: {}", operation),
+                level: PermissionLevel::Safe,
+                details,
+            }
+        },
+
+        "get_current_directory" | "list_processes" => {
+            OperationPermission {
+                operation: operation.to_string(),
+                description: format!("Information query: {}", operation),
+                level: PermissionLevel::Safe,
+                details,
+            }
+        },
+
         _ => OperationPermission {
             operation: operation.to_string(),
-            description: "Unknown operation".to_string(),
-            level: PermissionLevel::Safe,
+            description: format!("Operation: {}", operation),
+            level: PermissionLevel::Moderate,  // Changed from Safe to Moderate!
             details,
         }
     }

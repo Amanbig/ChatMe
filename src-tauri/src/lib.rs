@@ -58,6 +58,9 @@ pub fn run() {
                 // System operations with permissions
                 commands::request_permission,
                 commands::respond_to_permission,
+                commands::clear_chat_permissions,
+                commands::clear_permission,
+                commands::get_chat_permissions,
                 commands::launch_app,
                 commands::get_installed_apps,
                 commands::execute_command,

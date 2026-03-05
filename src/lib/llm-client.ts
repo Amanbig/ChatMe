@@ -68,7 +68,7 @@ export class LLMClient {
       // Check for tool calls
       if (result.toolCalls && result.toolCalls.length > 0) {
         // Execute tools (frontend logic)
-        const executions = await this.executeTools(sessionId, result.toolCalls);
+        const executions = await this.executeTools(sessionId, result.toolCalls, chatId);
         allExecutions.push(...executions);
 
         // Notify callbacks
@@ -174,7 +174,8 @@ export class LLMClient {
    */
   private async executeTools(
     sessionId: string,
-    toolCalls: any[]
+    toolCalls: any[],
+    chatId: string
   ): Promise<ToolExecution[]> {
     const executions: ToolExecution[] = [];
 
@@ -188,6 +189,7 @@ export class LLMClient {
         const permissionGranted = await invoke<boolean>('request_permission', {
           operation: toolCall.function.name,
           parameters: args,
+          chatId: chatId,
         });
 
         if (!permissionGranted) {

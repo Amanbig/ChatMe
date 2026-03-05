@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FaExclamationTriangle, FaShieldAlt, FaInfoCircle } from "react-icons/fa";
+import { toast } from "sonner";
 
 interface PermissionRequest {
     id: string;
@@ -19,14 +20,25 @@ interface PermissionRequest {
     description: string;
     level: "Safe" | "Moderate" | "Dangerous";
     details: Record<string, string>;
+    chat_id?: string;
 }
 
 export default function PermissionDialog() {
     const [request, setRequest] = useState<PermissionRequest | null>(null);
     const [responding, setResponding] = useState(false);
+    const pendingRequestIdRef = useRef<string | null>(null);
 
     useEffect(() => {
         const unlisten = listen<PermissionRequest>("permission_request", (event) => {
+            console.log('Permission request received:', event.payload);
+
+            // Prevent duplicate dialogs - ignore if we're already showing a dialog
+            if (pendingRequestIdRef.current) {
+                console.log('Ignoring duplicate permission request, already showing dialog for:', pendingRequestIdRef.current);
+                return;
+            }
+
+            pendingRequestIdRef.current = event.payload.id;
             setRequest(event.payload);
         });
 
@@ -35,18 +47,39 @@ export default function PermissionDialog() {
         };
     }, []);
 
-    const handleResponse = async (approved: boolean) => {
-        if (!request) return;
+    useEffect(() => {
+        console.log('Request state changed:', request ? `ID: ${request.id}` : 'null');
+    }, [request]);
 
+    const handleResponse = async (approved: boolean) => {
+        if (!request || responding) {
+            console.log('handleResponse called but no request or already responding');
+            return;
+        }
+
+        console.log(`Responding to permission ${request.id}: ${approved ? 'APPROVED' : 'DENIED'}`);
+
+        // Capture the request ID before setting responding
+        const requestId = request.id;
+
+        // Immediately set responding to prevent double-clicks
         setResponding(true);
+
+        // Clear the dialog immediately to prevent re-renders
+        setRequest(null);
+
         try {
             await invoke("respond_to_permission", {
-                requestId: request.id,
+                requestId: requestId,
                 approved,
             });
-            setRequest(null);
+            console.log('Permission response sent successfully');
         } catch (error) {
             console.error("Failed to respond to permission:", error);
+            // Only show error if it's not "request not found" (which means it was already handled)
+            if (!String(error).includes('Permission request not found')) {
+                toast.error('Failed to send permission response');
+            }
         } finally {
             setResponding(false);
         }
@@ -77,7 +110,9 @@ export default function PermissionDialog() {
     };
 
     return (
-        <AlertDialog open={!!request}>
+        <AlertDialog key={request?.id} open={!!request} onOpenChange={() => {
+            // Prevent closing - user must explicitly allow or deny
+        }}>
             <AlertDialogContent className="sm:max-w-[500px]">
                 <AlertDialogHeader>
                     <div className="flex items-center gap-3 mb-2">
@@ -128,6 +163,14 @@ export default function PermissionDialog() {
                                 Only approve if you understand what it does.
                             </AlertDescription>
                         </Alert>
+                    )}
+
+                    {/* Info about permission caching */}
+                    {request.chat_id && (
+                        <div className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-3">
+                            <FaInfoCircle className="inline mr-1" />
+                            If you allow this operation, you won't be asked again for this chat session.
+                        </div>
                     )}
                 </div>
 

@@ -248,6 +248,7 @@ pub async fn request_permission(
     permission_manager: State<'_, PermissionManager>,
     operation: String,
     parameters: HashMap<String, serde_json::Value>,
+    chat_id: Option<String>,
 ) -> Result<bool, String> {
     let perm_check = check_permission_level(&operation, &parameters);
 
@@ -268,14 +269,33 @@ pub async fn request_permission(
         perm_check.description,
         level_converted,
         details,
+        chat_id,
     );
 
-    // Emit permission request to frontend
-    window.emit("permission_request", &request)
-        .map_err(|e| e.to_string())?;
+    println!("[RUST] request_permission called for ID: {}, chat_id: {:?}, level: {:?}",
+             request.id, request.chat_id, request.level);
 
-    // Wait for user response
-    permission_manager.request_permission(request).await
+    // Check if this should be auto-approved (Safe or cached permission)
+    let should_show_dialog = request.level != crate::permission_manager::PermissionLevel::Safe
+        && !permission_manager.is_permission_cached(
+            request.chat_id.clone(),
+            request.operation.clone()
+        ).await;
+
+    // Only emit event if we need user input
+    if should_show_dialog {
+        println!("[RUST] Emitting permission request to frontend");
+        window.emit("permission_request", &request)
+            .map_err(|e| e.to_string())?;
+    } else {
+        println!("[RUST] Skipping dialog emission (Safe operation or cached permission)");
+    }
+
+    // Wait for user response (or auto-approve if Safe/cached)
+    let result = permission_manager.request_permission(request).await;
+
+    println!("[RUST] Permission response received: {:?}", result);
+    result
 }
 
 #[tauri::command]
@@ -284,7 +304,35 @@ pub async fn respond_to_permission(
     request_id: String,
     approved: bool,
 ) -> Result<(), String> {
-    permission_manager.respond_to_permission(request_id, approved).await
+    println!("[RUST] respond_to_permission called for ID: {}, approved: {}", request_id, approved);
+    let result = permission_manager.respond_to_permission(request_id.clone(), approved).await;
+    println!("[RUST] respond_to_permission result for ID {}: {:?}", request_id, result);
+    result
+}
+
+#[tauri::command]
+pub async fn clear_chat_permissions(
+    permission_manager: State<'_, PermissionManager>,
+    chat_id: String,
+) -> Result<(), String> {
+    permission_manager.clear_chat_permissions(chat_id).await
+}
+
+#[tauri::command]
+pub async fn clear_permission(
+    permission_manager: State<'_, PermissionManager>,
+    chat_id: String,
+    operation: String,
+) -> Result<(), String> {
+    permission_manager.clear_permission(chat_id, operation).await
+}
+
+#[tauri::command]
+pub async fn get_chat_permissions(
+    permission_manager: State<'_, PermissionManager>,
+    chat_id: String,
+) -> Result<Vec<String>, String> {
+    Ok(permission_manager.get_chat_permissions(chat_id).await)
 }
 
 #[tauri::command]
