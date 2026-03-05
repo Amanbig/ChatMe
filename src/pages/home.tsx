@@ -339,6 +339,11 @@ export default function HomePage() {
             const fetchedMessages = await getMessages(chatId);
 
             const displayMessages = fetchedMessages.map(message => {
+                // Filter out permission request system messages - they're ephemeral like tool executions
+                if (message.role === 'system' && message.permission_request_id) {
+                    return null;
+                }
+
                 if (message.role === 'user' && message.content.includes('[AGENT MODE ACTIVE]')) {
                     const cleanContent = message.content.split('\n\n[AGENT MODE ACTIVE]')[0].trim();
                     if (cleanContent.length > 0) {

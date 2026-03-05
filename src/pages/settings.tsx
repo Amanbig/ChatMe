@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import SpeechSettings from "@/components/app/speech-settings";
 import AgentMode from "../components/app/agent-mode";
 import ModelSelector from "@/components/app/model-selector";
+import PermissionsSettings from "@/components/app/permissions-settings";
 import {
     FaRobot,
     FaGoogle,
@@ -27,7 +28,8 @@ import {
     FaKey,
     FaPlus,
     FaTimes,
-    FaSave
+    FaSave,
+    FaShieldAlt
 } from "react-icons/fa";
 import {
     getApiConfigs,
@@ -171,7 +173,7 @@ const providerTemplates: ProviderTemplate[] = [
     }
 ];
 
-type TabType = 'api' | 'agent' | 'speech';
+type TabType = 'api' | 'agent' | 'speech' | 'permissions';
 
 // Edit Form Component - shown inline
 function ConfigEditForm({
@@ -603,6 +605,7 @@ export default function SettingsPage() {
         { id: 'api' as TabType, label: 'API Configs', icon: <FaKey size={16} /> },
         { id: 'agent' as TabType, label: 'Agent Mode', icon: <FaBrain size={16} /> },
         { id: 'speech' as TabType, label: 'Speech', icon: <FaMicrophone size={16} /> },
+        { id: 'permissions' as TabType, label: 'Permissions', icon: <FaShieldAlt size={16} /> },
     ];
 
     return (
@@ -845,6 +848,11 @@ export default function SettingsPage() {
                                 autoSpeak={autoSpeak}
                                 onAutoSpeakChange={handleAutoSpeakChange}
                             />
+                        )}
+
+                        {/* Permissions Tab */}
+                        {activeTab === 'permissions' && (
+                            <PermissionsSettings />
                         )}
                     </div>
                 </div>

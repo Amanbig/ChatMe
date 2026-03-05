@@ -12,7 +12,7 @@ use crate::system_operations::{
     FileSystemOperation, FileOperationType, PermissionLevel, AppInfo, CommandResult, ProcessInfo
 };
 use crate::llm_streaming;
-use crate::permission_manager::{PermissionManager, create_permission_request};
+use crate::permission_manager::PermissionManager;
 use tauri::{State, Emitter};
 use serde_json::json;
 use std::collections::HashMap;
@@ -274,17 +274,27 @@ pub async fn request_permission(
     println!("[RUST] request_permission called for operation: {}, chat_id: {:?}, level: {:?}",
              operation, chat_id, level_str);
 
-    // Check if this should be auto-approved (Safe or cached permission)
-    let should_request_permission = level_converted != crate::permission_manager::PermissionLevel::Safe
-        && !permission_manager.is_permission_cached(
-            chat_id.clone(),
-            operation.clone()
-        ).await;
+    // Check if this should be auto-approved (Safe, cached, or already pending)
+    let is_cached = permission_manager.is_permission_cached(
+        chat_id.clone(),
+        operation.clone()
+    ).await;
+
+    let is_pending = permission_manager.has_pending_permission(
+        chat_id.clone(),
+        &operation
+    ).await;
 
     // If Safe or cached, auto-approve
-    if !should_request_permission {
+    if level_converted == crate::permission_manager::PermissionLevel::Safe || is_cached {
         println!("[RUST] Auto-approving (Safe operation or cached permission)");
         return Ok(true);
+    }
+
+    // If already pending, wait a moment and return error to avoid duplicate
+    if is_pending {
+        println!("[RUST] Another permission request for '{}' is already pending, skipping duplicate", operation);
+        return Err("Permission request already pending. Please respond to the existing request.".to_string());
     }
 
     // Create permission record in database

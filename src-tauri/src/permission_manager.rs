@@ -30,6 +30,8 @@ pub struct PermissionManager {
     pending: Arc<Mutex<HashMap<String, PendingPermission>>>,
     // Cache of approved permissions per chat: chat_id -> Set<operation_name>
     approved_cache: Arc<Mutex<HashMap<String, HashSet<String>>>>,
+    // Track currently pending operations: (chat_id, operation) -> permission_id
+    pending_operations: Arc<Mutex<HashMap<(String, String), String>>>,
 }
 
 impl PermissionManager {
@@ -37,6 +39,7 @@ impl PermissionManager {
         Self {
             pending: Arc::new(Mutex::new(HashMap::new())),
             approved_cache: Arc::new(Mutex::new(HashMap::new())),
+            pending_operations: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -77,6 +80,14 @@ impl PermissionManager {
             println!("[RUST PermMgr] Pending request stored, total pending: {}", pending.len());
         }
 
+        // Track this operation as pending
+        if let Some(ref chat_id) = chat_id {
+            let mut pending_ops = self.pending_operations.lock().await;
+            let key = (chat_id.clone(), operation.clone());
+            pending_ops.insert(key, id.clone());
+            println!("[RUST PermMgr] Tracking pending operation: {} for chat: {}", operation, chat_id);
+        }
+
         println!("[RUST PermMgr] Waiting for user response via channel...");
 
         // Wait for response with timeout
@@ -86,32 +97,57 @@ impl PermissionManager {
 
                 // If approved and chat_id exists, cache the permission
                 if approved {
-                    if let Some(chat_id) = chat_id {
+                    if let Some(ref chat_id) = chat_id {
                         let mut cache = self.approved_cache.lock().await;
-                        cache.entry(chat_id)
+                        cache.entry(chat_id.clone())
                             .or_insert_with(HashSet::new)
-                            .insert(operation);
+                            .insert(operation.clone());
                         println!("[RUST PermMgr] Permission cached for future use");
                     }
                 }
 
-                // Clean up
+                // Clean up pending request
                 let mut pending = self.pending.lock().await;
                 pending.remove(&id);
+
+                // Clean up pending operation tracking
+                if let Some(ref chat_id) = chat_id {
+                    let mut pending_ops = self.pending_operations.lock().await;
+                    let key = (chat_id.clone(), operation.clone());
+                    pending_ops.remove(&key);
+                    println!("[RUST PermMgr] Removed pending operation tracking");
+                }
+
                 Ok(approved)
             }
             Ok(Err(_)) => {
                 println!("[RUST PermMgr] Channel closed without response");
-                // Channel closed without response
+                // Clean up pending request
                 let mut pending = self.pending.lock().await;
                 pending.remove(&id);
+
+                // Clean up pending operation tracking
+                if let Some(ref chat_id) = chat_id {
+                    let mut pending_ops = self.pending_operations.lock().await;
+                    let key = (chat_id.clone(), operation.clone());
+                    pending_ops.remove(&key);
+                }
+
                 Err("Permission request cancelled".to_string())
             }
             Err(_) => {
                 println!("[RUST PermMgr] Timeout waiting for response");
-                // Timeout
+                // Clean up pending request
                 let mut pending = self.pending.lock().await;
                 pending.remove(&id);
+
+                // Clean up pending operation tracking
+                if let Some(ref chat_id) = chat_id {
+                    let mut pending_ops = self.pending_operations.lock().await;
+                    let key = (chat_id.clone(), operation.clone());
+                    pending_ops.remove(&key);
+                }
+
                 Err("Permission request timed out".to_string())
             }
         }
@@ -162,6 +198,16 @@ impl PermissionManager {
             if let Some(approved_ops) = cache.get(&chat_id) {
                 return approved_ops.contains(&operation);
             }
+        }
+        false
+    }
+
+    /// Check if there's already a pending permission request for this operation in this chat
+    pub async fn has_pending_permission(&self, chat_id: Option<String>, operation: &str) -> bool {
+        if let Some(chat_id) = chat_id {
+            let pending_ops = self.pending_operations.lock().await;
+            let key = (chat_id, operation.to_string());
+            return pending_ops.contains_key(&key);
         }
         false
     }
