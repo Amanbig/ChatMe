@@ -6,7 +6,7 @@ import InputBox from "@/components/app/input-box";
 import MessageItem from "@/components/app/message-item";
 import StreamingMessageItem from "@/components/app/streaming-message-item";
 import { toast } from "sonner";
-import { getMessages, createMessage, getChat, getDefaultApiConfig, getApiConfig } from "@/lib/api";
+import { getMessages, createMessage, getChat, getDefaultApiConfig, getApiConfig, createToolExecution, getToolExecutionsForMessages } from "@/lib/api";
 import { handleAgentQuery, parseAndExecuteCommands } from "@/lib/agent-utils";
 import { useAgent } from "@/contexts/AgentContext";
 import type { Message, StreamingMessage, ToolExecution, ApiConfig } from "@/lib/types";
@@ -125,6 +125,31 @@ export default function HomePage() {
 
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const inputBoxRef = useRef<{ focus: () => void; insertText: (text: string) => void }>(null);
+
+    // Helper to persist tool executions to database
+    const persistToolExecutions = async (messageId: string, executions: ToolExecution[]) => {
+        for (let i = 0; i < executions.length; i++) {
+            const exec = executions[i];
+            try {
+                await createToolExecution({
+                    message_id: messageId,
+                    tool_call_id: exec.tool_call_id,
+                    tool_name: exec.tool_name,
+                    tool_source: 'builtin', // Will be updated for MCP tools later
+                    arguments: exec.arguments,
+                    result: exec.result,
+                    success: exec.success,
+                    error_message: exec.error_message,
+                    execution_order: i,
+                    started_at: exec.timestamp,
+                    completed_at: new Date().toISOString(),
+                });
+            } catch (error) {
+                console.error('Failed to persist tool execution:', error);
+                // Non-fatal - continue with other executions
+            }
+        }
+    };
 
     useEffect(() => {
         // Reset auto-send flag when chatId changes (new chat or returning to home)
@@ -376,6 +401,31 @@ export default function HomePage() {
             }).filter(message => message !== null);
 
             setMessages(displayMessages);
+
+            // Load tool executions from database for all messages
+            const messageIds = displayMessages.map(m => m.id);
+            if (messageIds.length > 0) {
+                try {
+                    const executionsMap = await getToolExecutionsForMessages(messageIds);
+                    // Convert database records to ToolExecution format for display
+                    const newToolExecutions = new Map<string, ToolExecution[]>();
+                    for (const [msgId, records] of Object.entries(executionsMap)) {
+                        newToolExecutions.set(msgId, records.map(record => ({
+                            tool_call_id: record.tool_call_id,
+                            tool_name: record.tool_name,
+                            arguments: record.arguments,
+                            result: record.result,
+                            success: record.success,
+                            error_message: record.error_message,
+                            timestamp: record.started_at,
+                        })));
+                    }
+                    setToolExecutions(newToolExecutions);
+                } catch (error) {
+                    console.error('Failed to load tool executions:', error);
+                    // Non-fatal - just don't show tool executions
+                }
+            }
         } catch (error) {
             console.error('Failed to load messages:', error);
             toast.error('Failed to load messages. Please refresh the page.');
@@ -470,6 +520,9 @@ export default function HomePage() {
                                     return newMap;
                                 });
 
+                                // Persist to database
+                                await persistToolExecutions(intermediateMessage.id, [execution]);
+
                                 savedExecutions.add(execution.tool_call_id);
 
                                 // Add message to display
@@ -517,6 +570,9 @@ export default function HomePage() {
                                         newMap.set(assistantMessage.id, remainingExecutions);
                                         return newMap;
                                     });
+
+                                    // Persist to database
+                                    await persistToolExecutions(assistantMessage.id, remainingExecutions);
                                 }
 
                                 // Update messages
@@ -649,6 +705,9 @@ export default function HomePage() {
                                 return newMap;
                             });
 
+                            // Persist to database
+                            await persistToolExecutions(intermediateMessage.id, [execution]);
+
                             savedExecutions.add(execution.tool_call_id);
 
                             // Add message to display
@@ -696,6 +755,9 @@ export default function HomePage() {
                                     newMap.set(assistantMessage.id, remainingExecutions);
                                     return newMap;
                                 });
+
+                                // Persist to database
+                                await persistToolExecutions(assistantMessage.id, remainingExecutions);
                             }
 
                             // Update messages

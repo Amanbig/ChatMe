@@ -41,6 +41,10 @@ pub fn run() {
                 commands::get_default_api_config,
                 commands::update_api_config,
                 commands::delete_api_config,
+                // Tool executions
+                commands::create_tool_execution,
+                commands::get_tool_executions_for_message,
+                commands::get_tool_executions_for_messages,
                 // File operations
                 commands::open_file_with_default_app,
                 commands::read_directory,

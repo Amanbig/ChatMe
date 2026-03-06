@@ -39,6 +39,40 @@ pub struct PermissionRequest {
     pub updated_at: DateTime<Utc>,
 }
 
+// Tool Execution - persisted tool call history
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ToolExecutionRecord {
+    pub id: String,
+    pub message_id: String,
+    pub tool_call_id: String,
+    pub tool_name: String,
+    pub tool_source: String, // "builtin" or mcp_server_id
+    #[sqlx(skip)]
+    pub arguments: serde_json::Value,
+    #[sqlx(skip)]
+    pub result: Option<serde_json::Value>,
+    pub success: bool,
+    pub error_message: Option<String>,
+    pub execution_order: i32,
+    pub started_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateToolExecutionRequest {
+    pub message_id: String,
+    pub tool_call_id: String,
+    pub tool_name: String,
+    pub tool_source: String,
+    pub arguments: serde_json::Value,
+    pub result: Option<serde_json::Value>,
+    pub success: bool,
+    pub error_message: Option<String>,
+    pub execution_order: i32,
+    pub started_at: String, // ISO string from frontend
+    pub completed_at: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "TEXT")]
 #[serde(rename_all = "lowercase")]

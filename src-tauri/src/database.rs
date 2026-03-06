@@ -514,7 +514,165 @@ impl Database {
 
     // LLM Integration
 
+    // Tool Execution operations
+    pub async fn create_tool_execution(&self, request: CreateToolExecutionRequest) -> Result<ToolExecutionRecord> {
+        let id = Uuid::new_v4().to_string();
 
+        // Parse timestamps from ISO strings
+        let started_at = chrono::DateTime::parse_from_rfc3339(&request.started_at)
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc::now());
 
+        let completed_at = request.completed_at.as_ref().and_then(|s| {
+            chrono::DateTime::parse_from_rfc3339(s)
+                .map(|dt| dt.with_timezone(&Utc))
+                .ok()
+        });
 
+        // Serialize JSON fields
+        let arguments_json = serde_json::to_string(&request.arguments)?;
+        let result_json = request.result.as_ref().map(|r| serde_json::to_string(r)).transpose()?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO tool_executions (
+                id, message_id, tool_call_id, tool_name, tool_source,
+                arguments, result, success, error_message, execution_order,
+                started_at, completed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#
+        )
+        .bind(&id)
+        .bind(&request.message_id)
+        .bind(&request.tool_call_id)
+        .bind(&request.tool_name)
+        .bind(&request.tool_source)
+        .bind(&arguments_json)
+        .bind(&result_json)
+        .bind(request.success)
+        .bind(&request.error_message)
+        .bind(request.execution_order)
+        .bind(started_at)
+        .bind(completed_at)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(ToolExecutionRecord {
+            id,
+            message_id: request.message_id,
+            tool_call_id: request.tool_call_id,
+            tool_name: request.tool_name,
+            tool_source: request.tool_source,
+            arguments: request.arguments,
+            result: request.result,
+            success: request.success,
+            error_message: request.error_message,
+            execution_order: request.execution_order,
+            started_at,
+            completed_at,
+        })
+    }
+
+    pub async fn get_tool_executions_for_message(&self, message_id: &str) -> Result<Vec<ToolExecutionRecord>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, message_id, tool_call_id, tool_name, tool_source,
+                   arguments, result, success, error_message, execution_order,
+                   started_at, completed_at
+            FROM tool_executions
+            WHERE message_id = ?
+            ORDER BY execution_order ASC
+            "#
+        )
+        .bind(message_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut executions = Vec::new();
+        for row in rows {
+            let arguments_json: String = row.try_get("arguments")?;
+            let arguments: serde_json::Value = serde_json::from_str(&arguments_json)?;
+
+            let result_json: Option<String> = row.try_get("result")?;
+            let result: Option<serde_json::Value> = result_json
+                .map(|s| serde_json::from_str(&s))
+                .transpose()?;
+
+            executions.push(ToolExecutionRecord {
+                id: row.try_get("id")?,
+                message_id: row.try_get("message_id")?,
+                tool_call_id: row.try_get("tool_call_id")?,
+                tool_name: row.try_get("tool_name")?,
+                tool_source: row.try_get("tool_source")?,
+                arguments,
+                result,
+                success: row.try_get("success")?,
+                error_message: row.try_get("error_message")?,
+                execution_order: row.try_get("execution_order")?,
+                started_at: row.try_get("started_at")?,
+                completed_at: row.try_get("completed_at")?,
+            });
+        }
+
+        Ok(executions)
+    }
+
+    pub async fn get_tool_executions_for_messages(&self, message_ids: &[String]) -> Result<std::collections::HashMap<String, Vec<ToolExecutionRecord>>> {
+        if message_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+
+        // Build placeholders for IN clause
+        let placeholders: Vec<String> = message_ids.iter().map(|_| "?".to_string()).collect();
+        let query = format!(
+            r#"
+            SELECT id, message_id, tool_call_id, tool_name, tool_source,
+                   arguments, result, success, error_message, execution_order,
+                   started_at, completed_at
+            FROM tool_executions
+            WHERE message_id IN ({})
+            ORDER BY message_id, execution_order ASC
+            "#,
+            placeholders.join(", ")
+        );
+
+        let mut query_builder = sqlx::query(&query);
+        for id in message_ids {
+            query_builder = query_builder.bind(id);
+        }
+
+        let rows = query_builder.fetch_all(&self.pool).await?;
+
+        let mut result_map: std::collections::HashMap<String, Vec<ToolExecutionRecord>> = std::collections::HashMap::new();
+
+        for row in rows {
+            let arguments_json: String = row.try_get("arguments")?;
+            let arguments: serde_json::Value = serde_json::from_str(&arguments_json)?;
+
+            let result_json: Option<String> = row.try_get("result")?;
+            let result: Option<serde_json::Value> = result_json
+                .map(|s| serde_json::from_str(&s))
+                .transpose()?;
+
+            let message_id: String = row.try_get("message_id")?;
+            let execution = ToolExecutionRecord {
+                id: row.try_get("id")?,
+                message_id: message_id.clone(),
+                tool_call_id: row.try_get("tool_call_id")?,
+                tool_name: row.try_get("tool_name")?,
+                tool_source: row.try_get("tool_source")?,
+                arguments,
+                result,
+                success: row.try_get("success")?,
+                error_message: row.try_get("error_message")?,
+                execution_order: row.try_get("execution_order")?,
+                started_at: row.try_get("started_at")?,
+                completed_at: row.try_get("completed_at")?,
+            };
+
+            result_map.entry(message_id).or_insert_with(Vec::new).push(execution);
+        }
+
+        Ok(result_map)
+    }
 }

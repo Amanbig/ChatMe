@@ -202,6 +202,36 @@ export interface ToolExecution {
   timestamp: string;
 }
 
+// Persisted tool execution record from database
+export interface ToolExecutionRecord {
+  id: string;
+  message_id: string;
+  tool_call_id: string;
+  tool_name: string;
+  tool_source: string; // 'builtin' or mcp_server_id
+  arguments: any;
+  result: any | null;
+  success: boolean;
+  error_message: string | null;
+  execution_order: number;
+  started_at: string;
+  completed_at: string | null;
+}
+
+export interface CreateToolExecutionRequest {
+  message_id: string;
+  tool_call_id: string;
+  tool_name: string;
+  tool_source: string;
+  arguments: any;
+  result: any | null;
+  success: boolean;
+  error_message: string | null;
+  execution_order: number;
+  started_at: string;
+  completed_at: string | null;
+}
+
 export interface ConversationTurn {
   assistant_message: {
     role: string;

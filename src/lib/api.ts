@@ -14,7 +14,9 @@ import type {
   AgentSession,
   AgentAction,
   AgentCapability,
-  ToolDefinition
+  ToolDefinition,
+  ToolExecutionRecord,
+  CreateToolExecutionRequest
 } from './types';
 
 // Chat operations
@@ -149,4 +151,17 @@ export interface SystemInfo {
 
 export async function getSystemInfo(): Promise<SystemInfo> {
   return await invoke('get_system_info');
+}
+
+// Tool Execution operations
+export async function createToolExecution(request: CreateToolExecutionRequest): Promise<ToolExecutionRecord> {
+  return await invoke('create_tool_execution', { request });
+}
+
+export async function getToolExecutionsForMessage(messageId: string): Promise<ToolExecutionRecord[]> {
+  return await invoke('get_tool_executions_for_message', { messageId });
+}
+
+export async function getToolExecutionsForMessages(messageIds: string[]): Promise<Record<string, ToolExecutionRecord[]>> {
+  return await invoke('get_tool_executions_for_messages', { messageIds });
 }

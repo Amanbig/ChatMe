@@ -117,7 +117,36 @@ pub async fn delete_api_config(db: State<'_, Database>, config_id: String) -> Re
         .map_err(|e| e.to_string())
 }
 
+// Tool Execution Commands
+#[tauri::command]
+pub async fn create_tool_execution(
+    db: State<'_, Database>,
+    request: CreateToolExecutionRequest,
+) -> Result<ToolExecutionRecord, String> {
+    db.create_tool_execution(request)
+        .await
+        .map_err(|e| e.to_string())
+}
 
+#[tauri::command]
+pub async fn get_tool_executions_for_message(
+    db: State<'_, Database>,
+    message_id: String,
+) -> Result<Vec<ToolExecutionRecord>, String> {
+    db.get_tool_executions_for_message(&message_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_tool_executions_for_messages(
+    db: State<'_, Database>,
+    message_ids: Vec<String>,
+) -> Result<HashMap<String, Vec<ToolExecutionRecord>>, String> {
+    db.get_tool_executions_for_messages(&message_ids)
+        .await
+        .map_err(|e| e.to_string())
+}
 
 // File Operations Commands
 #[tauri::command]
