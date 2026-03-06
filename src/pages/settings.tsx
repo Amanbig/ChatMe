@@ -11,6 +11,7 @@ import SpeechSettings from "@/components/app/speech-settings";
 import AgentMode from "../components/app/agent-mode";
 import ModelSelector from "@/components/app/model-selector";
 import PermissionsSettings from "@/components/app/permissions-settings";
+import McpServerSettings from "@/components/app/mcp-server-settings";
 import {
     FaRobot,
     FaGoogle,
@@ -173,7 +174,7 @@ const providerTemplates: ProviderTemplate[] = [
     }
 ];
 
-type TabType = 'api' | 'agent' | 'speech' | 'permissions';
+type TabType = 'api' | 'agent' | 'mcp' | 'speech' | 'permissions';
 
 // Edit Form Component - shown inline
 function ConfigEditForm({
@@ -604,6 +605,7 @@ export default function SettingsPage() {
     const tabs = [
         { id: 'api' as TabType, label: 'API Configs', icon: <FaKey size={16} /> },
         { id: 'agent' as TabType, label: 'Agent Mode', icon: <FaBrain size={16} /> },
+        { id: 'mcp' as TabType, label: 'MCP Servers', icon: <FaServer size={16} /> },
         { id: 'speech' as TabType, label: 'Speech', icon: <FaMicrophone size={16} /> },
         { id: 'permissions' as TabType, label: 'Permissions', icon: <FaShieldAlt size={16} /> },
     ];
@@ -838,6 +840,11 @@ export default function SettingsPage() {
                         {/* Agent Mode Tab */}
                         {activeTab === 'agent' && (
                             <AgentMode />
+                        )}
+
+                        {/* MCP Servers Tab */}
+                        {activeTab === 'mcp' && (
+                            <McpServerSettings />
                         )}
 
                         {/* Speech Settings Tab */}

@@ -148,6 +148,64 @@ pub async fn get_tool_executions_for_messages(
         .map_err(|e| e.to_string())
 }
 
+// MCP Server Commands
+#[tauri::command]
+pub async fn create_mcp_server(
+    db: State<'_, Database>,
+    request: CreateMcpServerRequest,
+) -> Result<McpServer, String> {
+    db.create_mcp_server(request)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_mcp_servers(db: State<'_, Database>) -> Result<Vec<McpServer>, String> {
+    db.get_mcp_servers().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_mcp_server(db: State<'_, Database>, server_id: String) -> Result<Option<McpServer>, String> {
+    db.get_mcp_server(&server_id).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn update_mcp_server(
+    db: State<'_, Database>,
+    server_id: String,
+    request: UpdateMcpServerRequest,
+) -> Result<McpServer, String> {
+    db.update_mcp_server(&server_id, request)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn delete_mcp_server(db: State<'_, Database>, server_id: String) -> Result<(), String> {
+    db.delete_mcp_server(&server_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_mcp_tools_for_server(db: State<'_, Database>, server_id: String) -> Result<Vec<McpTool>, String> {
+    db.get_mcp_tools_for_server(&server_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_enabled_mcp_tools(db: State<'_, Database>) -> Result<Vec<McpTool>, String> {
+    db.get_enabled_mcp_tools().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn toggle_mcp_tool(db: State<'_, Database>, tool_id: String, enabled: bool) -> Result<(), String> {
+    db.toggle_mcp_tool(&tool_id, enabled)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 // File Operations Commands
 #[tauri::command]
 pub async fn open_file_with_default_app(file_path: String) -> Result<String, String> {

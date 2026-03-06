@@ -73,6 +73,88 @@ pub struct CreateToolExecutionRequest {
     pub completed_at: Option<String>,
 }
 
+// MCP Server - configuration for Model Context Protocol servers
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq)]
+#[sqlx(type_name = "TEXT")]
+#[serde(rename_all = "lowercase")]
+pub enum McpTransportType {
+    #[sqlx(rename = "stdio")]
+    Stdio,
+    #[sqlx(rename = "sse")]
+    Sse,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct McpServer {
+    pub id: String,
+    pub name: String,
+    pub transport_type: McpTransportType,
+    pub command: Option<String>,
+    #[sqlx(skip)]
+    pub args: Option<Vec<String>>,
+    #[sqlx(skip)]
+    pub env: Option<std::collections::HashMap<String, String>>,
+    pub url: Option<String>,
+    #[sqlx(skip)]
+    pub headers: Option<std::collections::HashMap<String, String>>,
+    pub enabled: bool,
+    pub auto_connect: bool,
+    pub connection_timeout_ms: Option<i32>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateMcpServerRequest {
+    pub name: String,
+    pub transport_type: McpTransportType,
+    pub command: Option<String>,
+    pub args: Option<Vec<String>>,
+    pub env: Option<std::collections::HashMap<String, String>>,
+    pub url: Option<String>,
+    pub headers: Option<std::collections::HashMap<String, String>>,
+    pub enabled: bool,
+    pub auto_connect: bool,
+    pub connection_timeout_ms: Option<i32>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateMcpServerRequest {
+    pub name: String,
+    pub transport_type: McpTransportType,
+    pub command: Option<String>,
+    pub args: Option<Vec<String>>,
+    pub env: Option<std::collections::HashMap<String, String>>,
+    pub url: Option<String>,
+    pub headers: Option<std::collections::HashMap<String, String>>,
+    pub enabled: bool,
+    pub auto_connect: bool,
+    pub connection_timeout_ms: Option<i32>,
+}
+
+// MCP Tool - tool discovered from an MCP server
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct McpTool {
+    pub id: String,
+    pub server_id: String,
+    pub name: String,
+    pub description: Option<String>,
+    #[sqlx(skip)]
+    pub input_schema: serde_json::Value,
+    pub enabled: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+// MCP Server with its tools for API responses
+#[derive(Debug, Serialize, Deserialize)]
+pub struct McpServerWithTools {
+    #[serde(flatten)]
+    pub server: McpServer,
+    pub tools: Vec<McpTool>,
+    pub connection_status: String, // "connected" | "disconnected" | "error"
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "TEXT")]
 #[serde(rename_all = "lowercase")]

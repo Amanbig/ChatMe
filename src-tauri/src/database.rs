@@ -675,4 +675,318 @@ impl Database {
 
         Ok(result_map)
     }
+
+    // MCP Server operations
+    pub async fn create_mcp_server(&self, request: CreateMcpServerRequest) -> Result<McpServer> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now();
+
+        // Serialize JSON fields
+        let args_json = request.args.as_ref().map(|a| serde_json::to_string(a)).transpose()?;
+        let env_json = request.env.as_ref().map(|e| serde_json::to_string(e)).transpose()?;
+        let headers_json = request.headers.as_ref().map(|h| serde_json::to_string(h)).transpose()?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO mcp_servers (
+                id, name, transport_type, command, args, env, url, headers,
+                enabled, auto_connect, connection_timeout_ms, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#
+        )
+        .bind(&id)
+        .bind(&request.name)
+        .bind(&request.transport_type)
+        .bind(&request.command)
+        .bind(&args_json)
+        .bind(&env_json)
+        .bind(&request.url)
+        .bind(&headers_json)
+        .bind(request.enabled)
+        .bind(request.auto_connect)
+        .bind(request.connection_timeout_ms)
+        .bind(now)
+        .bind(now)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(McpServer {
+            id,
+            name: request.name,
+            transport_type: request.transport_type,
+            command: request.command,
+            args: request.args,
+            env: request.env,
+            url: request.url,
+            headers: request.headers,
+            enabled: request.enabled,
+            auto_connect: request.auto_connect,
+            connection_timeout_ms: request.connection_timeout_ms,
+            created_at: now,
+            updated_at: now,
+        })
+    }
+
+    pub async fn get_mcp_servers(&self) -> Result<Vec<McpServer>> {
+        let rows = sqlx::query(
+            "SELECT * FROM mcp_servers ORDER BY name ASC"
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut servers = Vec::new();
+        for row in rows {
+            let transport_type_str: String = row.try_get("transport_type")?;
+            let transport_type = match transport_type_str.as_str() {
+                "stdio" => McpTransportType::Stdio,
+                "sse" => McpTransportType::Sse,
+                _ => return Err(anyhow::anyhow!("Invalid transport type: {}", transport_type_str)),
+            };
+
+            let args: Option<Vec<String>> = row.try_get::<Option<String>, _>("args")?
+                .and_then(|s| serde_json::from_str(&s).ok());
+            let env: Option<std::collections::HashMap<String, String>> = row.try_get::<Option<String>, _>("env")?
+                .and_then(|s| serde_json::from_str(&s).ok());
+            let headers: Option<std::collections::HashMap<String, String>> = row.try_get::<Option<String>, _>("headers")?
+                .and_then(|s| serde_json::from_str(&s).ok());
+
+            servers.push(McpServer {
+                id: row.try_get("id")?,
+                name: row.try_get("name")?,
+                transport_type,
+                command: row.try_get("command")?,
+                args,
+                env,
+                url: row.try_get("url")?,
+                headers,
+                enabled: row.try_get("enabled")?,
+                auto_connect: row.try_get("auto_connect")?,
+                connection_timeout_ms: row.try_get("connection_timeout_ms")?,
+                created_at: row.try_get("created_at")?,
+                updated_at: row.try_get("updated_at")?,
+            });
+        }
+
+        Ok(servers)
+    }
+
+    pub async fn get_mcp_server(&self, server_id: &str) -> Result<Option<McpServer>> {
+        let row = sqlx::query("SELECT * FROM mcp_servers WHERE id = ?")
+            .bind(server_id)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        match row {
+            Some(row) => {
+                let transport_type_str: String = row.try_get("transport_type")?;
+                let transport_type = match transport_type_str.as_str() {
+                    "stdio" => McpTransportType::Stdio,
+                    "sse" => McpTransportType::Sse,
+                    _ => return Err(anyhow::anyhow!("Invalid transport type: {}", transport_type_str)),
+                };
+
+                let args: Option<Vec<String>> = row.try_get::<Option<String>, _>("args")?
+                    .and_then(|s| serde_json::from_str(&s).ok());
+                let env: Option<std::collections::HashMap<String, String>> = row.try_get::<Option<String>, _>("env")?
+                    .and_then(|s| serde_json::from_str(&s).ok());
+                let headers: Option<std::collections::HashMap<String, String>> = row.try_get::<Option<String>, _>("headers")?
+                    .and_then(|s| serde_json::from_str(&s).ok());
+
+                Ok(Some(McpServer {
+                    id: row.try_get("id")?,
+                    name: row.try_get("name")?,
+                    transport_type,
+                    command: row.try_get("command")?,
+                    args,
+                    env,
+                    url: row.try_get("url")?,
+                    headers,
+                    enabled: row.try_get("enabled")?,
+                    auto_connect: row.try_get("auto_connect")?,
+                    connection_timeout_ms: row.try_get("connection_timeout_ms")?,
+                    created_at: row.try_get("created_at")?,
+                    updated_at: row.try_get("updated_at")?,
+                }))
+            }
+            None => Ok(None),
+        }
+    }
+
+    pub async fn update_mcp_server(&self, server_id: &str, request: UpdateMcpServerRequest) -> Result<McpServer> {
+        let now = Utc::now();
+
+        let args_json = request.args.as_ref().map(|a| serde_json::to_string(a)).transpose()?;
+        let env_json = request.env.as_ref().map(|e| serde_json::to_string(e)).transpose()?;
+        let headers_json = request.headers.as_ref().map(|h| serde_json::to_string(h)).transpose()?;
+
+        sqlx::query(
+            r#"
+            UPDATE mcp_servers SET
+                name = ?, transport_type = ?, command = ?, args = ?, env = ?,
+                url = ?, headers = ?, enabled = ?, auto_connect = ?,
+                connection_timeout_ms = ?, updated_at = ?
+            WHERE id = ?
+            "#
+        )
+        .bind(&request.name)
+        .bind(&request.transport_type)
+        .bind(&request.command)
+        .bind(&args_json)
+        .bind(&env_json)
+        .bind(&request.url)
+        .bind(&headers_json)
+        .bind(request.enabled)
+        .bind(request.auto_connect)
+        .bind(request.connection_timeout_ms)
+        .bind(now)
+        .bind(server_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(McpServer {
+            id: server_id.to_string(),
+            name: request.name,
+            transport_type: request.transport_type,
+            command: request.command,
+            args: request.args,
+            env: request.env,
+            url: request.url,
+            headers: request.headers,
+            enabled: request.enabled,
+            auto_connect: request.auto_connect,
+            connection_timeout_ms: request.connection_timeout_ms,
+            created_at: now, // Will be overwritten by actual value
+            updated_at: now,
+        })
+    }
+
+    pub async fn delete_mcp_server(&self, server_id: &str) -> Result<()> {
+        // Tools will be cascade deleted
+        sqlx::query("DELETE FROM mcp_servers WHERE id = ?")
+            .bind(server_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    // MCP Tool operations
+    pub async fn sync_mcp_tools(&self, server_id: &str, tools: Vec<(String, Option<String>, serde_json::Value)>) -> Result<Vec<McpTool>> {
+        let now = Utc::now();
+
+        // Delete existing tools for this server
+        sqlx::query("DELETE FROM mcp_tools WHERE server_id = ?")
+            .bind(server_id)
+            .execute(&self.pool)
+            .await?;
+
+        let mut result_tools = Vec::new();
+
+        for (name, description, input_schema) in tools {
+            let id = Uuid::new_v4().to_string();
+            let schema_json = serde_json::to_string(&input_schema)?;
+
+            sqlx::query(
+                r#"
+                INSERT INTO mcp_tools (id, server_id, name, description, input_schema, enabled, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+                "#
+            )
+            .bind(&id)
+            .bind(server_id)
+            .bind(&name)
+            .bind(&description)
+            .bind(&schema_json)
+            .bind(now)
+            .bind(now)
+            .execute(&self.pool)
+            .await?;
+
+            result_tools.push(McpTool {
+                id,
+                server_id: server_id.to_string(),
+                name,
+                description,
+                input_schema,
+                enabled: true,
+                created_at: now,
+                updated_at: now,
+            });
+        }
+
+        Ok(result_tools)
+    }
+
+    pub async fn get_mcp_tools_for_server(&self, server_id: &str) -> Result<Vec<McpTool>> {
+        let rows = sqlx::query(
+            "SELECT * FROM mcp_tools WHERE server_id = ? ORDER BY name ASC"
+        )
+        .bind(server_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut tools = Vec::new();
+        for row in rows {
+            let schema_json: String = row.try_get("input_schema")?;
+            let input_schema: serde_json::Value = serde_json::from_str(&schema_json)?;
+
+            tools.push(McpTool {
+                id: row.try_get("id")?,
+                server_id: row.try_get("server_id")?,
+                name: row.try_get("name")?,
+                description: row.try_get("description")?,
+                input_schema,
+                enabled: row.try_get("enabled")?,
+                created_at: row.try_get("created_at")?,
+                updated_at: row.try_get("updated_at")?,
+            });
+        }
+
+        Ok(tools)
+    }
+
+    pub async fn get_enabled_mcp_tools(&self) -> Result<Vec<McpTool>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT t.* FROM mcp_tools t
+            INNER JOIN mcp_servers s ON t.server_id = s.id
+            WHERE t.enabled = 1 AND s.enabled = 1
+            ORDER BY s.name, t.name
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut tools = Vec::new();
+        for row in rows {
+            let schema_json: String = row.try_get("input_schema")?;
+            let input_schema: serde_json::Value = serde_json::from_str(&schema_json)?;
+
+            tools.push(McpTool {
+                id: row.try_get("id")?,
+                server_id: row.try_get("server_id")?,
+                name: row.try_get("name")?,
+                description: row.try_get("description")?,
+                input_schema,
+                enabled: row.try_get("enabled")?,
+                created_at: row.try_get("created_at")?,
+                updated_at: row.try_get("updated_at")?,
+            });
+        }
+
+        Ok(tools)
+    }
+
+    pub async fn toggle_mcp_tool(&self, tool_id: &str, enabled: bool) -> Result<()> {
+        let now = Utc::now();
+
+        sqlx::query("UPDATE mcp_tools SET enabled = ?, updated_at = ? WHERE id = ?")
+            .bind(enabled)
+            .bind(now)
+            .bind(tool_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
 }

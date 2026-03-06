@@ -76,6 +76,15 @@ pub fn run() {
                 commands::stream_llm_request,
                 // System info
                 commands::get_system_info,
+                // MCP server management
+                commands::create_mcp_server,
+                commands::get_mcp_servers,
+                commands::get_mcp_server,
+                commands::update_mcp_server,
+                commands::delete_mcp_server,
+                commands::get_mcp_tools_for_server,
+                commands::get_enabled_mcp_tools,
+                commands::toggle_mcp_tool,
             ])
             .run(tauri::generate_context!())
             .expect("error while running tauri application");

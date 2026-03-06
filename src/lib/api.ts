@@ -16,7 +16,11 @@ import type {
   AgentCapability,
   ToolDefinition,
   ToolExecutionRecord,
-  CreateToolExecutionRequest
+  CreateToolExecutionRequest,
+  McpServer,
+  McpTool,
+  CreateMcpServerRequest,
+  UpdateMcpServerRequest
 } from './types';
 
 // Chat operations
@@ -164,4 +168,38 @@ export async function getToolExecutionsForMessage(messageId: string): Promise<To
 
 export async function getToolExecutionsForMessages(messageIds: string[]): Promise<Record<string, ToolExecutionRecord[]>> {
   return await invoke('get_tool_executions_for_messages', { messageIds });
+}
+
+// MCP Server operations
+export async function createMcpServer(request: CreateMcpServerRequest): Promise<McpServer> {
+  return await invoke('create_mcp_server', { request });
+}
+
+export async function getMcpServers(): Promise<McpServer[]> {
+  return await invoke('get_mcp_servers');
+}
+
+export async function getMcpServer(serverId: string): Promise<McpServer | null> {
+  return await invoke('get_mcp_server', { serverId });
+}
+
+export async function updateMcpServer(serverId: string, request: UpdateMcpServerRequest): Promise<McpServer> {
+  return await invoke('update_mcp_server', { serverId, request });
+}
+
+export async function deleteMcpServer(serverId: string): Promise<void> {
+  return await invoke('delete_mcp_server', { serverId });
+}
+
+// MCP Tool operations
+export async function getMcpToolsForServer(serverId: string): Promise<McpTool[]> {
+  return await invoke('get_mcp_tools_for_server', { serverId });
+}
+
+export async function getEnabledMcpTools(): Promise<McpTool[]> {
+  return await invoke('get_enabled_mcp_tools');
+}
+
+export async function toggleMcpTool(toolId: string, enabled: boolean): Promise<void> {
+  return await invoke('toggle_mcp_tool', { toolId, enabled });
 }

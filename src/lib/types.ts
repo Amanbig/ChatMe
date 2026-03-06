@@ -245,3 +245,65 @@ export interface ConversationTurn {
 export interface MessageWithTools extends Message {
   tool_turns?: ConversationTurn[];
 }
+
+// MCP (Model Context Protocol) Types
+export type McpTransportType = 'stdio' | 'sse';
+
+export interface McpServer {
+  id: string;
+  name: string;
+  transport_type: McpTransportType;
+  // For stdio transport
+  command: string | null;
+  args: string[] | null;
+  env: Record<string, string> | null;
+  // For SSE transport
+  url: string | null;
+  headers: Record<string, string> | null;
+  // Common fields
+  enabled: boolean;
+  auto_connect: boolean;
+  connection_timeout_ms: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface McpTool {
+  id: string;
+  server_id: string;
+  name: string;
+  description: string | null;
+  input_schema: any; // JSON Schema
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface McpServerWithTools extends McpServer {
+  tools: McpTool[];
+}
+
+export interface CreateMcpServerRequest {
+  name: string;
+  transport_type: McpTransportType;
+  command?: string | null;
+  args?: string[] | null;
+  env?: Record<string, string> | null;
+  url?: string | null;
+  headers?: Record<string, string> | null;
+  enabled?: boolean;
+  auto_connect?: boolean;
+  connection_timeout_ms?: number;
+}
+
+export interface UpdateMcpServerRequest {
+  name?: string;
+  command?: string | null;
+  args?: string[] | null;
+  env?: Record<string, string> | null;
+  url?: string | null;
+  headers?: Record<string, string> | null;
+  enabled?: boolean;
+  auto_connect?: boolean;
+  connection_timeout_ms?: number;
+}

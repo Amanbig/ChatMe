@@ -1,6 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { FaCheck, FaTimes, FaTools, FaChevronDown, FaChevronUp, FaCog } from 'react-icons/fa';
+import { Card, CardContent } from '@/components/ui/card';
+import { FaCheck, FaTimes, FaCog } from 'react-icons/fa';
 import type { ToolExecution } from '@/lib/types';
 import { useState } from 'react';
 
