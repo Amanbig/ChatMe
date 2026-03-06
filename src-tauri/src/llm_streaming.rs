@@ -180,16 +180,105 @@ pub async fn stream_anthropic(
     // Convert OpenAI message format to Anthropic format
     let mut anthropic_messages: Vec<serde_json::Value> = Vec::new();
     let mut system_message: Option<String> = None;
+    let mut pending_tool_results: Vec<serde_json::Value> = Vec::new();
 
-    for msg in messages {
+    for msg in &messages {
         if msg["role"] == "system" {
             system_message = msg["content"].as_str().map(|s| s.to_string());
-        } else if msg["role"] != "tool" {
-            anthropic_messages.push(serde_json::json!({
-                "role": msg["role"],
-                "content": msg["content"]
+        } else if msg["role"] == "user" {
+            // If we have pending tool results, add them as a user message first
+            if !pending_tool_results.is_empty() {
+                anthropic_messages.push(serde_json::json!({
+                    "role": "user",
+                    "content": pending_tool_results.clone()
+                }));
+                pending_tool_results.clear();
+            }
+
+            // Handle multimodal content
+            if msg["content"].is_array() {
+                anthropic_messages.push(serde_json::json!({
+                    "role": "user",
+                    "content": msg["content"]
+                }));
+            } else {
+                anthropic_messages.push(serde_json::json!({
+                    "role": "user",
+                    "content": msg["content"]
+                }));
+            }
+        } else if msg["role"] == "assistant" {
+            // If we have pending tool results, add them as a user message first
+            if !pending_tool_results.is_empty() {
+                anthropic_messages.push(serde_json::json!({
+                    "role": "user",
+                    "content": pending_tool_results.clone()
+                }));
+                pending_tool_results.clear();
+            }
+
+            // Check if this assistant message has tool_calls
+            if let Some(tool_calls) = msg["tool_calls"].as_array() {
+                // Convert to Anthropic format with tool_use content blocks
+                let mut content_blocks: Vec<serde_json::Value> = Vec::new();
+
+                // Add text content if present
+                if let Some(text) = msg["content"].as_str() {
+                    if !text.is_empty() {
+                        content_blocks.push(serde_json::json!({
+                            "type": "text",
+                            "text": text
+                        }));
+                    }
+                }
+
+                // Add tool_use blocks
+                for tc in tool_calls {
+                    let args_str = tc["function"]["arguments"].as_str().unwrap_or("{}");
+                    let args: serde_json::Value = serde_json::from_str(args_str).unwrap_or(serde_json::json!({}));
+
+                    content_blocks.push(serde_json::json!({
+                        "type": "tool_use",
+                        "id": tc["id"],
+                        "name": tc["function"]["name"],
+                        "input": args
+                    }));
+                }
+
+                anthropic_messages.push(serde_json::json!({
+                    "role": "assistant",
+                    "content": content_blocks
+                }));
+            } else {
+                // Regular assistant message
+                anthropic_messages.push(serde_json::json!({
+                    "role": "assistant",
+                    "content": msg["content"]
+                }));
+            }
+        } else if msg["role"] == "tool" {
+            // Collect tool results to send as a user message with tool_result content blocks
+            let tool_call_id = msg["tool_call_id"].as_str().unwrap_or("");
+            let content = if msg["content"].is_string() {
+                msg["content"].as_str().unwrap_or("").to_string()
+            } else {
+                serde_json::to_string(&msg["content"]).unwrap_or_default()
+            };
+
+            pending_tool_results.push(serde_json::json!({
+                "type": "tool_result",
+                "tool_use_id": tool_call_id,
+                "content": content
             }));
         }
+    }
+
+    // Add any remaining tool results
+    if !pending_tool_results.is_empty() {
+        anthropic_messages.push(serde_json::json!({
+            "role": "user",
+            "content": pending_tool_results
+        }));
     }
 
     let mut body = serde_json::json!({
@@ -239,6 +328,8 @@ pub async fn stream_anthropic(
     let mut buffer = String::new();
     let mut full_content = String::new();
     let mut tool_calls: Vec<serde_json::Value> = Vec::new();
+    // Track current tool use being streamed (index -> (id, name, accumulated_input))
+    let mut current_tool_uses: HashMap<usize, (String, String, String)> = HashMap::new();
 
     window
         .emit(&format!("streaming_start_{}", stream_id), ())
@@ -266,8 +357,11 @@ pub async fn stream_anthropic(
                 Err(_) => continue,
             };
 
-            // Handle content delta
+            // Handle content delta (text)
             if json["type"] == "content_block_delta" {
+                let index = json["index"].as_u64().unwrap_or(0) as usize;
+
+                // Text delta
                 if let Some(text) = json["delta"]["text"].as_str() {
                     full_content.push_str(text);
                     window
@@ -280,20 +374,41 @@ pub async fn stream_anthropic(
                         )
                         .map_err(|e| format!("Failed to emit streaming_chunk: {}", e))?;
                 }
+
+                // Input JSON delta for tool use
+                if let Some(partial_json) = json["delta"]["partial_json"].as_str() {
+                    if let Some((_, _, ref mut accumulated)) = current_tool_uses.get_mut(&index) {
+                        accumulated.push_str(partial_json);
+                    }
+                }
             }
 
-            // Handle tool use
+            // Handle tool use start
             if json["type"] == "content_block_start" {
+                let index = json["index"].as_u64().unwrap_or(0) as usize;
                 if json["content_block"]["type"] == "tool_use" {
                     let tool_use = &json["content_block"];
-                    tool_calls.push(serde_json::json!({
-                        "id": tool_use["id"],
-                        "type": "function",
-                        "function": {
-                            "name": tool_use["name"],
-                            "arguments": serde_json::to_string(&tool_use["input"]).unwrap_or_default()
-                        }
-                    }));
+                    let id = tool_use["id"].as_str().unwrap_or("").to_string();
+                    let name = tool_use["name"].as_str().unwrap_or("").to_string();
+                    current_tool_uses.insert(index, (id, name, String::new()));
+                }
+            }
+
+            // Handle content block stop - finalize tool use
+            if json["type"] == "content_block_stop" {
+                let index = json["index"].as_u64().unwrap_or(0) as usize;
+                if let Some((id, name, accumulated_input)) = current_tool_uses.remove(&index) {
+                    // Only add if we have a valid tool (has id and name)
+                    if !id.is_empty() && !name.is_empty() {
+                        tool_calls.push(serde_json::json!({
+                            "id": id,
+                            "type": "function",
+                            "function": {
+                                "name": name,
+                                "arguments": if accumulated_input.is_empty() { "{}".to_string() } else { accumulated_input }
+                            }
+                        }));
+                    }
                 }
             }
         }
@@ -332,21 +447,102 @@ pub async fn stream_google(
     // Convert messages to Google format
     let mut google_contents: Vec<serde_json::Value> = Vec::new();
     let mut system_instruction: Option<String> = None;
+    let mut pending_function_responses: Vec<serde_json::Value> = Vec::new();
 
-    for msg in messages {
+    for msg in &messages {
         if msg["role"] == "system" {
             system_instruction = msg["content"].as_str().map(|s| s.to_string());
         } else if msg["role"] == "user" {
-            google_contents.push(serde_json::json!({
-                "role": "user",
-                "parts": [{"text": msg["content"]}]
-            }));
+            // If we have pending function responses, add them first
+            if !pending_function_responses.is_empty() {
+                google_contents.push(serde_json::json!({
+                    "role": "user",
+                    "parts": pending_function_responses.clone()
+                }));
+                pending_function_responses.clear();
+            }
+
+            // Handle multimodal content
+            if msg["content"].is_array() {
+                google_contents.push(serde_json::json!({
+                    "role": "user",
+                    "parts": msg["content"]
+                }));
+            } else {
+                google_contents.push(serde_json::json!({
+                    "role": "user",
+                    "parts": [{"text": msg["content"]}]
+                }));
+            }
         } else if msg["role"] == "assistant" {
-            google_contents.push(serde_json::json!({
-                "role": "model",
-                "parts": [{"text": msg["content"]}]
+            // If we have pending function responses, add them first
+            if !pending_function_responses.is_empty() {
+                google_contents.push(serde_json::json!({
+                    "role": "user",
+                    "parts": pending_function_responses.clone()
+                }));
+                pending_function_responses.clear();
+            }
+
+            // Check if this assistant message has tool_calls
+            if let Some(tool_calls) = msg["tool_calls"].as_array() {
+                let mut parts: Vec<serde_json::Value> = Vec::new();
+
+                // Add text content if present
+                if let Some(text) = msg["content"].as_str() {
+                    if !text.is_empty() {
+                        parts.push(serde_json::json!({"text": text}));
+                    }
+                }
+
+                // Add functionCall parts
+                for tc in tool_calls {
+                    let args_str = tc["function"]["arguments"].as_str().unwrap_or("{}");
+                    let args: serde_json::Value = serde_json::from_str(args_str).unwrap_or(serde_json::json!({}));
+
+                    parts.push(serde_json::json!({
+                        "functionCall": {
+                            "name": tc["function"]["name"],
+                            "args": args
+                        }
+                    }));
+                }
+
+                google_contents.push(serde_json::json!({
+                    "role": "model",
+                    "parts": parts
+                }));
+            } else {
+                // Regular assistant message
+                google_contents.push(serde_json::json!({
+                    "role": "model",
+                    "parts": [{"text": msg["content"]}]
+                }));
+            }
+        } else if msg["role"] == "tool" {
+            // Collect function responses to send as a user message
+            let tool_name = msg["name"].as_str().unwrap_or("");
+            let content = if msg["content"].is_string() {
+                serde_json::from_str(msg["content"].as_str().unwrap_or("{}")).unwrap_or(serde_json::json!({}))
+            } else {
+                msg["content"].clone()
+            };
+
+            pending_function_responses.push(serde_json::json!({
+                "functionResponse": {
+                    "name": tool_name,
+                    "response": content
+                }
             }));
         }
+    }
+
+    // Add any remaining function responses
+    if !pending_function_responses.is_empty() {
+        google_contents.push(serde_json::json!({
+            "role": "user",
+            "parts": pending_function_responses
+        }));
     }
 
     let mut body = serde_json::json!({
