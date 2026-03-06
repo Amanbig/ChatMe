@@ -203,3 +203,24 @@ export async function getEnabledMcpTools(): Promise<McpTool[]> {
 export async function toggleMcpTool(toolId: string, enabled: boolean): Promise<void> {
   return await invoke('toggle_mcp_tool', { toolId, enabled });
 }
+
+// MCP Connection operations
+export async function connectMcpServer(serverId: string): Promise<{ status: string; tools_count: number }> {
+  return await invoke('connect_mcp_server', { serverId });
+}
+
+export async function disconnectMcpServer(serverId: string): Promise<void> {
+  return await invoke('disconnect_mcp_server', { serverId });
+}
+
+export async function getMcpServerStatus(serverId: string): Promise<string> {
+  return await invoke('get_mcp_server_status', { serverId });
+}
+
+export async function getAllMcpStatuses(): Promise<Record<string, string>> {
+  return await invoke('get_all_mcp_statuses');
+}
+
+export async function getMergedToolDefinitions(): Promise<ToolDefinition[]> {
+  return await invoke('get_merged_tool_definitions');
+}

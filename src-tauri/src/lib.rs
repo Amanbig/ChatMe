@@ -7,11 +7,15 @@ mod system_operations;
 mod tools;
 mod llm_streaming;
 mod permission_manager;
+mod mcp_client;
+mod tool_registry;
 
 use database::Database;
 use permission_manager::PermissionManager;
+use mcp_client::McpClientManager;
+use tool_registry::ToolRegistry;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use agentic::AgentSession;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -20,12 +24,16 @@ pub fn run() {
         let db = Database::new().await.expect("Failed to initialize database");
         let agent_sessions: Mutex<HashMap<String, AgentSession>> = Mutex::new(HashMap::new());
         let permission_manager = PermissionManager::new();
+        let mcp_manager = Arc::new(McpClientManager::new());
+        let tool_registry = Arc::new(ToolRegistry::new(Arc::clone(&mcp_manager)));
 
         tauri::Builder::default()
             .plugin(tauri_plugin_opener::init())
             .manage(db)
             .manage(agent_sessions)
             .manage(permission_manager)
+            .manage(mcp_manager)
+            .manage(tool_registry)
             .invoke_handler(tauri::generate_handler![
                 commands::create_chat,
                 commands::get_chats,
@@ -85,6 +93,12 @@ pub fn run() {
                 commands::get_mcp_tools_for_server,
                 commands::get_enabled_mcp_tools,
                 commands::toggle_mcp_tool,
+                // MCP connection management
+                commands::connect_mcp_server,
+                commands::disconnect_mcp_server,
+                commands::get_mcp_server_status,
+                commands::get_all_mcp_statuses,
+                commands::get_merged_tool_definitions,
             ])
             .run(tauri::generate_context!())
             .expect("error while running tauri application");

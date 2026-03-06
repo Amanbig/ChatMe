@@ -20,7 +20,9 @@ import {
     FaTerminal,
     FaGlobe,
     FaTools,
-    FaCog
+    FaCog,
+    FaPlug,
+    FaUnlink
 } from "react-icons/fa";
 import {
     getMcpServers,
@@ -28,13 +30,17 @@ import {
     updateMcpServer,
     deleteMcpServer,
     getMcpToolsForServer,
-    toggleMcpTool
+    toggleMcpTool,
+    connectMcpServer,
+    disconnectMcpServer,
+    getAllMcpStatuses
 } from "@/lib/api";
 import type { McpServer, McpTool, McpTransportType, CreateMcpServerRequest, UpdateMcpServerRequest } from "@/lib/types";
 
 interface McpServerWithToolsState extends McpServer {
     tools: McpTool[];
     loadingTools: boolean;
+    connectionStatus: string; // 'disconnected' | 'connecting' | 'connected' | 'error: ...'
 }
 
 function ServerEditForm({
@@ -466,7 +472,13 @@ export default function McpServerSettings() {
         try {
             setLoading(true);
             const fetchedServers = await getMcpServers();
-            setServers(fetchedServers.map(s => ({ ...s, tools: [], loadingTools: false })));
+            const statuses = await getAllMcpStatuses();
+            setServers(fetchedServers.map(s => ({
+                ...s,
+                tools: [],
+                loadingTools: false,
+                connectionStatus: statuses[s.id] || 'disconnected'
+            })));
         } catch (error) {
             console.error('Failed to load MCP servers:', error);
             toast.error('Failed to load MCP servers');
@@ -567,6 +579,43 @@ export default function McpServerSettings() {
         }
     };
 
+    const handleConnect = async (serverId: string) => {
+        // Update status to connecting
+        setServers(prev => prev.map(s =>
+            s.id === serverId ? { ...s, connectionStatus: 'connecting' } : s
+        ));
+
+        try {
+            const result = await connectMcpServer(serverId);
+            toast.success(`Connected! ${result.tools_count} tools available`);
+
+            // Reload to get updated tools
+            await loadServers();
+
+            // Also load tools for this server
+            await loadToolsForServer(serverId);
+        } catch (error) {
+            console.error('Failed to connect MCP server:', error);
+            toast.error(`Failed to connect: ${error}`);
+            setServers(prev => prev.map(s =>
+                s.id === serverId ? { ...s, connectionStatus: `error: ${error}` } : s
+            ));
+        }
+    };
+
+    const handleDisconnect = async (serverId: string) => {
+        try {
+            await disconnectMcpServer(serverId);
+            toast.success('Disconnected from MCP server');
+            setServers(prev => prev.map(s =>
+                s.id === serverId ? { ...s, connectionStatus: 'disconnected', tools: [] } : s
+            ));
+        } catch (error) {
+            console.error('Failed to disconnect MCP server:', error);
+            toast.error('Failed to disconnect');
+        }
+    };
+
     return (
         <div className="space-y-6">
             <Card className="border-border/60">
@@ -616,6 +665,10 @@ export default function McpServerSettings() {
                                     );
                                 }
 
+                                const isConnected = server.connectionStatus === 'connected';
+                                const isConnecting = server.connectionStatus === 'connecting';
+                                const hasError = server.connectionStatus.startsWith('error:');
+
                                 return (
                                     <Collapsible
                                         key={server.id}
@@ -626,15 +679,27 @@ export default function McpServerSettings() {
                                             <div className="flex items-center justify-between p-4">
                                                 <CollapsibleTrigger asChild>
                                                     <button className="flex items-center gap-4 flex-1 text-left">
-                                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white ${server.enabled
-                                                            ? 'bg-gradient-to-br from-purple-500 to-violet-600'
-                                                            : 'bg-gradient-to-br from-gray-400 to-gray-500'
+                                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white ${
+                                                            isConnected
+                                                                ? 'bg-gradient-to-br from-green-500 to-emerald-600'
+                                                                : server.enabled
+                                                                    ? 'bg-gradient-to-br from-purple-500 to-violet-600'
+                                                                    : 'bg-gradient-to-br from-gray-400 to-gray-500'
                                                             }`}>
                                                             {server.transport_type === 'stdio' ? <FaTerminal size={18} /> : <FaGlobe size={18} />}
                                                         </div>
                                                         <div className="flex-1">
                                                             <h3 className="font-semibold flex items-center gap-2">
                                                                 {server.name}
+                                                                {isConnected && (
+                                                                    <Badge className="text-[10px] bg-green-500 hover:bg-green-500">Connected</Badge>
+                                                                )}
+                                                                {isConnecting && (
+                                                                    <Badge variant="secondary" className="text-[10px]">Connecting...</Badge>
+                                                                )}
+                                                                {hasError && (
+                                                                    <Badge variant="destructive" className="text-[10px]">Error</Badge>
+                                                                )}
                                                                 {!server.enabled && (
                                                                     <Badge variant="secondary" className="text-[10px]">Disabled</Badge>
                                                                 )}
@@ -651,6 +716,40 @@ export default function McpServerSettings() {
                                                     </button>
                                                 </CollapsibleTrigger>
                                                 <div className="flex items-center gap-2 ml-4">
+                                                    {server.enabled && (
+                                                        isConnected ? (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleDisconnect(server.id);
+                                                                }}
+                                                                className="h-8 gap-1 text-orange-600 border-orange-300 hover:bg-orange-50"
+                                                            >
+                                                                <FaUnlink size={12} />
+                                                                Disconnect
+                                                            </Button>
+                                                        ) : (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleConnect(server.id);
+                                                                }}
+                                                                disabled={isConnecting}
+                                                                className="h-8 gap-1 text-green-600 border-green-300 hover:bg-green-50"
+                                                            >
+                                                                {isConnecting ? (
+                                                                    <FaSpinner size={12} className="animate-spin" />
+                                                                ) : (
+                                                                    <FaPlug size={12} />
+                                                                )}
+                                                                Connect
+                                                            </Button>
+                                                        )
+                                                    )}
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"

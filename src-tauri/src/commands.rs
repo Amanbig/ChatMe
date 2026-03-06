@@ -13,10 +13,12 @@ use crate::system_operations::{
 };
 use crate::llm_streaming;
 use crate::permission_manager::PermissionManager;
+use crate::mcp_client::McpClientManager;
+use crate::tool_registry::ToolRegistry;
 use tauri::{State, Emitter};
 use serde_json::json;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 #[tauri::command]
 pub async fn create_chat(db: State<'_, Database>, request: CreateChatRequest) -> Result<Chat, String> {
@@ -204,6 +206,112 @@ pub async fn toggle_mcp_tool(db: State<'_, Database>, tool_id: String, enabled: 
     db.toggle_mcp_tool(&tool_id, enabled)
         .await
         .map_err(|e| e.to_string())
+}
+
+// MCP Connection Commands
+#[tauri::command]
+pub async fn connect_mcp_server(
+    db: State<'_, Database>,
+    mcp_manager: State<'_, Arc<McpClientManager>>,
+    tool_registry: State<'_, Arc<ToolRegistry>>,
+    server_id: String,
+) -> Result<serde_json::Value, String> {
+    // Get server config from database
+    let server = db.get_mcp_server(&server_id)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Server not found: {}", server_id))?;
+
+    // Add to manager and connect
+    let client = mcp_manager.add_server(server).await;
+    client.connect().await.map_err(|e| e.to_string())?;
+
+    // Get tools and sync to database
+    let tools = client.get_tools().await;
+    let tool_data: Vec<(String, Option<String>, serde_json::Value)> = tools
+        .iter()
+        .map(|t| (t.name.clone(), t.description.clone(), t.input_schema.clone()))
+        .collect();
+
+    db.sync_mcp_tools(&server_id, tool_data)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Refresh tool registry cache
+    tool_registry.refresh_mcp_tools()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(json!({
+        "status": "connected",
+        "tools_count": tools.len()
+    }))
+}
+
+#[tauri::command]
+pub async fn disconnect_mcp_server(
+    mcp_manager: State<'_, Arc<McpClientManager>>,
+    tool_registry: State<'_, Arc<ToolRegistry>>,
+    server_id: String,
+) -> Result<(), String> {
+    mcp_manager.disconnect_server(&server_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Refresh tool registry cache
+    tool_registry.refresh_mcp_tools()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_mcp_server_status(
+    mcp_manager: State<'_, Arc<McpClientManager>>,
+    server_id: String,
+) -> Result<String, String> {
+    let status = mcp_manager.get_server_status(&server_id)
+        .await
+        .unwrap_or(crate::mcp_client::ConnectionStatus::Disconnected);
+
+    let status_str = match status {
+        crate::mcp_client::ConnectionStatus::Disconnected => "disconnected",
+        crate::mcp_client::ConnectionStatus::Connecting => "connecting",
+        crate::mcp_client::ConnectionStatus::Connected => "connected",
+        crate::mcp_client::ConnectionStatus::Error(ref e) => return Ok(format!("error: {}", e)),
+    };
+
+    Ok(status_str.to_string())
+}
+
+#[tauri::command]
+pub async fn get_all_mcp_statuses(
+    mcp_manager: State<'_, Arc<McpClientManager>>,
+) -> Result<HashMap<String, String>, String> {
+    let statuses = mcp_manager.get_all_statuses().await;
+
+    let result: HashMap<String, String> = statuses
+        .into_iter()
+        .map(|(id, status)| {
+            let status_str = match status {
+                crate::mcp_client::ConnectionStatus::Disconnected => "disconnected".to_string(),
+                crate::mcp_client::ConnectionStatus::Connecting => "connecting".to_string(),
+                crate::mcp_client::ConnectionStatus::Connected => "connected".to_string(),
+                crate::mcp_client::ConnectionStatus::Error(e) => format!("error: {}", e),
+            };
+            (id, status_str)
+        })
+        .collect();
+
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn get_merged_tool_definitions(
+    tool_registry: State<'_, Arc<ToolRegistry>>,
+) -> Result<Vec<ToolDefinition>, String> {
+    Ok(tool_registry.get_all_tool_definitions().await)
 }
 
 // File Operations Commands
