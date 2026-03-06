@@ -65,41 +65,122 @@ pub struct OperationPermission {
 }
 
 // App launching functions
-pub fn launch_application(app_path: &str, args: Option<Vec<String>>) -> Result<u32> {
-    let path = Path::new(app_path);
-    
-    if !path.exists() {
-        return Err(anyhow!("Application path does not exist: {}", app_path));
-    }
+pub fn launch_application(app_name_or_path: &str, args: Option<Vec<String>>) -> Result<u32> {
+    let input = app_name_or_path.trim();
+
+    // Check if it's a URL (http://, https://, or custom protocol like spotify:)
+    let is_url = input.starts_with("http://")
+        || input.starts_with("https://")
+        || (input.contains(":") && !input.contains(":\\") && !input.contains(":/"));
+
+    // Check if it looks like a full path
+    let is_full_path = Path::new(input).is_absolute() || input.contains("\\") || input.starts_with("/");
 
     let mut command = if cfg!(target_os = "windows") {
-        let mut cmd = Command::new("cmd");
-        cmd.args(&["/C", "start", "", app_path]);
-        if let Some(arguments) = args {
-            for arg in arguments {
-                cmd.arg(arg);
+        if is_url {
+            // Open URL with default browser
+            let mut cmd = Command::new("cmd");
+            cmd.args(&["/C", "start", "", input]);
+            cmd
+        } else if is_full_path {
+            // It's a full path - check if exists
+            let path = Path::new(input);
+            if !path.exists() {
+                return Err(anyhow!("Application path does not exist: {}", input));
             }
+            let mut cmd = Command::new("cmd");
+            cmd.args(&["/C", "start", "", input]);
+            if let Some(arguments) = &args {
+                for arg in arguments {
+                    cmd.arg(arg);
+                }
+            }
+            cmd
+        } else {
+            // It's an app name - try to launch it
+            // Windows can resolve common app names through PATH, Start Menu, etc.
+            let resolved_app = resolve_windows_app_name(input);
+
+            let mut cmd = Command::new("cmd");
+            cmd.args(&["/C", "start", "", &resolved_app]);
+            if let Some(arguments) = &args {
+                for arg in arguments {
+                    cmd.arg(arg);
+                }
+            }
+            cmd
         }
-        cmd
     } else if cfg!(target_os = "macos") {
-        let mut cmd = Command::new("open");
-        cmd.arg(app_path);
-        if let Some(arguments) = args {
-            cmd.arg("--args");
-            for arg in arguments {
-                cmd.arg(arg);
+        if is_url {
+            // Open URL with default browser
+            let mut cmd = Command::new("open");
+            cmd.arg(input);
+            cmd
+        } else if is_full_path {
+            let path = Path::new(input);
+            if !path.exists() {
+                return Err(anyhow!("Application path does not exist: {}", input));
             }
+            let mut cmd = Command::new("open");
+            cmd.arg(input);
+            if let Some(arguments) = &args {
+                cmd.arg("--args");
+                for arg in arguments {
+                    cmd.arg(arg);
+                }
+            }
+            cmd
+        } else {
+            // Try to find the app by name
+            let resolved_app = resolve_macos_app_name(input);
+            let mut cmd = Command::new("open");
+
+            // Check if it's an app bundle path or just an app name
+            if resolved_app.ends_with(".app") && Path::new(&resolved_app).exists() {
+                cmd.arg(&resolved_app);
+            } else {
+                // Use -a flag to open by application name
+                cmd.args(&["-a", &resolved_app]);
+            }
+
+            if let Some(arguments) = &args {
+                cmd.arg("--args");
+                for arg in arguments {
+                    cmd.arg(arg);
+                }
+            }
+            cmd
         }
-        cmd
     } else {
         // Linux
-        let mut cmd = Command::new(app_path);
-        if let Some(arguments) = args {
-            for arg in arguments {
-                cmd.arg(arg);
+        if is_url {
+            // Open URL with xdg-open
+            let mut cmd = Command::new("xdg-open");
+            cmd.arg(input);
+            cmd
+        } else if is_full_path {
+            let path = Path::new(input);
+            if !path.exists() {
+                return Err(anyhow!("Application path does not exist: {}", input));
             }
+            let mut cmd = Command::new(input);
+            if let Some(arguments) = &args {
+                for arg in arguments {
+                    cmd.arg(arg);
+                }
+            }
+            cmd
+        } else {
+            // Try to find the app in PATH or common locations
+            let resolved_app = resolve_linux_app_name(input);
+            let mut cmd = Command::new(&resolved_app);
+            if let Some(arguments) = &args {
+                for arg in arguments {
+                    cmd.arg(arg);
+                }
+            }
+            cmd
         }
-        cmd
     };
 
     let child = command
@@ -109,6 +190,181 @@ pub fn launch_application(app_path: &str, args: Option<Vec<String>>) -> Result<u
         .spawn()?;
 
     Ok(child.id())
+}
+
+/// Resolve common Windows application names to executable names or paths
+fn resolve_windows_app_name(name: &str) -> String {
+    let name_lower = name.to_lowercase();
+
+    // Map common app names to their executable names
+    match name_lower.as_str() {
+        // Browsers
+        "chrome" | "google chrome" => "chrome".to_string(),
+        "firefox" | "mozilla firefox" => "firefox".to_string(),
+        "edge" | "microsoft edge" => "msedge".to_string(),
+        "brave" => "brave".to_string(),
+        "opera" => "opera".to_string(),
+
+        // Microsoft Office
+        "word" | "microsoft word" => "winword".to_string(),
+        "excel" | "microsoft excel" => "excel".to_string(),
+        "powerpoint" | "microsoft powerpoint" => "powerpnt".to_string(),
+        "outlook" | "microsoft outlook" => "outlook".to_string(),
+        "onenote" => "onenote".to_string(),
+
+        // Development
+        "vscode" | "visual studio code" | "code" => "code".to_string(),
+        "visual studio" => "devenv".to_string(),
+        "notepad++" | "notepadplusplus" => "notepad++".to_string(),
+        "sublime" | "sublime text" => "subl".to_string(),
+
+        // System
+        "notepad" => "notepad".to_string(),
+        "calculator" | "calc" => "calc".to_string(),
+        "paint" => "mspaint".to_string(),
+        "explorer" | "file explorer" => "explorer".to_string(),
+        "cmd" | "command prompt" => "cmd".to_string(),
+        "powershell" => "powershell".to_string(),
+        "terminal" | "windows terminal" => "wt".to_string(),
+        "task manager" | "taskmgr" => "taskmgr".to_string(),
+        "control panel" => "control".to_string(),
+        "settings" => "ms-settings:".to_string(),
+
+        // Media
+        "spotify" => "spotify".to_string(),
+        "vlc" => "vlc".to_string(),
+        "itunes" => "itunes".to_string(),
+
+        // Communication
+        "discord" => "discord".to_string(),
+        "slack" => "slack".to_string(),
+        "teams" | "microsoft teams" => "teams".to_string(),
+        "zoom" => "zoom".to_string(),
+        "skype" => "skype".to_string(),
+
+        // Other
+        "steam" => "steam".to_string(),
+        "epic" | "epic games" => "EpicGamesLauncher".to_string(),
+
+        // If not found, return as-is (let Windows try to resolve it)
+        _ => name.to_string(),
+    }
+}
+
+/// Resolve common macOS application names
+fn resolve_macos_app_name(name: &str) -> String {
+    let name_lower = name.to_lowercase();
+
+    match name_lower.as_str() {
+        // Browsers
+        "chrome" | "google chrome" => "Google Chrome".to_string(),
+        "firefox" | "mozilla firefox" => "Firefox".to_string(),
+        "safari" => "Safari".to_string(),
+        "brave" => "Brave Browser".to_string(),
+        "edge" | "microsoft edge" => "Microsoft Edge".to_string(),
+
+        // Development
+        "vscode" | "visual studio code" | "code" => "Visual Studio Code".to_string(),
+        "xcode" => "Xcode".to_string(),
+        "terminal" => "Terminal".to_string(),
+        "iterm" | "iterm2" => "iTerm".to_string(),
+        "sublime" | "sublime text" => "Sublime Text".to_string(),
+
+        // Productivity
+        "finder" => "Finder".to_string(),
+        "notes" => "Notes".to_string(),
+        "calendar" => "Calendar".to_string(),
+        "mail" => "Mail".to_string(),
+        "messages" => "Messages".to_string(),
+        "facetime" => "FaceTime".to_string(),
+        "preview" => "Preview".to_string(),
+        "textedit" | "text edit" => "TextEdit".to_string(),
+
+        // Media
+        "spotify" => "Spotify".to_string(),
+        "music" | "apple music" => "Music".to_string(),
+        "vlc" => "VLC".to_string(),
+        "photos" => "Photos".to_string(),
+
+        // Microsoft Office
+        "word" | "microsoft word" => "Microsoft Word".to_string(),
+        "excel" | "microsoft excel" => "Microsoft Excel".to_string(),
+        "powerpoint" | "microsoft powerpoint" => "Microsoft PowerPoint".to_string(),
+        "outlook" | "microsoft outlook" => "Microsoft Outlook".to_string(),
+        "teams" | "microsoft teams" => "Microsoft Teams".to_string(),
+
+        // Communication
+        "slack" => "Slack".to_string(),
+        "discord" => "Discord".to_string(),
+        "zoom" => "zoom.us".to_string(),
+        "skype" => "Skype".to_string(),
+
+        // Other
+        "activity monitor" => "Activity Monitor".to_string(),
+        "system preferences" | "settings" => "System Preferences".to_string(),
+        "app store" => "App Store".to_string(),
+
+        // If not found, capitalize first letter of each word
+        _ => name.split_whitespace()
+            .map(|word| {
+                let mut chars = word.chars();
+                match chars.next() {
+                    None => String::new(),
+                    Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" "),
+    }
+}
+
+/// Resolve common Linux application names
+fn resolve_linux_app_name(name: &str) -> String {
+    let name_lower = name.to_lowercase();
+
+    match name_lower.as_str() {
+        // Browsers
+        "chrome" | "google chrome" => "google-chrome".to_string(),
+        "chromium" => "chromium-browser".to_string(),
+        "firefox" | "mozilla firefox" => "firefox".to_string(),
+        "brave" => "brave-browser".to_string(),
+        "edge" | "microsoft edge" => "microsoft-edge".to_string(),
+
+        // Development
+        "vscode" | "visual studio code" | "code" => "code".to_string(),
+        "sublime" | "sublime text" => "subl".to_string(),
+        "atom" => "atom".to_string(),
+        "gedit" => "gedit".to_string(),
+
+        // File managers
+        "nautilus" | "files" => "nautilus".to_string(),
+        "dolphin" => "dolphin".to_string(),
+        "thunar" => "thunar".to_string(),
+
+        // Terminals
+        "terminal" => "gnome-terminal".to_string(),
+        "konsole" => "konsole".to_string(),
+        "xterm" => "xterm".to_string(),
+
+        // Media
+        "spotify" => "spotify".to_string(),
+        "vlc" => "vlc".to_string(),
+
+        // Communication
+        "slack" => "slack".to_string(),
+        "discord" => "discord".to_string(),
+        "teams" | "microsoft teams" => "teams".to_string(),
+        "zoom" => "zoom".to_string(),
+
+        // Calculator
+        "calculator" | "calc" => "gnome-calculator".to_string(),
+
+        // Settings
+        "settings" => "gnome-control-center".to_string(),
+
+        // If not found, return as-is (assume it's in PATH)
+        _ => name.to_string(),
+    }
 }
 
 // Get list of installed applications
