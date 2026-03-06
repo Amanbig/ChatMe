@@ -59,6 +59,20 @@ export default function AppLayout({ children }: AppLayoutProps) {
     loadChats();
   }, []);
 
+  // Reload chats when navigating to a chat that's not in our list (e.g., created from home page)
+  useEffect(() => {
+    const chatIdFromUrl = location.pathname.startsWith('/chat/')
+      ? location.pathname.split('/chat/')[1]
+      : null;
+
+    if (chatIdFromUrl && !loading) {
+      const chatExists = chats.some(chat => chat.id === chatIdFromUrl);
+      if (!chatExists) {
+        loadChats();
+      }
+    }
+  }, [location.pathname, chats, loading]);
+
   const loadChats = async () => {
     try {
       setLoading(true);

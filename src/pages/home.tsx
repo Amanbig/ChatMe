@@ -127,13 +127,15 @@ export default function HomePage() {
     const inputBoxRef = useRef<{ focus: () => void; insertText: (text: string) => void }>(null);
 
     useEffect(() => {
+        // Reset auto-send flag when chatId changes (new chat or returning to home)
+        hasAutoSentRef.current = false;
+
         if (chatId) {
             loadMessages();
         } else {
             setMessages([]);
             setStreamingMessage(null);
             setLoading(false);
-            hasAutoSentRef.current = false;
         }
     }, [chatId]);
 
@@ -760,7 +762,8 @@ export default function HomePage() {
             if (!content.trim() && !images?.length) return;
 
             try {
-                setIsGenerating(true);
+                // Don't set isGenerating here - it will be set by autoSendMessage after navigation
+                // This prevents the autoSendMessage effect from being blocked
 
                 // Create a new chat
                 const { createChat } = await import('@/lib/api');
@@ -774,7 +777,7 @@ export default function HomePage() {
                     images
                 });
 
-                // Navigate to the new chat
+                // Navigate to the new chat - autoSendMessage effect will handle the LLM response
                 navigate(`/chat/${newChat.id}`, {
                     state: { autoSend: true, initialMessage: userMessage.id }
                 });
@@ -783,7 +786,6 @@ export default function HomePage() {
             } catch (error) {
                 console.error('Failed to create chat:', error);
                 toast.error('Failed to create chat. Please try again.');
-                setIsGenerating(false);
             }
         };
 

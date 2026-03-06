@@ -909,3 +909,12 @@ pub async fn stream_llm_request(
     }
 }
 
+#[tauri::command]
+pub fn get_system_info() -> Result<serde_json::Value, String> {
+    Ok(json!({
+        "os": std::env::consts::OS,
+        "arch": std::env::consts::ARCH,
+        "family": std::env::consts::FAMILY,
+    }))
+}
+

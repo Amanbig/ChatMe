@@ -70,6 +70,8 @@ pub fn run() {
                 // LLM operations
                 commands::fetch_provider_models,
                 commands::stream_llm_request,
+                // System info
+                commands::get_system_info,
             ])
             .run(tauri::generate_context!())
             .expect("error while running tauri application");

@@ -139,3 +139,14 @@ export async function getAgentSession(sessionId: string): Promise<AgentSession> 
 export async function createOrGetAgentSession(sessionId: string): Promise<AgentSession> {
   return await invoke('create_or_get_agent_session', { sessionId });
 }
+
+// System info
+export interface SystemInfo {
+  os: string;
+  arch: string;
+  family: string;
+}
+
+export async function getSystemInfo(): Promise<SystemInfo> {
+  return await invoke('get_system_info');
+}

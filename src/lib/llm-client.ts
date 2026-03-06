@@ -1,7 +1,19 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { ApiConfig, Message, ToolDefinition, ToolExecution } from './types';
-import { getAgentToolDefinitions, executeAgentAction, createOrGetAgentSession } from './api';
+import { getAgentToolDefinitions, executeAgentAction, createOrGetAgentSession, getSystemInfo, type SystemInfo } from './api';
+
+// Cache system info since it doesn't change
+let cachedSystemInfo: SystemInfo | null = null;
+
+// Delay helper to avoid rate limiting
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Rate limiting configuration
+const RATE_LIMIT_CONFIG = {
+  iterationDelayMs: 500,  // Delay between LLM API calls in tool-calling loop
+  toolExecutionDelayMs: 100,  // Small delay between individual tool executions
+};
 
 // Simple UUID generator
 function generateUuid(): string {
@@ -34,7 +46,28 @@ interface StreamCallbacks {
 }
 
 export class LLMClient {
+  private systemInfo: SystemInfo | null = null;
+
   constructor(private config: ApiConfig) {}
+
+  /**
+   * Initialize system info (call once before using tools)
+   */
+  private async ensureSystemInfo(): Promise<SystemInfo> {
+    if (cachedSystemInfo) {
+      this.systemInfo = cachedSystemInfo;
+      return cachedSystemInfo;
+    }
+    try {
+      cachedSystemInfo = await getSystemInfo();
+      this.systemInfo = cachedSystemInfo;
+      return cachedSystemInfo;
+    } catch (error) {
+      console.error('Failed to get system info:', error);
+      // Fallback to unknown
+      return { os: 'unknown', arch: 'unknown', family: 'unknown' };
+    }
+  }
 
   /**
    * Send a message with tool calling support (streaming)
@@ -47,6 +80,11 @@ export class LLMClient {
   ): Promise<{ content: string; executions: ToolExecution[] }> {
     const sessionId = `chat-${chatId}`;
     await createOrGetAgentSession(sessionId);
+
+    // Ensure we have system info for the system prompt
+    if (useTools) {
+      await this.ensureSystemInfo();
+    }
 
     const llmMessages = this.convertMessagesToLLMFormat(messages, useTools);
     const tools = useTools ? await getAgentToolDefinitions() : [];
@@ -103,6 +141,9 @@ export class LLMClient {
               : JSON.stringify({ error: execution.error_message }),
           });
         }
+
+        // Add delay before next API call to avoid rate limiting
+        await delay(RATE_LIMIT_CONFIG.iterationDelayMs);
 
         // Continue loop
         continue;
@@ -244,6 +285,11 @@ export class LLMClient {
           timestamp: startTime,
         });
       }
+
+      // Small delay between tool executions to avoid overwhelming the system
+      if (toolCalls.length > 1) {
+        await delay(RATE_LIMIT_CONFIG.toolExecutionDelayMs);
+      }
     }
 
     return executions;
@@ -310,6 +356,38 @@ export class LLMClient {
 
     // Add system message if tools are enabled
     if (useTools) {
+      // Build OS-specific guidance
+      const osInfo = this.systemInfo;
+      const osName = osInfo?.os || 'unknown';
+      const osArch = osInfo?.arch || 'unknown';
+
+      let osGuidance = '';
+      if (osName === 'windows') {
+        osGuidance = `
+IMPORTANT: The user is running Windows (${osArch}). Use Windows-specific commands:
+- Use 'dir' instead of 'ls' for listing directories
+- Use 'type' instead of 'cat' for reading files
+- Use 'copy' instead of 'cp', 'move' instead of 'mv', 'del' instead of 'rm'
+- Use backslashes (\\) for file paths, or forward slashes (/) which Windows also accepts
+- Use 'tasklist' instead of 'ps', 'taskkill' instead of 'kill'
+- PowerShell commands are also available (Get-ChildItem, Get-Content, etc.)`;
+      } else if (osName === 'macos' || osName === 'darwin') {
+        osGuidance = `
+IMPORTANT: The user is running macOS (${osArch}). Use Unix/macOS commands:
+- Use 'ls' for listing directories, 'cat' for reading files
+- Use 'cp', 'mv', 'rm' for file operations
+- Use forward slashes (/) for file paths
+- Use 'ps' for process listing, 'kill' to terminate processes
+- macOS-specific tools like 'open', 'pbcopy', 'pbpaste' are available`;
+      } else if (osName === 'linux') {
+        osGuidance = `
+IMPORTANT: The user is running Linux (${osArch}). Use Unix/Linux commands:
+- Use 'ls' for listing directories, 'cat' for reading files
+- Use 'cp', 'mv', 'rm' for file operations
+- Use forward slashes (/) for file paths
+- Use 'ps' for process listing, 'kill' to terminate processes`;
+      }
+
       llmMessages.unshift({
         role: 'system',
         content: `You are an AI assistant with access to powerful tools for interacting with the user's computer. You have the following capabilities:
@@ -318,6 +396,7 @@ export class LLMClient {
 - Terminal commands: Execute shell commands
 - Process management: List and control running processes
 - Application control: Launch applications
+${osGuidance}
 
 When the user asks you to perform a task that requires these capabilities, USE the tools directly - don't explain how to use them or show JSON examples. Just call the appropriate tool and provide the results in a natural, conversational way.
 
