@@ -99,6 +99,7 @@ pub fn run() {
                 commands::get_mcp_server_status,
                 commands::get_all_mcp_statuses,
                 commands::get_merged_tool_definitions,
+                commands::execute_tool_routed,
             ])
             .run(tauri::generate_context!())
             .expect("error while running tauri application");

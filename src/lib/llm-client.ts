@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { ApiConfig, Message, ToolDefinition, ToolExecution } from './types';
-import { getAgentToolDefinitions, executeAgentAction, createOrGetAgentSession, getSystemInfo, type SystemInfo } from './api';
+import { getMergedToolDefinitions, executeToolRouted, createOrGetAgentSession, getSystemInfo, type SystemInfo } from './api';
 
 // Cache system info since it doesn't change
 let cachedSystemInfo: SystemInfo | null = null;
@@ -87,7 +87,7 @@ export class LLMClient {
     }
 
     const llmMessages = this.convertMessagesToLLMFormat(messages, useTools);
-    const tools = useTools ? await getAgentToolDefinitions() : [];
+    const tools = useTools ? await getMergedToolDefinitions() : [];
     const allExecutions: ToolExecution[] = [];
 
     let iteration = 0;
@@ -257,7 +257,7 @@ export class LLMClient {
           continue;
         }
 
-        const result = await executeAgentAction(
+        const result = await executeToolRouted(
           sessionId,
           toolCall.function.name,
           args

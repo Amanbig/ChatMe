@@ -314,6 +314,108 @@ pub async fn get_merged_tool_definitions(
     Ok(tool_registry.get_all_tool_definitions().await)
 }
 
+/// Execute a tool, routing to builtin or MCP based on tool source
+#[tauri::command]
+pub async fn execute_tool_routed(
+    agent_sessions: State<'_, Mutex<HashMap<String, AgentSession>>>,
+    mcp_manager: State<'_, Arc<McpClientManager>>,
+    tool_registry: State<'_, Arc<ToolRegistry>>,
+    session_id: String,
+    tool_name: String,
+    parameters: serde_json::Value,
+) -> Result<AgentAction, String> {
+    // Find tool source
+    let source = tool_registry.find_tool_source(&tool_name).await
+        .ok_or_else(|| format!("Unknown tool: {}", tool_name))?;
+
+    match source {
+        crate::tool_registry::ToolSource::Builtin => {
+            // Use existing builtin execution path
+            let params: HashMap<String, serde_json::Value> = match parameters {
+                serde_json::Value::Object(map) => map.into_iter().collect(),
+                _ => HashMap::new(),
+            };
+
+            // Clone the session to avoid holding the lock across await
+            let session = {
+                let sessions = agent_sessions.lock().map_err(|e| e.to_string())?;
+                sessions.get(&session_id)
+                    .ok_or_else(|| format!("Session {} not found", session_id))?
+                    .clone()
+            };
+
+            session.execute_action(&tool_name, params)
+                .await
+                .map_err(|e| e.to_string())
+        }
+        crate::tool_registry::ToolSource::McpServer(server_id) => {
+            // Get original tool name from prefixed name
+            let original_name = tool_registry.get_mcp_tool_info(&tool_name).await
+                .map(|(_, name)| name)
+                .ok_or_else(|| format!("Could not find MCP tool info for: {}", tool_name))?;
+
+            // Execute via MCP
+            let result = mcp_manager.call_tool(&server_id, &original_name, Some(parameters.clone()))
+                .await
+                .map_err(|e| e.to_string())?;
+
+            // Convert MCP result to AgentAction
+            let (success, result_value, error_message) = if result.is_error {
+                let error_text: String = result.content.iter()
+                    .filter_map(|c| match c {
+                        crate::mcp_client::ToolContent::Text { text } => Some(text.clone()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                (false, None, Some(error_text))
+            } else {
+                // Convert content to JSON
+                let contents: Vec<serde_json::Value> = result.content.iter()
+                    .map(|c| match c {
+                        crate::mcp_client::ToolContent::Text { text } => {
+                            serde_json::json!({ "type": "text", "text": text })
+                        }
+                        crate::mcp_client::ToolContent::Image { data, mime_type } => {
+                            serde_json::json!({ "type": "image", "data": data, "mimeType": mime_type })
+                        }
+                        crate::mcp_client::ToolContent::Resource { resource } => {
+                            serde_json::json!({
+                                "type": "resource",
+                                "uri": resource.uri,
+                                "mimeType": resource.mime_type,
+                                "text": resource.text
+                            })
+                        }
+                    })
+                    .collect();
+
+                let result_value = if contents.len() == 1 {
+                    contents.into_iter().next()
+                } else {
+                    Some(serde_json::Value::Array(contents))
+                };
+
+                (true, result_value, None)
+            };
+
+            let params_map: HashMap<String, serde_json::Value> = match parameters {
+                serde_json::Value::Object(map) => map.into_iter().collect(),
+                _ => HashMap::new(),
+            };
+
+            Ok(AgentAction {
+                action_type: tool_name,
+                description: format!("MCP tool execution via {}", server_id),
+                parameters: params_map,
+                result: result_value,
+                success,
+                error_message,
+            })
+        }
+    }
+}
+
 // File Operations Commands
 #[tauri::command]
 pub async fn open_file_with_default_app(file_path: String) -> Result<String, String> {

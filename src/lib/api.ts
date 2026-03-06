@@ -224,3 +224,11 @@ export async function getAllMcpStatuses(): Promise<Record<string, string>> {
 export async function getMergedToolDefinitions(): Promise<ToolDefinition[]> {
   return await invoke('get_merged_tool_definitions');
 }
+
+export async function executeToolRouted(
+  sessionId: string,
+  toolName: string,
+  parameters: Record<string, any>
+): Promise<AgentAction> {
+  return await invoke('execute_tool_routed', { sessionId, toolName, parameters });
+}
