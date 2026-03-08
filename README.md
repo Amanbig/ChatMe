@@ -2,13 +2,14 @@
 
 ChatMe combines agent-driven AI, cross-platform responsiveness, and voice interaction into a single desktop/web app, empowering developers and users to interact with AI like never before. ChatMe supports multiple AI providers with a beautiful, responsive interface and advanced features including voice interaction and powerful agent mode with full system access.
 
-## 🆕 **What's New in v0.5.0**
+## 🆕 **What's New in v0.5.3**
 - **⚡ Hybrid Architecture**: Revolutionary change - Rust backend handles all HTTP requests, completely bypassing CORS
 - **🌐 13 Provider Support**: Added 5+ new providers (Kimi, OpenRouter, Together AI, Groq, Perplexity) - now supporting 13 total!
 - **📡 Native Streaming**: Provider-specific implementations for OpenAI, Anthropic, and Google with optimal performance
 - **🎨 Enhanced UX**: Improved delete button flow, welcome screen auto-send, and smoother interactions
 - **🔧 Bug Fixes**: Fixed tool parameter mismatch and various UX improvements
 - **🚀 Better Reliability**: Improved error handling, streaming compatibility, and overall stability
+- **🌐 MCP support**: Added MCP support for seamless integration with other tools
 
 ### **Previous Release - v0.4.0**
 - **🚀 Enhanced Agent Mode**: Execute terminal commands, launch apps, and manage processes
