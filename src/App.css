@@ -5,37 +5,43 @@
 .drag {
   -webkit-app-region: drag;
 }
+
 .no-drag {
   -webkit-app-region: no-drag;
 }
 
 /* Ensure full height layout */
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
   padding: 0;
 }
 
+/* Smooth theme transitions */
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
+}
+
 /* Mobile touch improvements */
 @media (hover: none) and (pointer: coarse) {
-  /* Touch-friendly button sizing */
-  button, [role="button"] {
+
+  button,
+  [role="button"] {
     min-height: 44px;
     min-width: 44px;
   }
-  
-  /* Larger tap targets for mobile */
+
   .sidebar-trigger {
     min-height: 48px;
     min-width: 48px;
   }
-  
-  /* Prevent overscroll on mobile */
+
   body {
     overscroll-behavior: none;
   }
-  
-  /* Improve touch scrolling */
+
   * {
     -webkit-overflow-scrolling: touch;
   }
@@ -48,18 +54,49 @@ html, body, #root {
   }
 }
 
+/* Modern scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
 /* Custom markdown styles for assistant messages */
 .markdown-content {
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
 .markdown-content pre {
-  background-color: hsl(var(--muted)) !important;
-  border: 1px solid hsl(var(--border));
-  border-radius: 0.5rem;
-  padding: 1rem;
+  background: linear-gradient(135deg, hsl(var(--muted) / 0.8), hsl(var(--muted) / 0.6)) !important;
+  border: 1px solid hsl(var(--border) / 0.6);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
   overflow-x: auto;
-  margin: 0.5rem 0;
+  margin: 1rem 0;
+  position: relative;
+}
+
+.markdown-content pre::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, hsl(var(--primary) / 0.5), hsl(var(--accent) / 0.5));
+  border-radius: 0.75rem 0.75rem 0 0;
 }
 
 .markdown-content code {
@@ -74,162 +111,239 @@ html, body, #root {
 }
 
 .markdown-content p {
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.875rem;
 }
 
 .markdown-content p:last-child {
   margin-bottom: 0;
 }
 
-.markdown-content ul, .markdown-content ol {
-  margin-bottom: 0.75rem;
+.markdown-content ul,
+.markdown-content ol {
+  margin-bottom: 0.875rem;
   padding-left: 1.5rem;
 }
 
 .markdown-content li {
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.375rem;
 }
 
-.markdown-content h1, .markdown-content h2, .markdown-content h3, 
-.markdown-content h4, .markdown-content h5, .markdown-content h6 {
+.markdown-content li::marker {
+  color: hsl(var(--primary));
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
   font-weight: 600;
-  margin-bottom: 0.5rem;
-  margin-top: 1rem;
+  margin-bottom: 0.75rem;
+  margin-top: 1.25rem;
+  color: hsl(var(--foreground));
 }
 
-.markdown-content h1:first-child, .markdown-content h2:first-child, 
+.markdown-content h1:first-child,
+.markdown-content h2:first-child,
 .markdown-content h3:first-child {
   margin-top: 0;
 }
 
+.markdown-content h1 {
+  font-size: 1.5rem;
+}
+
+.markdown-content h2 {
+  font-size: 1.25rem;
+}
+
+.markdown-content h3 {
+  font-size: 1.125rem;
+}
+
 .markdown-content blockquote {
-  border-left: 4px solid hsl(var(--border));
-  padding-left: 1rem;
+  border-left: 3px solid hsl(var(--primary) / 0.6);
+  padding: 0.75rem 1rem;
   margin: 1rem 0;
   font-style: italic;
-  color: hsl(var(--muted-foreground));
+  background: hsl(var(--muted) / 0.4);
+  border-radius: 0 0.5rem 0.5rem 0;
 }
 
 .markdown-content table {
   width: 100%;
   border-collapse: collapse;
   margin: 1rem 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 1px solid hsl(var(--border) / 0.5);
 }
 
-.markdown-content th, .markdown-content td {
-  border: 1px solid hsl(var(--border));
-  padding: 0.5rem;
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid hsl(var(--border) / 0.3);
+  padding: 0.75rem;
   text-align: left;
 }
 
 .markdown-content th {
-  background-color: hsl(var(--muted));
+  background: hsl(var(--muted) / 0.6);
   font-weight: 600;
 }
 
-/* Comprehensive scrollbar hiding - Desktop focused */
-.scrollbar-hide {
-  scrollbar-width: none !important; /* Firefox */
-  -ms-overflow-style: none !important; /* IE and Edge */
+.markdown-content tr:nth-child(even) {
+  background: hsl(var(--muted) / 0.2);
 }
 
-/* WebKit browsers (Chrome, Safari, Edge Chromium) - Desktop */
+.markdown-content a {
+  color: hsl(var(--primary));
+  text-decoration: none;
+  border-bottom: 1px solid hsl(var(--primary) / 0.3);
+  transition: border-color 0.2s ease;
+}
+
+.markdown-content a:hover {
+  border-bottom-color: hsl(var(--primary));
+}
+
+/* Inline code styling */
+.markdown-content :not(pre)>code {
+  background: hsl(var(--muted) / 0.6);
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+  color: hsl(var(--primary));
+}
+
+/* Scrollbar hiding utilities */
+.scrollbar-hide {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
 .scrollbar-hide::-webkit-scrollbar {
   display: none !important;
   width: 0px !important;
   height: 0px !important;
-  background: transparent !important;
 }
 
-.scrollbar-hide::-webkit-scrollbar-track {
-  display: none !important;
-  width: 0px !important;
-  background: transparent !important;
+/* Glassmorphism effects */
+.glass {
+  background: hsl(var(--background) / 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
-.scrollbar-hide::-webkit-scrollbar-thumb {
-  display: none !important;
-  width: 0px !important;
-  background: transparent !important;
+.glass-strong {
+  background: hsl(var(--background) / 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
-.scrollbar-hide::-webkit-scrollbar-corner {
-  display: none !important;
-  background: transparent !important;
+/* Message bubble animations */
+@keyframes message-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-/* Force hide on all children */
-.scrollbar-hide * {
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
+.message-animate {
+  animation: message-slide-in 0.3s ease-out;
 }
 
-.scrollbar-hide *::-webkit-scrollbar {
-  display: none !important;
-  width: 0px !important;
-  height: 0px !important;
+/* Typing indicator animation */
+@keyframes typing-dot {
+
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+  }
+
+  30% {
+    transform: translateY(-4px);
+  }
 }
 
-/* Desktop-specific hiding using overflow mask */
-.scrollbar-hide-desktop {
-  overflow: hidden;
-  position: relative;
+.typing-dot {
+  animation: typing-dot 1.4s ease-in-out infinite;
 }
 
-.scrollbar-hide-desktop .scroll-content {
-  overflow-y: scroll;
-  overflow-x: hidden;
-  height: 100%;
-  padding-right: 20px !important; /* Hide scrollbar by pushing it out */
-  margin-right: -20px !important;
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
 }
 
-.scrollbar-hide-desktop .scroll-content::-webkit-scrollbar {
-  display: none !important;
-  width: 0px !important;
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
 }
 
-/* Ultra-aggressive method for stubborn desktop browsers */
-.no-scrollbar {
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
+/* Pulse glow animation for agent mode */
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 5px hsl(var(--primary) / 0.5);
+  }
+
+  50% {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.8), 0 0 40px hsl(var(--primary) / 0.4);
+  }
 }
 
-.no-scrollbar::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
 }
 
-.no-scrollbar::-webkit-scrollbar-track,
-.no-scrollbar::-webkit-scrollbar-thumb,
-.no-scrollbar::-webkit-scrollbar-corner {
-  display: none !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
+/* Shimmer loading effect */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
 }
 
-/* Specific targeting for sidebar scrollbars */
-[data-sidebar] .scrollbar-hide,
-[data-sidebar] .no-scrollbar,
-.sidebar .scrollbar-hide,
-.sidebar .no-scrollbar {
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
+.shimmer {
+  background: linear-gradient(90deg,
+      hsl(var(--muted) / 0.3) 25%,
+      hsl(var(--muted) / 0.5) 50%,
+      hsl(var(--muted) / 0.3) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
 }
 
-[data-sidebar] .scrollbar-hide::-webkit-scrollbar,
-[data-sidebar] .no-scrollbar::-webkit-scrollbar,
-.sidebar .scrollbar-hide::-webkit-scrollbar,
-.sidebar .no-scrollbar::-webkit-scrollbar {
-  display: none !important;
-  width: 0px !important;
-  height: 0px !important;
-  background: transparent !important;
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Hover lift effect */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -5px hsl(var(--foreground) / 0.1);
+}
+
+/* Focus ring animation */
+.focus-ring-animate:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--primary) / 0.5);
+  transition: box-shadow 0.2s ease;
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -272,105 +386,84 @@ html, body, #root {
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* Modern Light Theme - Warm neutrals with violet accent */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
+  --radius: 0.75rem;
+  --background: oklch(0.985 0.002 280);
+  --foreground: oklch(0.2 0.02 280);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
+  --card-foreground: oklch(0.2 0.02 280);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.21 0.006 285.885);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.705 0.015 286.067);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.21 0.006 285.885);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.705 0.015 286.067);
+  --popover-foreground: oklch(0.2 0.02 280);
+  --primary: oklch(0.55 0.18 280);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.94 0.01 280);
+  --secondary-foreground: oklch(0.3 0.03 280);
+  --muted: oklch(0.94 0.01 280);
+  --muted-foreground: oklch(0.55 0.03 280);
+  --accent: oklch(0.6 0.15 300);
+  --accent-foreground: oklch(0.99 0 0);
+  --destructive: oklch(0.6 0.2 25);
+  --border: oklch(0.88 0.01 280);
+  --input: oklch(0.9 0.01 280);
+  --ring: oklch(0.55 0.18 280);
+  --chart-1: oklch(0.55 0.18 280);
+  --chart-2: oklch(0.6 0.15 180);
+  --chart-3: oklch(0.65 0.12 120);
+  --chart-4: oklch(0.7 0.15 45);
+  --chart-5: oklch(0.6 0.2 30);
+  --sidebar: oklch(0.98 0.002 280);
+  --sidebar-foreground: oklch(0.2 0.02 280);
+  --sidebar-primary: oklch(0.55 0.18 280);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.94 0.01 280);
+  --sidebar-accent-foreground: oklch(0.3 0.03 280);
+  --sidebar-border: oklch(0.9 0.01 280);
+  --sidebar-ring: oklch(0.55 0.18 280);
 }
 
+/* Modern Dark Theme - Deep slate with violet accent */
 .dark {
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.92 0.004 286.32);
-  --primary-foreground: oklch(0.21 0.006 285.885);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.552 0.016 285.938);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.552 0.016 285.938);
+  --background: oklch(0.15 0.015 280);
+  --foreground: oklch(0.95 0.005 280);
+  --card: oklch(0.2 0.02 280);
+  --card-foreground: oklch(0.95 0.005 280);
+  --popover: oklch(0.2 0.02 280);
+  --popover-foreground: oklch(0.95 0.005 280);
+  --primary: oklch(0.65 0.15 280);
+  --primary-foreground: oklch(0.15 0.02 280);
+  --secondary: oklch(0.25 0.02 280);
+  --secondary-foreground: oklch(0.9 0.01 280);
+  --muted: oklch(0.25 0.02 280);
+  --muted-foreground: oklch(0.65 0.02 280);
+  --accent: oklch(0.7 0.12 300);
+  --accent-foreground: oklch(0.15 0.02 280);
+  --destructive: oklch(0.65 0.18 25);
+  --border: oklch(0.25 0.02 280);
+  --input: oklch(0.25 0.02 280);
+  --ring: oklch(0.65 0.15 280);
+  --chart-1: oklch(0.65 0.15 280);
+  --chart-2: oklch(0.7 0.12 180);
+  --chart-3: oklch(0.75 0.1 120);
+  --chart-4: oklch(0.8 0.12 45);
+  --chart-5: oklch(0.7 0.18 30);
+  --sidebar: oklch(0.18 0.02 280);
+  --sidebar-foreground: oklch(0.95 0.005 280);
+  --sidebar-primary: oklch(0.65 0.15 280);
+  --sidebar-primary-foreground: oklch(0.15 0.02 280);
+  --sidebar-accent: oklch(0.25 0.02 280);
+  --sidebar-accent-foreground: oklch(0.95 0.005 280);
+  --sidebar-border: oklch(0.25 0.02 280);
+  --sidebar-ring: oklch(0.65 0.15 280);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
-  }
-}
-
-
-@layer base {
-  :root {
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
-  }
-
-  .dark {
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.439 0 0);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 }

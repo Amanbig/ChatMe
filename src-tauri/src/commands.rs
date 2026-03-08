@@ -1,19 +1,24 @@
 use crate::database::Database;
 use crate::models::*;
 use crate::file_operations::{
-    open_with_default_app, read_directory_contents, search_in_files, 
+    open_with_default_app, read_directory_contents, search_in_files,
     read_file_contents, write_file_contents, DirectoryContents, SearchResult
 };
 use crate::agentic::{AgentSession, AgentAction, AgentCapability};
+use crate::tools::get_all_tool_definitions;
 use crate::system_operations::{
     launch_application, get_installed_applications, execute_terminal_command,
     perform_file_operation, get_running_processes, kill_process, check_permission_level,
     FileSystemOperation, FileOperationType, PermissionLevel, AppInfo, CommandResult, ProcessInfo
 };
+use crate::llm_streaming;
+use crate::permission_manager::PermissionManager;
+use crate::mcp_client::McpClientManager;
+use crate::tool_registry::ToolRegistry;
 use tauri::{State, Emitter};
 use serde_json::json;
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 #[tauri::command]
 pub async fn create_chat(db: State<'_, Database>, request: CreateChatRequest) -> Result<Chat, String> {
@@ -53,7 +58,7 @@ pub async fn create_message(
     db: State<'_, Database>,
     request: CreateMessageRequest,
 ) -> Result<Message, String> {
-    db.create_message(request.chat_id, request.content, request.role, request.images)
+    db.create_message(request.chat_id, request.content, request.role, request.images, request.permission_request_id)
         .await
         .map_err(|e| e.to_string())
 }
@@ -114,201 +119,301 @@ pub async fn delete_api_config(db: State<'_, Database>, config_id: String) -> Re
         .map_err(|e| e.to_string())
 }
 
+// Tool Execution Commands
 #[tauri::command]
-pub async fn send_ai_message(
+pub async fn create_tool_execution(
     db: State<'_, Database>,
-    chat_id: String,
-    user_message: String,
-) -> Result<Message, String> {
-    // Get the chat to find its API config
-    let chat = db.get_chat(&chat_id).await.map_err(|e| e.to_string())?;
-    let chat = chat.ok_or("Chat not found")?;
-
-    // Get API config (use chat's config or default)
-    let api_config = if let Some(config_id) = &chat.api_config_id {
-        db.get_api_config(config_id).await.map_err(|e| e.to_string())?
-    } else {
-        db.get_default_api_config().await.map_err(|e| e.to_string())?
-    };
-
-    let api_config = api_config.ok_or("No API configuration found")?;
-
-    // Create user message
-    let _user_msg = db.create_message(chat_id.clone(), user_message.clone(), MessageRole::User, None)
+    request: CreateToolExecutionRequest,
+) -> Result<ToolExecutionRecord, String> {
+    db.create_tool_execution(request)
         .await
-        .map_err(|e| e.to_string())?;
-
-    // Get recent messages for context
-    let messages = db.get_messages(&chat_id).await.map_err(|e| e.to_string())?;
-    
-    // Convert to chat format (take last 10 messages for context)
-    let chat_messages: Vec<ChatMessage> = messages
-        .iter()
-        .rev()
-        .take(10)
-        .rev()
-        .map(|msg| {
-            let content = if let Some(images) = &msg.images {
-                if !images.is_empty() {
-                    // Create vision format with text and images
-                    let mut content_array = vec![];
-                    
-                    // Add text content if present
-                    if !msg.content.is_empty() {
-                        content_array.push(json!({
-                            "type": "text",
-                            "text": msg.content
-                        }));
-                    }
-                    
-                    // Add images
-                    for image in images {
-                        content_array.push(json!({
-                            "type": "image_url",
-                            "image_url": {
-                                "url": image
-                            }
-                        }));
-                    }
-                    
-                    json!(content_array)
-                } else {
-                    // No images, just text
-                    json!(msg.content)
-                }
-            } else {
-                // No images, just text
-                json!(msg.content)
-            };
-
-            ChatMessage {
-                role: match msg.role {
-                    MessageRole::User => "user".to_string(),
-                    MessageRole::Assistant => "assistant".to_string(),
-                },
-                content,
-            }
-        })
-        .collect();
-
-    // Send to LLM
-    let ai_response = db.send_chat_completion(&api_config, chat_messages)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    // Create assistant message
-    let assistant_msg = db.create_message(chat_id, ai_response, MessageRole::Assistant, None)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    Ok(assistant_msg)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn send_ai_message_streaming(
-    window: tauri::Window,
+pub async fn get_tool_executions_for_message(
     db: State<'_, Database>,
-    chat_id: String,
-    user_message: String,
-    images: Option<Vec<String>>,
-) -> Result<String, String> {
-    // Get the chat to find its API config
-    let chat = db.get_chat(&chat_id).await.map_err(|e| e.to_string())?;
-    let chat = chat.ok_or("Chat not found")?;
+    message_id: String,
+) -> Result<Vec<ToolExecutionRecord>, String> {
+    db.get_tool_executions_for_message(&message_id)
+        .await
+        .map_err(|e| e.to_string())
+}
 
-    // Get API config (use chat's config or default)
-    let api_config = if let Some(config_id) = &chat.api_config_id {
-        db.get_api_config(config_id).await.map_err(|e| e.to_string())?
-    } else {
-        db.get_default_api_config().await.map_err(|e| e.to_string())?
-    };
+#[tauri::command]
+pub async fn get_tool_executions_for_messages(
+    db: State<'_, Database>,
+    message_ids: Vec<String>,
+) -> Result<HashMap<String, Vec<ToolExecutionRecord>>, String> {
+    db.get_tool_executions_for_messages(&message_ids)
+        .await
+        .map_err(|e| e.to_string())
+}
 
-    let api_config = api_config.ok_or("No API configuration found")?;
+// MCP Server Commands
+#[tauri::command]
+pub async fn create_mcp_server(
+    db: State<'_, Database>,
+    request: CreateMcpServerRequest,
+) -> Result<McpServer, String> {
+    db.create_mcp_server(request)
+        .await
+        .map_err(|e| e.to_string())
+}
 
-    // Create user message
-    let user_msg = db.create_message(chat_id.clone(), user_message.clone(), MessageRole::User, images)
+#[tauri::command]
+pub async fn get_mcp_servers(db: State<'_, Database>) -> Result<Vec<McpServer>, String> {
+    db.get_mcp_servers().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_mcp_server(db: State<'_, Database>, server_id: String) -> Result<Option<McpServer>, String> {
+    db.get_mcp_server(&server_id).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn update_mcp_server(
+    db: State<'_, Database>,
+    server_id: String,
+    request: UpdateMcpServerRequest,
+) -> Result<McpServer, String> {
+    db.update_mcp_server(&server_id, request)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn delete_mcp_server(db: State<'_, Database>, server_id: String) -> Result<(), String> {
+    db.delete_mcp_server(&server_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_mcp_tools_for_server(db: State<'_, Database>, server_id: String) -> Result<Vec<McpTool>, String> {
+    db.get_mcp_tools_for_server(&server_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_enabled_mcp_tools(db: State<'_, Database>) -> Result<Vec<McpTool>, String> {
+    db.get_enabled_mcp_tools().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn toggle_mcp_tool(db: State<'_, Database>, tool_id: String, enabled: bool) -> Result<(), String> {
+    db.toggle_mcp_tool(&tool_id, enabled)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+// MCP Connection Commands
+#[tauri::command]
+pub async fn connect_mcp_server(
+    db: State<'_, Database>,
+    mcp_manager: State<'_, Arc<McpClientManager>>,
+    tool_registry: State<'_, Arc<ToolRegistry>>,
+    server_id: String,
+) -> Result<serde_json::Value, String> {
+    // Get server config from database
+    let server = db.get_mcp_server(&server_id)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("Server not found: {}", server_id))?;
+
+    // Add to manager and connect
+    let client = mcp_manager.add_server(server).await;
+    client.connect().await.map_err(|e| e.to_string())?;
+
+    // Get tools and sync to database
+    let tools = client.get_tools().await;
+    let tool_data: Vec<(String, Option<String>, serde_json::Value)> = tools
+        .iter()
+        .map(|t| (t.name.clone(), t.description.clone(), t.input_schema.clone()))
+        .collect();
+
+    db.sync_mcp_tools(&server_id, tool_data)
         .await
         .map_err(|e| e.to_string())?;
 
-    // Emit user message to frontend
-    window.emit("message_created", &user_msg).map_err(|e| e.to_string())?;
+    // Refresh tool registry cache
+    tool_registry.refresh_mcp_tools()
+        .await
+        .map_err(|e| e.to_string())?;
 
-    // Get recent messages for context
-    let messages = db.get_messages(&chat_id).await.map_err(|e| e.to_string())?;
-    
-    // Convert to chat format (take last 10 messages for context)
-    let chat_messages: Vec<ChatMessage> = messages
-        .iter()
-        .rev()
-        .take(10)
-        .rev()
-        .map(|msg| {
-            let content = if let Some(images) = &msg.images {
-                if !images.is_empty() {
-                    // Create vision format with text and images
-                    let mut content_array = vec![];
-                    
-                    // Add text content if present
-                    if !msg.content.is_empty() {
-                        content_array.push(json!({
-                            "type": "text",
-                            "text": msg.content
-                        }));
-                    }
-                    
-                    // Add images
-                    for image in images {
-                        content_array.push(json!({
-                            "type": "image_url",
-                            "image_url": {
-                                "url": image
-                            }
-                        }));
-                    }
-                    
-                    json!(content_array)
-                } else {
-                    // No images, just text
-                    json!(msg.content)
-                }
-            } else {
-                // No images, just text
-                json!(msg.content)
+    Ok(json!({
+        "status": "connected",
+        "tools_count": tools.len()
+    }))
+}
+
+#[tauri::command]
+pub async fn disconnect_mcp_server(
+    mcp_manager: State<'_, Arc<McpClientManager>>,
+    tool_registry: State<'_, Arc<ToolRegistry>>,
+    server_id: String,
+) -> Result<(), String> {
+    mcp_manager.disconnect_server(&server_id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Refresh tool registry cache
+    tool_registry.refresh_mcp_tools()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_mcp_server_status(
+    mcp_manager: State<'_, Arc<McpClientManager>>,
+    server_id: String,
+) -> Result<String, String> {
+    let status = mcp_manager.get_server_status(&server_id)
+        .await
+        .unwrap_or(crate::mcp_client::ConnectionStatus::Disconnected);
+
+    let status_str = match status {
+        crate::mcp_client::ConnectionStatus::Disconnected => "disconnected",
+        crate::mcp_client::ConnectionStatus::Connecting => "connecting",
+        crate::mcp_client::ConnectionStatus::Connected => "connected",
+        crate::mcp_client::ConnectionStatus::Error(ref e) => return Ok(format!("error: {}", e)),
+    };
+
+    Ok(status_str.to_string())
+}
+
+#[tauri::command]
+pub async fn get_all_mcp_statuses(
+    mcp_manager: State<'_, Arc<McpClientManager>>,
+) -> Result<HashMap<String, String>, String> {
+    let statuses = mcp_manager.get_all_statuses().await;
+
+    let result: HashMap<String, String> = statuses
+        .into_iter()
+        .map(|(id, status)| {
+            let status_str = match status {
+                crate::mcp_client::ConnectionStatus::Disconnected => "disconnected".to_string(),
+                crate::mcp_client::ConnectionStatus::Connecting => "connecting".to_string(),
+                crate::mcp_client::ConnectionStatus::Connected => "connected".to_string(),
+                crate::mcp_client::ConnectionStatus::Error(e) => format!("error: {}", e),
             };
-
-            ChatMessage {
-                role: match msg.role {
-                    MessageRole::User => "user".to_string(),
-                    MessageRole::Assistant => "assistant".to_string(),
-                },
-                content,
-            }
+            (id, status_str)
         })
         .collect();
 
-    // Create a placeholder assistant message for streaming
-    let assistant_msg_id = uuid::Uuid::new_v4().to_string();
-    
-    // Emit streaming start event
-    window.emit("streaming_start", json!({
-        "message_id": assistant_msg_id,
-        "chat_id": chat_id
-    })).map_err(|e| e.to_string())?;
+    Ok(result)
+}
 
-    // Send to LLM with streaming
-    let ai_response = db.send_chat_completion_streaming(&api_config, chat_messages, &window, &assistant_msg_id, &chat_id)
-        .await
-        .map_err(|e| e.to_string())?;
+#[tauri::command]
+pub async fn get_merged_tool_definitions(
+    tool_registry: State<'_, Arc<ToolRegistry>>,
+) -> Result<Vec<ToolDefinition>, String> {
+    Ok(tool_registry.get_all_tool_definitions().await)
+}
 
-    // Create final assistant message in database
-    let assistant_msg = db.create_message(chat_id, ai_response, MessageRole::Assistant, None)
-        .await
-        .map_err(|e| e.to_string())?;
+/// Execute a tool, routing to builtin or MCP based on tool source
+#[tauri::command]
+pub async fn execute_tool_routed(
+    agent_sessions: State<'_, Mutex<HashMap<String, AgentSession>>>,
+    mcp_manager: State<'_, Arc<McpClientManager>>,
+    tool_registry: State<'_, Arc<ToolRegistry>>,
+    session_id: String,
+    tool_name: String,
+    parameters: serde_json::Value,
+) -> Result<AgentAction, String> {
+    // Find tool source
+    let source = tool_registry.find_tool_source(&tool_name).await
+        .ok_or_else(|| format!("Unknown tool: {}", tool_name))?;
 
-    // Emit final message created event
-    window.emit("final_message_created", &assistant_msg).map_err(|e| e.to_string())?;
+    match source {
+        crate::tool_registry::ToolSource::Builtin => {
+            // Use existing builtin execution path
+            let params: HashMap<String, serde_json::Value> = match parameters {
+                serde_json::Value::Object(map) => map.into_iter().collect(),
+                _ => HashMap::new(),
+            };
 
-    Ok(assistant_msg.id)
+            // Clone the session to avoid holding the lock across await
+            let session = {
+                let sessions = agent_sessions.lock().map_err(|e| e.to_string())?;
+                sessions.get(&session_id)
+                    .ok_or_else(|| format!("Session {} not found", session_id))?
+                    .clone()
+            };
+
+            session.execute_action(&tool_name, params)
+                .await
+                .map_err(|e| e.to_string())
+        }
+        crate::tool_registry::ToolSource::McpServer(server_id) => {
+            // Get original tool name from prefixed name
+            let original_name = tool_registry.get_mcp_tool_info(&tool_name).await
+                .map(|(_, name)| name)
+                .ok_or_else(|| format!("Could not find MCP tool info for: {}", tool_name))?;
+
+            // Execute via MCP
+            let result = mcp_manager.call_tool(&server_id, &original_name, Some(parameters.clone()))
+                .await
+                .map_err(|e| e.to_string())?;
+
+            // Convert MCP result to AgentAction
+            let (success, result_value, error_message) = if result.is_error {
+                let error_text: String = result.content.iter()
+                    .filter_map(|c| match c {
+                        crate::mcp_client::ToolContent::Text { text } => Some(text.clone()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                (false, None, Some(error_text))
+            } else {
+                // Convert content to JSON
+                let contents: Vec<serde_json::Value> = result.content.iter()
+                    .map(|c| match c {
+                        crate::mcp_client::ToolContent::Text { text } => {
+                            serde_json::json!({ "type": "text", "text": text })
+                        }
+                        crate::mcp_client::ToolContent::Image { data, mime_type } => {
+                            serde_json::json!({ "type": "image", "data": data, "mimeType": mime_type })
+                        }
+                        crate::mcp_client::ToolContent::Resource { resource } => {
+                            serde_json::json!({
+                                "type": "resource",
+                                "uri": resource.uri,
+                                "mimeType": resource.mime_type,
+                                "text": resource.text
+                            })
+                        }
+                    })
+                    .collect();
+
+                let result_value = if contents.len() == 1 {
+                    contents.into_iter().next()
+                } else {
+                    Some(serde_json::Value::Array(contents))
+                };
+
+                (true, result_value, None)
+            };
+
+            let params_map: HashMap<String, serde_json::Value> = match parameters {
+                serde_json::Value::Object(map) => map.into_iter().collect(),
+                _ => HashMap::new(),
+            };
+
+            Ok(AgentAction {
+                action_type: tool_name,
+                description: format!("MCP tool execution via {}", server_id),
+                parameters: params_map,
+                result: result_value,
+                success,
+                error_message,
+            })
+        }
+    }
 }
 
 // File Operations Commands
@@ -379,6 +484,11 @@ pub async fn get_agent_capabilities() -> Result<Vec<AgentCapability>, String> {
 }
 
 #[tauri::command]
+pub async fn get_agent_tool_definitions() -> Result<Vec<ToolDefinition>, String> {
+    Ok(get_all_tool_definitions())
+}
+
+#[tauri::command]
 pub async fn execute_agent_action(
     agent_sessions: State<'_, Mutex<HashMap<String, AgentSession>>>,
     session_id: String,
@@ -432,26 +542,176 @@ pub async fn create_or_get_agent_session(
 #[tauri::command]
 pub async fn request_permission(
     window: tauri::Window,
+    db: State<'_, Database>,
+    permission_manager: State<'_, PermissionManager>,
     operation: String,
     parameters: HashMap<String, serde_json::Value>,
+    chat_id: Option<String>,
 ) -> Result<bool, String> {
-    let permission = check_permission_level(&operation, &parameters);
-    
-    // Emit permission request to frontend
-    window.emit("permission_request", json!({
-        "operation": permission.operation,
-        "description": permission.description,
-        "level": permission.level,
-        "details": permission.details,
-    })).map_err(|e| e.to_string())?;
-    
-    // In a real implementation, you would wait for user response
-    // For now, we'll return based on permission level
-    match permission.level {
-        PermissionLevel::Safe => Ok(true),
-        PermissionLevel::Moderate => Ok(true), // Should wait for user confirmation
-        PermissionLevel::Dangerous => Ok(false), // Should require explicit permission
+    let perm_check = check_permission_level(&operation, &parameters);
+
+    // Convert to our permission request type
+    let mut details = HashMap::new();
+    for (k, v) in perm_check.details {
+        details.insert(k, v);
     }
+
+    let level_str = match perm_check.level {
+        PermissionLevel::Safe => "Safe",
+        PermissionLevel::Moderate => "Moderate",
+        PermissionLevel::Dangerous => "Dangerous",
+    };
+
+    let level_converted = match perm_check.level {
+        PermissionLevel::Safe => crate::permission_manager::PermissionLevel::Safe,
+        PermissionLevel::Moderate => crate::permission_manager::PermissionLevel::Moderate,
+        PermissionLevel::Dangerous => crate::permission_manager::PermissionLevel::Dangerous,
+    };
+
+    println!("[RUST] request_permission called for operation: {}, chat_id: {:?}, level: {:?}",
+             operation, chat_id, level_str);
+
+    // Check if this should be auto-approved (Safe, cached, or already pending)
+    let is_cached = permission_manager.is_permission_cached(
+        chat_id.clone(),
+        operation.clone()
+    ).await;
+
+    println!("[RUST] Cache check result for operation '{}' in chat {:?}: is_cached = {}",
+             operation, chat_id, is_cached);
+
+    let is_pending = permission_manager.has_pending_permission(
+        chat_id.clone(),
+        &operation
+    ).await;
+
+    println!("[RUST] Pending check result for operation '{}' in chat {:?}: is_pending = {}",
+             operation, chat_id, is_pending);
+
+    // If Safe or cached, auto-approve
+    if level_converted == crate::permission_manager::PermissionLevel::Safe || is_cached {
+        println!("[RUST] ✅ Auto-approving: Safe={}, Cached={}",
+                 level_converted == crate::permission_manager::PermissionLevel::Safe, is_cached);
+        return Ok(true);
+    }
+
+    // If already pending, wait a moment and return error to avoid duplicate
+    if is_pending {
+        println!("[RUST] Another permission request for '{}' is already pending, skipping duplicate", operation);
+        return Err("Permission request already pending. Please respond to the existing request.".to_string());
+    }
+
+    // Create permission record in database
+    let chat_id_str = chat_id.clone().ok_or_else(|| "chat_id required for permission request".to_string())?;
+
+    let permission = db.create_permission_request(
+        chat_id_str.clone(),
+        operation.clone(),
+        perm_check.description.clone(),
+        level_str.to_string(),
+        details.clone(),
+        "pending".to_string(),
+    ).await.map_err(|e| e.to_string())?;
+
+    println!("[RUST] Created permission record with ID: {}", permission.id);
+
+    // Create system message linked to this permission
+    let mut message = db.create_message(
+        chat_id_str.clone(),
+        format!("Permission required for operation: {}", operation),
+        MessageRole::System,
+        None,
+        Some(permission.id.clone()),
+    ).await.map_err(|e| e.to_string())?;
+
+    println!("[RUST] Created system message with ID: {}", message.id);
+
+    // Populate the permission_request field for the message
+    message.permission_request = Some(permission.clone());
+
+    // Emit event to notify frontend of new permission message
+    window.emit("permission_message_created", &message)
+        .map_err(|e| e.to_string())?;
+
+    println!("[RUST] Emitted permission_message_created event");
+
+    // Create permission manager request for oneshot channel communication
+    // IMPORTANT: Use the same ID as the database permission so frontend can respond
+    // IMPORTANT: Use the original operation name (snake_case) for cache consistency
+    let pm_request = crate::permission_manager::PermissionRequest {
+        id: permission.id.clone(), // Use the database permission ID
+        operation: operation.clone(), // Use snake_case tool name for cache consistency
+        description: perm_check.description.clone(),
+        level: level_converted,
+        details,
+        chat_id,
+    };
+
+    // Wait for user response via permission manager
+    let result = permission_manager.request_permission(pm_request).await;
+
+    println!("[RUST] Permission response received: {:?}", result);
+
+    // Update database with result
+    match result {
+        Ok(approved) => {
+            let status = if approved { "approved" } else { "denied" };
+            db.update_permission_status(&permission.id, status.to_string())
+                .await
+                .map_err(|e| e.to_string())?;
+            println!("[RUST] Updated permission status to: {}", status);
+
+            // Return the approval status - frontend will handle stopping execution if denied
+            Ok(approved)
+        }
+        Err(e) => Err(e),
+    }
+}
+
+#[tauri::command]
+pub async fn respond_to_permission(
+    db: State<'_, Database>,
+    permission_manager: State<'_, PermissionManager>,
+    request_id: String,
+    approved: bool,
+) -> Result<(), String> {
+    println!("[RUST] respond_to_permission called for ID: {}, approved: {}", request_id, approved);
+
+    // Update database
+    let status = if approved { "approved" } else { "denied" };
+    db.update_permission_status(&request_id, status.to_string())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Notify permission manager (oneshot channel)
+    let result = permission_manager.respond_to_permission(request_id.clone(), approved).await;
+    println!("[RUST] respond_to_permission result for ID {}: {:?}", request_id, result);
+    result
+}
+
+#[tauri::command]
+pub async fn clear_chat_permissions(
+    permission_manager: State<'_, PermissionManager>,
+    chat_id: String,
+) -> Result<(), String> {
+    permission_manager.clear_chat_permissions(chat_id).await
+}
+
+#[tauri::command]
+pub async fn clear_permission(
+    permission_manager: State<'_, PermissionManager>,
+    chat_id: String,
+    operation: String,
+) -> Result<(), String> {
+    permission_manager.clear_permission(chat_id, operation).await
+}
+
+#[tauri::command]
+pub async fn get_chat_permissions(
+    permission_manager: State<'_, PermissionManager>,
+    chat_id: String,
+) -> Result<Vec<String>, String> {
+    Ok(permission_manager.get_chat_permissions(chat_id).await)
 }
 
 #[tauri::command]
@@ -610,6 +870,348 @@ pub async fn terminate_process(
     
     kill_process(pid)
         .map_err(|e| e.to_string())?;
-    
+
     Ok(format!("Successfully terminated process with PID: {}", pid))
 }
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct ModelInfo {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+}
+
+/// Fetch available models from provider API (bypasses CORS)
+#[tauri::command]
+pub async fn fetch_provider_models(
+    provider: String,
+    api_key: String,
+    base_url: Option<String>,
+) -> Result<Vec<ModelInfo>, String> {
+    let client = reqwest::Client::new();
+
+    match provider.as_str() {
+        "openai" => {
+            let url = base_url.unwrap_or_else(|| "https://api.openai.com/v1".to_string());
+            fetch_openai_models(&client, &api_key, &url).await
+        }
+        "anthropic" => {
+            Ok(get_anthropic_models())
+        }
+        "deepseek" => {
+            let url = base_url.unwrap_or_else(|| "https://api.deepseek.com/v1".to_string());
+            fetch_openai_compatible_models(&client, &api_key, &url).await
+        }
+        "lmstudio" => {
+            let url = base_url.unwrap_or_else(|| "http://localhost:1234/v1".to_string());
+            fetch_openai_compatible_models(&client, &api_key, &url).await
+        }
+        "mistral" => {
+            let url = base_url.unwrap_or_else(|| "https://api.mistral.ai/v1".to_string());
+            fetch_openai_compatible_models(&client, &api_key, &url).await
+        }
+        "kimi" => {
+            let url = base_url.unwrap_or_else(|| "https://api.moonshot.cn/v1".to_string());
+            fetch_openai_compatible_models(&client, &api_key, &url).await
+        }
+        "openrouter" => {
+            let url = base_url.unwrap_or_else(|| "https://openrouter.ai/api/v1".to_string());
+            fetch_openai_compatible_models(&client, &api_key, &url).await
+        }
+        "together" => {
+            let url = base_url.unwrap_or_else(|| "https://api.together.xyz/v1".to_string());
+            fetch_openai_compatible_models(&client, &api_key, &url).await
+        }
+        "groq" => {
+            let url = base_url.unwrap_or_else(|| "https://api.groq.com/openai/v1".to_string());
+            fetch_openai_compatible_models(&client, &api_key, &url).await
+        }
+        "perplexity" => {
+            let url = base_url.unwrap_or_else(|| "https://api.perplexity.ai".to_string());
+            fetch_openai_compatible_models(&client, &api_key, &url).await
+        }
+        "ollama" => {
+            let mut url = base_url.unwrap_or_else(|| "http://localhost:11434".to_string());
+            // Strip /v1 suffix for Ollama
+            if url.ends_with("/v1") || url.ends_with("/v1/") {
+                url = url.trim_end_matches('/').trim_end_matches("/v1").to_string();
+            }
+            fetch_ollama_models(&client, &url).await
+        }
+        "google" => {
+            Ok(get_google_models())
+        }
+        "custom" => {
+            if let Some(url) = base_url {
+                fetch_openai_compatible_models(&client, &api_key, &url).await
+            } else {
+                Ok(vec![])
+            }
+        }
+        _ => Ok(vec![]),
+    }
+}
+
+async fn fetch_openai_models(
+    client: &reqwest::Client,
+    api_key: &str,
+    base_url: &str,
+) -> Result<Vec<ModelInfo>, String> {
+    let url = format!("{}/models", base_url);
+
+    let response = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch models: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("API returned error: {}", response.status()));
+    }
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    let models = json["data"]
+        .as_array()
+        .ok_or("Invalid response format")?
+        .iter()
+        .filter_map(|m| {
+            let id = m["id"].as_str()?;
+            if id.contains("gpt") {
+                Some(ModelInfo {
+                    id: id.to_string(),
+                    name: id.to_string(),
+                    description: None,
+                })
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    Ok(models)
+}
+
+async fn fetch_openai_compatible_models(
+    client: &reqwest::Client,
+    api_key: &str,
+    base_url: &str,
+) -> Result<Vec<ModelInfo>, String> {
+    let url = format!("{}/models", base_url);
+
+    let response = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch models: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("API returned error: {}", response.status()));
+    }
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    let models = json["data"]
+        .as_array()
+        .ok_or("Invalid response format")?
+        .iter()
+        .filter_map(|m| {
+            let id = m["id"].as_str()?;
+            Some(ModelInfo {
+                id: id.to_string(),
+                name: id.to_string(),
+                description: None,
+            })
+        })
+        .collect();
+
+    Ok(models)
+}
+
+async fn fetch_ollama_models(
+    client: &reqwest::Client,
+    base_url: &str,
+) -> Result<Vec<ModelInfo>, String> {
+    let url = format!("{}/api/tags", base_url);
+
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch Ollama models: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Ollama API returned error: {}", response.status()));
+    }
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
+
+    let models = json["models"]
+        .as_array()
+        .ok_or("Invalid Ollama response format")?
+        .iter()
+        .filter_map(|m| {
+            let name = m["name"].as_str()?;
+            let size = m["size"].as_u64().unwrap_or(0);
+            Some(ModelInfo {
+                id: name.to_string(),
+                name: name.to_string(),
+                description: Some(format!("Size: {}", format_bytes(size))),
+            })
+        })
+        .collect();
+
+    Ok(models)
+}
+
+fn get_anthropic_models() -> Vec<ModelInfo> {
+    vec![
+        ModelInfo {
+            id: "claude-3-5-sonnet-20241022".to_string(),
+            name: "Claude 3.5 Sonnet".to_string(),
+            description: Some("Most intelligent model".to_string()),
+        },
+        ModelInfo {
+            id: "claude-3-5-haiku-20241022".to_string(),
+            name: "Claude 3.5 Haiku".to_string(),
+            description: Some("Fastest model".to_string()),
+        },
+        ModelInfo {
+            id: "claude-3-opus-20240229".to_string(),
+            name: "Claude 3 Opus".to_string(),
+            description: Some("Powerful model for complex tasks".to_string()),
+        },
+        ModelInfo {
+            id: "claude-3-sonnet-20240229".to_string(),
+            name: "Claude 3 Sonnet".to_string(),
+            description: Some("Balanced model".to_string()),
+        },
+        ModelInfo {
+            id: "claude-3-haiku-20240307".to_string(),
+            name: "Claude 3 Haiku".to_string(),
+            description: Some("Fast and efficient".to_string()),
+        },
+    ]
+}
+
+fn get_google_models() -> Vec<ModelInfo> {
+    vec![
+        ModelInfo {
+            id: "gemini-2.0-flash-exp".to_string(),
+            name: "Gemini 2.0 Flash (Experimental)".to_string(),
+            description: Some("Latest experimental model".to_string()),
+        },
+        ModelInfo {
+            id: "gemini-1.5-pro".to_string(),
+            name: "Gemini 1.5 Pro".to_string(),
+            description: Some("Most capable model".to_string()),
+        },
+        ModelInfo {
+            id: "gemini-1.5-flash".to_string(),
+            name: "Gemini 1.5 Flash".to_string(),
+            description: Some("Fast and efficient".to_string()),
+        },
+        ModelInfo {
+            id: "gemini-1.0-pro".to_string(),
+            name: "Gemini 1.0 Pro".to_string(),
+            description: Some("Stable production model".to_string()),
+        },
+    ]
+}
+
+fn format_bytes(bytes: u64) -> String {
+    if bytes == 0 {
+        return "0 Bytes".to_string();
+    }
+
+    let k: f64 = 1024.0;
+    let sizes = ["Bytes", "KB", "MB", "GB"];
+    let i = (bytes as f64).log(k).floor() as usize;
+    let size = (bytes as f64) / k.powi(i as i32);
+
+    format!("{:.2} {}", size, sizes[i.min(3)])
+}
+
+/// Stream LLM request through Rust backend (bypasses CORS and Tauri HTTP plugin issues)
+#[tauri::command]
+pub async fn stream_llm_request(
+    window: tauri::Window,
+    provider: String,
+    api_key: String,
+    base_url: Option<String>,
+    model: String,
+    messages: Vec<serde_json::Value>,
+    tools: Option<Vec<serde_json::Value>>,
+    temperature: f32,
+    max_tokens: Option<u32>,
+    stream_id: String,
+) -> Result<(), String> {
+    // Route to appropriate streaming function based on provider
+    match provider.as_str() {
+        "anthropic" => {
+            llm_streaming::stream_anthropic(
+                &window,
+                &api_key,
+                &model,
+                messages,
+                tools,
+                temperature,
+                max_tokens,
+                &stream_id,
+            )
+            .await
+        }
+        "google" => {
+            llm_streaming::stream_google(
+                &window,
+                &api_key,
+                &model,
+                messages,
+                tools,
+                temperature,
+                &stream_id,
+            )
+            .await
+        }
+        "openai" | "deepseek" | "mistral" | "lmstudio" | "kimi"
+        | "openrouter" | "together" | "groq" | "perplexity" | "ollama" | "custom" => {
+            let base_url = base_url.unwrap_or_else(|| {
+                llm_streaming::get_default_base_url(&provider)
+            });
+            llm_streaming::stream_openai_compatible(
+                &window,
+                &base_url,
+                &api_key,
+                &model,
+                messages,
+                tools,
+                temperature,
+                max_tokens,
+                &stream_id,
+            )
+            .await
+        }
+        _ => Err(format!("Provider '{}' is not yet supported for streaming", provider)),
+    }
+}
+
+#[tauri::command]
+pub fn get_system_info() -> Result<serde_json::Value, String> {
+    Ok(json!({
+        "os": std::env::consts::OS,
+        "arch": std::env::consts::ARCH,
+        "family": std::env::consts::FAMILY,
+    }))
+}
+

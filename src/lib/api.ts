@@ -1,10 +1,10 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { 
-  Chat, 
-  Message, 
-  ChatWithLastMessage, 
-  CreateChatRequest, 
-  CreateMessageRequest, 
+import type {
+  Chat,
+  Message,
+  ChatWithLastMessage,
+  CreateChatRequest,
+  CreateMessageRequest,
   UpdateChatRequest,
   ApiConfig,
   CreateApiConfigRequest,
@@ -13,7 +13,14 @@ import type {
   SearchResult,
   AgentSession,
   AgentAction,
-  AgentCapability
+  AgentCapability,
+  ToolDefinition,
+  ToolExecutionRecord,
+  CreateToolExecutionRequest,
+  McpServer,
+  McpTool,
+  CreateMcpServerRequest,
+  UpdateMcpServerRequest
 } from './types';
 
 // Chat operations
@@ -75,15 +82,6 @@ export async function deleteApiConfig(configId: string): Promise<void> {
   return await invoke('delete_api_config', { configId });
 }
 
-// AI Chat operations
-export async function sendAiMessage(chatId: string, userMessage: string): Promise<Message> {
-  return await invoke('send_ai_message', { chatId, userMessage });
-}
-
-export async function sendAiMessageStreaming(chatId: string, userMessage: string, images?: string[]): Promise<string> {
-  return await invoke('send_ai_message_streaming', { chatId, userMessage, images });
-}
-
 // File Operations
 export async function openFileWithDefaultApp(filePath: string): Promise<string> {
   return await invoke('open_file_with_default_app', { filePath });
@@ -128,6 +126,10 @@ export async function getAgentCapabilities(): Promise<AgentCapability[]> {
   return await invoke('get_agent_capabilities');
 }
 
+export async function getAgentToolDefinitions(): Promise<ToolDefinition[]> {
+  return await invoke('get_agent_tool_definitions');
+}
+
 export async function executeAgentAction(
   sessionId: string,
   actionType: string,
@@ -142,4 +144,91 @@ export async function getAgentSession(sessionId: string): Promise<AgentSession> 
 
 export async function createOrGetAgentSession(sessionId: string): Promise<AgentSession> {
   return await invoke('create_or_get_agent_session', { sessionId });
+}
+
+// System info
+export interface SystemInfo {
+  os: string;
+  arch: string;
+  family: string;
+}
+
+export async function getSystemInfo(): Promise<SystemInfo> {
+  return await invoke('get_system_info');
+}
+
+// Tool Execution operations
+export async function createToolExecution(request: CreateToolExecutionRequest): Promise<ToolExecutionRecord> {
+  return await invoke('create_tool_execution', { request });
+}
+
+export async function getToolExecutionsForMessage(messageId: string): Promise<ToolExecutionRecord[]> {
+  return await invoke('get_tool_executions_for_message', { messageId });
+}
+
+export async function getToolExecutionsForMessages(messageIds: string[]): Promise<Record<string, ToolExecutionRecord[]>> {
+  return await invoke('get_tool_executions_for_messages', { messageIds });
+}
+
+// MCP Server operations
+export async function createMcpServer(request: CreateMcpServerRequest): Promise<McpServer> {
+  return await invoke('create_mcp_server', { request });
+}
+
+export async function getMcpServers(): Promise<McpServer[]> {
+  return await invoke('get_mcp_servers');
+}
+
+export async function getMcpServer(serverId: string): Promise<McpServer | null> {
+  return await invoke('get_mcp_server', { serverId });
+}
+
+export async function updateMcpServer(serverId: string, request: UpdateMcpServerRequest): Promise<McpServer> {
+  return await invoke('update_mcp_server', { serverId, request });
+}
+
+export async function deleteMcpServer(serverId: string): Promise<void> {
+  return await invoke('delete_mcp_server', { serverId });
+}
+
+// MCP Tool operations
+export async function getMcpToolsForServer(serverId: string): Promise<McpTool[]> {
+  return await invoke('get_mcp_tools_for_server', { serverId });
+}
+
+export async function getEnabledMcpTools(): Promise<McpTool[]> {
+  return await invoke('get_enabled_mcp_tools');
+}
+
+export async function toggleMcpTool(toolId: string, enabled: boolean): Promise<void> {
+  return await invoke('toggle_mcp_tool', { toolId, enabled });
+}
+
+// MCP Connection operations
+export async function connectMcpServer(serverId: string): Promise<{ status: string; tools_count: number }> {
+  return await invoke('connect_mcp_server', { serverId });
+}
+
+export async function disconnectMcpServer(serverId: string): Promise<void> {
+  return await invoke('disconnect_mcp_server', { serverId });
+}
+
+export async function getMcpServerStatus(serverId: string): Promise<string> {
+  return await invoke('get_mcp_server_status', { serverId });
+}
+
+export async function getAllMcpStatuses(): Promise<Record<string, string>> {
+  return await invoke('get_all_mcp_statuses');
+}
+
+export async function getMergedToolDefinitions(): Promise<ToolDefinition[]> {
+  return await invoke('get_merged_tool_definitions');
+}
+
+export async function executeToolRouted(
+  sessionId: string,
+  toolName: string,
+  parameters: Record<string, any>
+): Promise<AgentAction> {
+  return await invoke('execute_tool_routed', { sessionId, toolName, parameters });
 }

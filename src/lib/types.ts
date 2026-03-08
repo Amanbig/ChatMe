@@ -10,9 +10,23 @@ export interface Message {
   id: string;
   chat_id: string;
   content: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   created_at: string;
   images?: string[]; // Array of base64 encoded images
+  permission_request_id?: string;
+  permission_request?: PermissionRequest;
+}
+
+export interface PermissionRequest {
+  id: string;
+  chat_id: string;
+  operation: string;
+  description: string;
+  level: 'Safe' | 'Moderate' | 'Dangerous';
+  details: Record<string, string>;
+  status: 'pending' | 'approved' | 'denied';
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ChatWithLastMessage {
@@ -41,7 +55,20 @@ export interface ApiConfig {
   updated_at: string;
 }
 
-export type ApiProvider = 'openai' | 'anthropic' | 'google' | 'ollama' | 'custom';
+export type ApiProvider =
+  | 'openai'
+  | 'anthropic'
+  | 'google'
+  | 'ollama'
+  | 'mistral'
+  | 'deepseek'
+  | 'lmstudio'
+  | 'kimi'
+  | 'openrouter'
+  | 'together'
+  | 'groq'
+  | 'perplexity'
+  | 'custom';
 
 export interface CreateChatRequest {
   title: string;
@@ -144,4 +171,139 @@ export interface AgentParameter {
   description: string;
   required: boolean;
   default_value?: any;
+}
+
+// Tool Calling Types
+export interface ToolDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: any; // JSON Schema
+  };
+}
+
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string; // JSON string
+  };
+}
+
+export interface ToolExecution {
+  tool_call_id: string;
+  tool_name: string;
+  arguments: any;
+  result: any | null;
+  success: boolean;
+  error_message: string | null;
+  timestamp: string;
+}
+
+// Persisted tool execution record from database
+export interface ToolExecutionRecord {
+  id: string;
+  message_id: string;
+  tool_call_id: string;
+  tool_name: string;
+  tool_source: string; // 'builtin' or mcp_server_id
+  arguments: any;
+  result: any | null;
+  success: boolean;
+  error_message: string | null;
+  execution_order: number;
+  started_at: string;
+  completed_at: string | null;
+}
+
+export interface CreateToolExecutionRequest {
+  message_id: string;
+  tool_call_id: string;
+  tool_name: string;
+  tool_source: string;
+  arguments: any;
+  result: any | null;
+  success: boolean;
+  error_message: string | null;
+  execution_order: number;
+  started_at: string;
+  completed_at: string | null;
+}
+
+export interface ConversationTurn {
+  assistant_message: {
+    role: string;
+    content: string | null;
+    tool_calls: ToolCall[] | null;
+  };
+  tool_executions: ToolExecution[];
+}
+
+// Enhanced Message type with tool execution history
+export interface MessageWithTools extends Message {
+  tool_turns?: ConversationTurn[];
+}
+
+// MCP (Model Context Protocol) Types
+export type McpTransportType = 'stdio' | 'sse';
+
+export interface McpServer {
+  id: string;
+  name: string;
+  transport_type: McpTransportType;
+  // For stdio transport
+  command: string | null;
+  args: string[] | null;
+  env: Record<string, string> | null;
+  // For SSE transport
+  url: string | null;
+  headers: Record<string, string> | null;
+  // Common fields
+  enabled: boolean;
+  auto_connect: boolean;
+  connection_timeout_ms: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface McpTool {
+  id: string;
+  server_id: string;
+  name: string;
+  description: string | null;
+  input_schema: any; // JSON Schema
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface McpServerWithTools extends McpServer {
+  tools: McpTool[];
+}
+
+export interface CreateMcpServerRequest {
+  name: string;
+  transport_type: McpTransportType;
+  command?: string | null;
+  args?: string[] | null;
+  env?: Record<string, string> | null;
+  url?: string | null;
+  headers?: Record<string, string> | null;
+  enabled?: boolean;
+  auto_connect?: boolean;
+  connection_timeout_ms?: number;
+}
+
+export interface UpdateMcpServerRequest {
+  name?: string;
+  command?: string | null;
+  args?: string[] | null;
+  env?: Record<string, string> | null;
+  url?: string | null;
+  headers?: Record<string, string> | null;
+  enabled?: boolean;
+  auto_connect?: boolean;
+  connection_timeout_ms?: number;
 }

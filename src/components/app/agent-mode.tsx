@@ -2,17 +2,90 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Badge } from "../ui/badge";
-import { ScrollArea } from "../ui/scroll-area";
 import { Switch } from "../ui/switch";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
 import { toast } from "sonner";
-import { FaRobot, FaFolder, FaTerminal, FaRocket, FaCog, FaChevronDown, FaShieldAlt } from "react-icons/fa";
+import {
+    FaRobot,
+    FaFolder,
+    FaTerminal,
+    FaRocket,
+    FaShieldAlt,
+    FaBrain,
+    FaCheck,
+    FaFileAlt,
+    FaDesktop
+} from "react-icons/fa";
 import { useAgent } from "../../contexts/AgentContext";
-import { useState } from "react";
+
+const capabilities = [
+    {
+        id: "overview",
+        icon: <FaBrain className="h-5 w-5 text-primary" />,
+        title: "How Agent Mode Works",
+        description: "When enabled, simply chat with natural language requests and the AI will automatically understand your intent and perform actions.",
+        examples: [
+            "Open Chrome browser",
+            "Run npm install in current directory",
+            "List all running processes",
+            "Create a new folder called 'test'"
+        ]
+    },
+    {
+        id: "file-ops",
+        icon: <FaFileAlt className="h-5 w-5 text-blue-500" />,
+        title: "File Operations",
+        badge: "Enhanced",
+        description: "Manage files and directories through natural language commands.",
+        features: [
+            "Copy, move, rename, delete files/folders",
+            "Create new directories",
+            "Search files with patterns",
+            "Read and write file contents",
+            "Open files with default apps"
+        ]
+    },
+    {
+        id: "terminal",
+        icon: <FaTerminal className="h-5 w-5 text-yellow-500" />,
+        title: "Terminal Commands",
+        badge: "Permission Required",
+        description: "Execute terminal and shell commands with user permission.",
+        features: [
+            "Run build scripts and automation",
+            "Install packages (npm, pip, etc.)",
+            "Git operations and version control",
+            "System administration tasks"
+        ]
+    },
+    {
+        id: "apps",
+        icon: <FaRocket className="h-5 w-5 text-purple-500" />,
+        title: "Application Control",
+        description: "Launch and manage applications on your system.",
+        features: [
+            "Launch installed applications",
+            "List all installed apps",
+            "Pass arguments to programs",
+            "View running processes"
+        ]
+    },
+    {
+        id: "processes",
+        icon: <FaDesktop className="h-5 w-5 text-red-500" />,
+        title: "Process Management",
+        badge: "Advanced",
+        description: "Monitor and manage system processes.",
+        features: [
+            "View all running processes",
+            "Monitor CPU and memory usage",
+            "Terminate specific processes",
+            "Manage system resources"
+        ]
+    }
+];
 
 export default function AgentMode() {
     const { isAgentActive, workingDirectory, setAgentActive, setWorkingDirectory } = useAgent();
-    const [expandedSections, setExpandedSections] = useState<string[]>(["overview"]);
 
     const handleWorkingDirectoryChange = (newPath: string) => {
         setWorkingDirectory(newPath);
@@ -27,284 +100,145 @@ export default function AgentMode() {
     };
 
     return (
-        <Card className="w-full">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <FaRobot className="h-5 w-5" />
-                    Agent Mode
-                    {isAgentActive && <Badge variant="default">Active</Badge>}
-                </CardTitle>
-                <CardDescription>
-                    Enable autonomous AI agent functionality for intelligent task execution
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <ScrollArea className="h-[400px] w-full">
-                    <div className="space-y-6">
-                        {/* Enable/Disable Toggle */}
-                        <div className="flex items-center justify-between">
-                            <div className="space-y-0.5">
-                                <Label className="text-base">Enable Agent Mode</Label>
-                                <div className="text-sm text-muted-foreground">
-                                    Turn on autonomous AI agent functionality
-                                </div>
+        <div className="space-y-6">
+            {/* Main Toggle Card */}
+            <Card className="border-border/60">
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors duration-300 ${isAgentActive
+                                    ? 'bg-gradient-to-br from-primary to-accent shadow-lg shadow-primary/20'
+                                    : 'bg-muted'
+                                }`}>
+                                <FaRobot className={`h-6 w-6 transition-colors duration-300 ${isAgentActive ? 'text-primary-foreground' : 'text-muted-foreground'
+                                    }`} />
                             </div>
-                            <Switch
-                                checked={isAgentActive}
-                                onCheckedChange={handleAgentToggle}
-                            />
-                        </div>
-
-                        {/* Working Directory */}
-                        <div className="space-y-2">
-                            <Label htmlFor="working-directory" className="flex items-center gap-2">
-                                <FaFolder className="h-4 w-4" />
-                                Working Directory
-                            </Label>
-                            <Input
-                                id="working-directory"
-                                placeholder="Enter working directory path (e.g., C:\\projects\\myapp)"
-                                value={workingDirectory}
-                                onChange={(e) => handleWorkingDirectoryChange(e.target.value)}
-                                disabled={!isAgentActive}
-                            />
-                            <div className="text-sm text-muted-foreground">
-                                Set the base directory where the agent will operate
+                            <div>
+                                <CardTitle className="flex items-center gap-2">
+                                    Agent Mode
+                                    {isAgentActive && (
+                                        <Badge className="bg-green-500 text-white gap-1">
+                                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                                            Active
+                                        </Badge>
+                                    )}
+                                </CardTitle>
+                                <CardDescription>
+                                    Enable autonomous AI agent for intelligent task execution
+                                </CardDescription>
                             </div>
                         </div>
+                        <Switch
+                            checked={isAgentActive}
+                            onCheckedChange={handleAgentToggle}
+                            className="scale-125"
+                        />
+                    </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    {/* Working Directory */}
+                    <div className={`p-4 rounded-xl border transition-all duration-300 ${isAgentActive
+                            ? 'bg-primary/5 border-primary/20'
+                            : 'bg-muted/30 border-border/50'
+                        }`}>
+                        <Label htmlFor="working-directory" className="flex items-center gap-2 mb-3">
+                            <FaFolder className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium">Working Directory</span>
+                        </Label>
+                        <Input
+                            id="working-directory"
+                            placeholder="Enter working directory path (e.g., C:\projects\myapp)"
+                            value={workingDirectory}
+                            onChange={(e) => handleWorkingDirectoryChange(e.target.value)}
+                            disabled={!isAgentActive}
+                            className="bg-background"
+                        />
+                        <p className="text-xs text-muted-foreground mt-2">
+                            The base directory where the agent will perform file operations
+                        </p>
+                    </div>
 
-                        {/* Capabilities Overview */}
-                        {isAgentActive && (
-                            <div className="space-y-3">
-                                {/* Overview Section */}
-                                <Collapsible
-                                    open={expandedSections.includes("overview")}
-                                    onOpenChange={(open) => {
-                                        setExpandedSections(open 
-                                            ? [...expandedSections, "overview"]
-                                            : expandedSections.filter(s => s !== "overview")
-                                        );
-                                    }}
-                                >
-                                    <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                                        <div className="flex items-center gap-2">
-                                            <FaRobot className="h-4 w-4" />
-                                            <span className="font-medium">How Agent Mode Works</span>
-                                        </div>
-                                        <FaChevronDown className={`h-4 w-4 transition-transform ${
-                                            expandedSections.includes("overview") ? "rotate-180" : ""
-                                        }`} />
-                                    </CollapsibleTrigger>
-                                    <CollapsibleContent>
-                                        <div className="p-4 border rounded-lg bg-muted/50 mt-2">
-                                            <div className="text-sm text-muted-foreground space-y-2">
-                                                <div>When agent mode is enabled, simply chat with natural language requests. The AI will automatically understand your intent and perform the appropriate actions.</div>
-                                                
-                                                <div className="mt-3">
-                                                    <div className="font-medium mb-1">Quick Examples:</div>
-                                                    <div className="grid grid-cols-1 gap-1">
-                                                        <div>• "Open Chrome browser"</div>
-                                                        <div>• "Run npm install in current directory"</div>
-                                                        <div>• "List all running processes"</div>
-                                                        <div>• "Create a new folder called 'test'"</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </CollapsibleContent>
-                                </Collapsible>
+                    {/* Security Notice */}
+                    <div className="p-4 rounded-xl border-2 border-yellow-500/20 bg-yellow-500/5 flex items-start gap-3">
+                        <FaShieldAlt className="h-5 w-5 text-yellow-600 mt-0.5 shrink-0" />
+                        <div>
+                            <h4 className="font-medium text-sm">Security First</h4>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                All potentially dangerous operations require your explicit permission.
+                                The agent will never execute harmful commands without your approval.
+                            </p>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
 
-                                {/* File Operations */}
-                                <Collapsible
-                                    open={expandedSections.includes("file-ops")}
-                                    onOpenChange={(open) => {
-                                        setExpandedSections(open 
-                                            ? [...expandedSections, "file-ops"]
-                                            : expandedSections.filter(s => s !== "file-ops")
-                                        );
-                                    }}
-                                >
-                                    <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                                        <div className="flex items-center gap-2">
-                                            <FaFolder className="h-4 w-4" />
-                                            <span className="font-medium">File & Directory Operations</span>
+            {/* Capabilities Grid - Only show when active */}
+            {isAgentActive && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-bottom-4 duration-300">
+                    {capabilities.map((cap) => (
+                        <Card key={cap.id} className="border-border/60 hover:border-primary/30 transition-colors">
+                            <CardHeader className="pb-3">
+                                <div className="flex items-start justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center">
+                                            {cap.icon}
                                         </div>
-                                        <FaChevronDown className={`h-4 w-4 transition-transform ${
-                                            expandedSections.includes("file-ops") ? "rotate-180" : ""
-                                        }`} />
-                                    </CollapsibleTrigger>
-                                    <CollapsibleContent>
-                                        <div className="p-4 border rounded-lg bg-muted/50 mt-2">
-                                            <div className="text-sm space-y-3">
-                                                <div>
-                                                    <Badge className="mb-2">Enhanced File Explorer</Badge>
-                                                    <div className="text-muted-foreground">
-                                                        • Copy, move, rename, and delete files/folders<br />
-                                                        • Create new directories<br />
-                                                        • Search files with regex patterns<br />
-                                                        • Read and write file contents<br />
-                                                        • Open files with default applications
-                                                    </div>
-                                                </div>
-                                                <div className="text-xs text-muted-foreground italic">
-                                                    Example: "Copy all .js files to backup folder"
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </CollapsibleContent>
-                                </Collapsible>
-
-                                {/* Terminal Commands */}
-                                <Collapsible
-                                    open={expandedSections.includes("terminal")}
-                                    onOpenChange={(open) => {
-                                        setExpandedSections(open 
-                                            ? [...expandedSections, "terminal"]
-                                            : expandedSections.filter(s => s !== "terminal")
-                                        );
-                                    }}
-                                >
-                                    <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                                        <div className="flex items-center gap-2">
-                                            <FaTerminal className="h-4 w-4" />
-                                            <span className="font-medium">Terminal Command Execution</span>
-                                            <Badge variant="outline" className="text-xs">With Permission</Badge>
-                                        </div>
-                                        <FaChevronDown className={`h-4 w-4 transition-transform ${
-                                            expandedSections.includes("terminal") ? "rotate-180" : ""
-                                        }`} />
-                                    </CollapsibleTrigger>
-                                    <CollapsibleContent>
-                                        <div className="p-4 border rounded-lg bg-muted/50 mt-2">
-                                            <div className="text-sm space-y-3">
-                                                <div>
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <FaShieldAlt className="h-4 w-4 text-yellow-500" />
-                                                        <Badge variant="outline" className="text-yellow-600">Permission Required</Badge>
-                                                    </div>
-                                                    <div className="text-muted-foreground">
-                                                        • Execute terminal/shell commands<br />
-                                                        • Run build scripts and automation<br />
-                                                        • Install packages and dependencies<br />
-                                                        • Git operations and version control<br />
-                                                        • System administration tasks
-                                                    </div>
-                                                </div>
-                                                <div className="p-2 bg-yellow-50 dark:bg-yellow-950 rounded text-xs">
-                                                    ⚠️ Dangerous commands are blocked for safety
-                                                </div>
-                                                <div className="text-xs text-muted-foreground italic">
-                                                    Example: "Run npm test in the project folder"
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </CollapsibleContent>
-                                </Collapsible>
-
-                                {/* Application Control */}
-                                <Collapsible
-                                    open={expandedSections.includes("apps")}
-                                    onOpenChange={(open) => {
-                                        setExpandedSections(open 
-                                            ? [...expandedSections, "apps"]
-                                            : expandedSections.filter(s => s !== "apps")
-                                        );
-                                    }}
-                                >
-                                    <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                                        <div className="flex items-center gap-2">
-                                            <FaRocket className="h-4 w-4" />
-                                            <span className="font-medium">Application Control</span>
-                                        </div>
-                                        <FaChevronDown className={`h-4 w-4 transition-transform ${
-                                            expandedSections.includes("apps") ? "rotate-180" : ""
-                                        }`} />
-                                    </CollapsibleTrigger>
-                                    <CollapsibleContent>
-                                        <div className="p-4 border rounded-lg bg-muted/50 mt-2">
-                                            <div className="text-sm space-y-3">
-                                                <div>
-                                                    <Badge className="mb-2">Launch & Manage Apps</Badge>
-                                                    <div className="text-muted-foreground">
-                                                        • Launch installed applications<br />
-                                                        • List all installed apps<br />
-                                                        • Pass arguments to applications<br />
-                                                        • View running processes<br />
-                                                        • Terminate processes (with permission)
-                                                    </div>
-                                                </div>
-                                                <div className="text-xs text-muted-foreground italic">
-                                                    Example: "Open Visual Studio Code with the current folder"
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </CollapsibleContent>
-                                </Collapsible>
-
-                                {/* Process Management */}
-                                <Collapsible
-                                    open={expandedSections.includes("processes")}
-                                    onOpenChange={(open) => {
-                                        setExpandedSections(open 
-                                            ? [...expandedSections, "processes"]
-                                            : expandedSections.filter(s => s !== "processes")
-                                        );
-                                    }}
-                                >
-                                    <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                                        <div className="flex items-center gap-2">
-                                            <FaCog className="h-4 w-4" />
-                                            <span className="font-medium">Process Management</span>
-                                            <Badge variant="destructive" className="text-xs">Advanced</Badge>
-                                        </div>
-                                        <FaChevronDown className={`h-4 w-4 transition-transform ${
-                                            expandedSections.includes("processes") ? "rotate-180" : ""
-                                        }`} />
-                                    </CollapsibleTrigger>
-                                    <CollapsibleContent>
-                                        <div className="p-4 border rounded-lg bg-muted/50 mt-2">
-                                            <div className="text-sm space-y-3">
-                                                <div>
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <FaShieldAlt className="h-4 w-4 text-red-500" />
-                                                        <Badge variant="destructive">High Permission Required</Badge>
-                                                    </div>
-                                                    <div className="text-muted-foreground">
-                                                        • View all running processes<br />
-                                                        • Monitor CPU and memory usage<br />
-                                                        • Terminate specific processes by PID<br />
-                                                        • Manage system resources
-                                                    </div>
-                                                </div>
-                                                <div className="p-2 bg-red-50 dark:bg-red-950 rounded text-xs">
-                                                    🔒 Requires explicit user permission for each action
-                                                </div>
-                                                <div className="text-xs text-muted-foreground italic">
-                                                    Example: "Show me all Chrome processes"
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </CollapsibleContent>
-                                </Collapsible>
-
-                                {/* Security Notice */}
-                                <div className="p-4 border-2 border-primary/20 rounded-lg bg-primary/5">
-                                    <div className="flex items-start gap-2">
-                                        <FaShieldAlt className="h-5 w-5 text-primary mt-0.5" />
-                                        <div className="space-y-1">
-                                            <h4 className="font-medium">Security First</h4>
-                                            <p className="text-sm text-muted-foreground">
-                                                All potentially dangerous operations require your explicit permission. 
-                                                The agent will never execute harmful commands without your approval.
-                                            </p>
+                                        <div>
+                                            <CardTitle className="text-base">{cap.title}</CardTitle>
+                                            {cap.badge && (
+                                                <Badge variant={cap.id === 'processes' ? 'destructive' : 'secondary'} className="text-[10px] mt-1">
+                                                    {cap.badge}
+                                                </Badge>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
-                    </div>
-                </ScrollArea>
-            </CardContent>
-        </Card>
+                            </CardHeader>
+                            <CardContent className="pt-0">
+                                <p className="text-sm text-muted-foreground mb-3">
+                                    {cap.description}
+                                </p>
+                                {cap.examples ? (
+                                    <div className="space-y-1.5">
+                                        <p className="text-xs font-medium text-foreground">Quick Examples:</p>
+                                        {cap.examples.map((example, idx) => (
+                                            <div key={idx} className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                <span className="w-1 h-1 rounded-full bg-primary/60" />
+                                                {example}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1.5">
+                                        {cap.features?.map((feature, idx) => (
+                                            <div key={idx} className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                <FaCheck className="h-3 w-3 text-green-500" />
+                                                {feature}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            )}
+
+            {/* Inactive State */}
+            {!isAgentActive && (
+                <Card className="border-dashed border-border/60 bg-muted/30">
+                    <CardContent className="p-8 text-center">
+                        <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
+                            <FaRobot className="h-8 w-8 text-muted-foreground/50" />
+                        </div>
+                        <h3 className="font-semibold text-foreground mb-2">Agent Mode is Disabled</h3>
+                        <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                            Enable Agent Mode to unlock autonomous AI capabilities including file operations,
+                            terminal commands, and application control.
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
+        </div>
     );
 }

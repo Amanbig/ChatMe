@@ -3,9 +3,6 @@ use chrono::Utc;
 use sqlx::{migrate::MigrateDatabase, Pool, Sqlite, SqlitePool, Row};
 use std::path::PathBuf;
 use uuid::Uuid;
-use reqwest::Client;
-use serde_json::json;
-use tauri::Emitter;
 
 use crate::models::*;
 
@@ -145,10 +142,10 @@ impl Database {
     }
 
     // Message operations
-    pub async fn create_message(&self, chat_id: String, content: String, role: MessageRole, images: Option<Vec<String>>) -> Result<Message> {
+    pub async fn create_message(&self, chat_id: String, content: String, role: MessageRole, images: Option<Vec<String>>, permission_request_id: Option<String>) -> Result<Message> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now();
-        
+
         // Serialize images to JSON string if present
         let images_json = match images.as_ref() {
             Some(imgs) if !imgs.is_empty() => Some(serde_json::to_string(imgs)?),
@@ -156,7 +153,7 @@ impl Database {
         };
 
         sqlx::query(
-            "INSERT INTO messages (id, chat_id, content, role, created_at, images) VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO messages (id, chat_id, content, role, created_at, images, permission_request_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(&id)
         .bind(&chat_id)
@@ -164,6 +161,7 @@ impl Database {
         .bind(&role)
         .bind(now)
         .bind(&images_json)
+        .bind(&permission_request_id)
         .execute(&self.pool)
         .await?;
 
@@ -181,15 +179,26 @@ impl Database {
             role,
             created_at: now,
             images,
+            permission_request_id,
+            permission_request: None,
         })
     }
 
     pub async fn get_messages(&self, chat_id: &str) -> Result<Vec<Message>> {
-        // Use the full query with images column
-        let rows = sqlx::query("SELECT id, chat_id, content, role, created_at, images FROM messages WHERE chat_id = ? ORDER BY created_at ASC")
-            .bind(chat_id)
-            .fetch_all(&self.pool)
-            .await?;
+        // Query messages with optional permission_request join
+        let rows = sqlx::query(
+            "SELECT
+                m.id, m.chat_id, m.content, m.role, m.created_at, m.images, m.permission_request_id,
+                p.id as perm_id, p.chat_id as perm_chat_id, p.operation, p.description, p.level,
+                p.details, p.status, p.created_at as perm_created_at, p.updated_at as perm_updated_at
+            FROM messages m
+            LEFT JOIN permission_requests p ON m.permission_request_id = p.id
+            WHERE m.chat_id = ?
+            ORDER BY m.created_at ASC"
+        )
+        .bind(chat_id)
+        .fetch_all(&self.pool)
+        .await?;
 
         let mut messages = Vec::new();
         for row in rows {
@@ -197,6 +206,7 @@ impl Database {
             let role = match role_str.as_str() {
                 "user" => MessageRole::User,
                 "assistant" => MessageRole::Assistant,
+                "system" => MessageRole::System,
                 _ => return Err(anyhow::anyhow!("Invalid message role: {}", role_str)),
             };
 
@@ -206,6 +216,31 @@ impl Database {
                 None => None,
             };
 
+            let permission_request_id: Option<String> = row.try_get("permission_request_id")?;
+
+            // Build permission_request if joined
+            let permission_request = if let Some(perm_id) = row.try_get::<Option<String>, _>("perm_id")? {
+                let details_json: Option<String> = row.try_get("details")?;
+                let details = match details_json {
+                    Some(json_str) => serde_json::from_str(&json_str).unwrap_or_default(),
+                    None => std::collections::HashMap::new(),
+                };
+
+                Some(crate::models::PermissionRequest {
+                    id: perm_id,
+                    chat_id: row.try_get("perm_chat_id")?,
+                    operation: row.try_get("operation")?,
+                    description: row.try_get("description")?,
+                    level: row.try_get("level")?,
+                    details,
+                    status: row.try_get("status")?,
+                    created_at: row.try_get("perm_created_at")?,
+                    updated_at: row.try_get("perm_updated_at")?,
+                })
+            } else {
+                None
+            };
+
             messages.push(Message {
                 id: row.try_get("id")?,
                 chat_id: row.try_get("chat_id")?,
@@ -213,6 +248,8 @@ impl Database {
                 role,
                 created_at: row.try_get("created_at")?,
                 images,
+                permission_request_id,
+                permission_request,
             });
         }
 
@@ -226,6 +263,123 @@ impl Database {
             .await?;
 
         Ok(())
+    }
+
+    // Permission operations
+    pub async fn create_permission_request(
+        &self,
+        chat_id: String,
+        operation: String,
+        description: String,
+        level: String,
+        details: std::collections::HashMap<String, String>,
+        status: String,
+    ) -> Result<crate::models::PermissionRequest> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now();
+
+        // Serialize details to JSON string
+        let details_json = serde_json::to_string(&details)?;
+
+        sqlx::query(
+            "INSERT INTO permission_requests (id, chat_id, operation, description, level, details, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind(&id)
+        .bind(&chat_id)
+        .bind(&operation)
+        .bind(&description)
+        .bind(&level)
+        .bind(&details_json)
+        .bind(&status)
+        .bind(now)
+        .bind(now)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(crate::models::PermissionRequest {
+            id,
+            chat_id,
+            operation,
+            description,
+            level,
+            details,
+            status,
+            created_at: now,
+            updated_at: now,
+        })
+    }
+
+    pub async fn get_permission_request(&self, permission_id: &str) -> Result<Option<crate::models::PermissionRequest>> {
+        let row = sqlx::query(
+            "SELECT id, chat_id, operation, description, level, details, status, created_at, updated_at FROM permission_requests WHERE id = ?"
+        )
+        .bind(permission_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        match row {
+            Some(row) => {
+                let details_json: String = row.try_get("details")?;
+                let details = serde_json::from_str(&details_json).unwrap_or_default();
+
+                Ok(Some(crate::models::PermissionRequest {
+                    id: row.try_get("id")?,
+                    chat_id: row.try_get("chat_id")?,
+                    operation: row.try_get("operation")?,
+                    description: row.try_get("description")?,
+                    level: row.try_get("level")?,
+                    details,
+                    status: row.try_get("status")?,
+                    created_at: row.try_get("created_at")?,
+                    updated_at: row.try_get("updated_at")?,
+                }))
+            }
+            None => Ok(None),
+        }
+    }
+
+    pub async fn update_permission_status(&self, permission_id: &str, status: String) -> Result<()> {
+        let now = Utc::now();
+
+        sqlx::query(
+            "UPDATE permission_requests SET status = ?, updated_at = ? WHERE id = ?"
+        )
+        .bind(&status)
+        .bind(now)
+        .bind(permission_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn get_chat_permissions(&self, chat_id: &str) -> Result<Vec<crate::models::PermissionRequest>> {
+        let rows = sqlx::query(
+            "SELECT id, chat_id, operation, description, level, details, status, created_at, updated_at FROM permission_requests WHERE chat_id = ? ORDER BY created_at DESC"
+        )
+        .bind(chat_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut permissions = Vec::new();
+        for row in rows {
+            let details_json: String = row.try_get("details")?;
+            let details = serde_json::from_str(&details_json).unwrap_or_default();
+
+            permissions.push(crate::models::PermissionRequest {
+                id: row.try_get("id")?,
+                chat_id: row.try_get("chat_id")?,
+                operation: row.try_get("operation")?,
+                description: row.try_get("description")?,
+                level: row.try_get("level")?,
+                details,
+                status: row.try_get("status")?,
+                created_at: row.try_get("created_at")?,
+                updated_at: row.try_get("updated_at")?,
+            });
+        }
+
+        Ok(permissions)
     }
 
     // API Configuration operations
@@ -359,397 +513,480 @@ impl Database {
     }
 
     // LLM Integration
-    pub async fn send_chat_completion(&self, config: &ApiConfig, messages: Vec<ChatMessage>) -> Result<String> {
-        let client = Client::new();
-        
-        match config.provider {
-            ApiProvider::OpenAI => {
-                let url = config.base_url.as_deref().unwrap_or("https://api.openai.com/v1/chat/completions");
-                
-                let request_body = json!({
-                    "model": config.model,
-                    "messages": messages,
-                    "temperature": config.temperature,
-                    "max_tokens": config.max_tokens
-                });
 
-                let response = client
-                    .post(url)
-                    .header("Authorization", format!("Bearer {}", config.api_key))
-                    .header("Content-Type", "application/json")
-                    .json(&request_body)
-                    .send()
-                    .await?;
+    // Tool Execution operations
+    pub async fn create_tool_execution(&self, request: CreateToolExecutionRequest) -> Result<ToolExecutionRecord> {
+        let id = Uuid::new_v4().to_string();
 
-                if !response.status().is_success() {
-                    let error_text = response.text().await?;
-                    return Err(anyhow::anyhow!("API request failed: {}", error_text));
-                }
+        // Parse timestamps from ISO strings
+        let started_at = chrono::DateTime::parse_from_rfc3339(&request.started_at)
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc::now());
 
-                // Try to parse as ChatCompletionResponse, but provide better error handling
-                let response_text = response.text().await?;
-                
-                match serde_json::from_str::<ChatCompletionResponse>(&response_text) {
-                    Ok(completion) => {
-                        if let Some(choice) = completion.choices.first() {
-                            // Convert content Value to String
-                            let content_str = match &choice.message.content {
-                                serde_json::Value::String(s) => s.clone(),
-                                other => other.to_string(),
-                            };
-                            Ok(content_str)
-                        } else {
-                            Err(anyhow::anyhow!("No response choices from API"))
-                        }
-                    },
-                    Err(parse_error) => {
-                        // Log the actual response for debugging
-                        eprintln!("Failed to parse OpenAI API response: {}", parse_error);
-                        eprintln!("Response body: {}", response_text);
-                        Err(anyhow::anyhow!("Failed to parse API response: {}. Response: {}", parse_error, response_text))
-                    }
-                }
-            },
-            ApiProvider::Anthropic => {
-                let url = config.base_url.as_deref().unwrap_or("https://api.anthropic.com/v1/messages");
-                
-                // Convert messages to Anthropic format
-                let anthropic_messages: Vec<serde_json::Value> = messages.into_iter().map(|msg| {
-                    json!({
-                        "role": if msg.role == "assistant" { "assistant" } else { "user" },
-                        "content": msg.content
-                    })
-                }).collect();
+        let completed_at = request.completed_at.as_ref().and_then(|s| {
+            chrono::DateTime::parse_from_rfc3339(s)
+                .map(|dt| dt.with_timezone(&Utc))
+                .ok()
+        });
 
-                let request_body = json!({
-                    "model": config.model,
-                    "max_tokens": config.max_tokens.unwrap_or(1000),
-                    "messages": anthropic_messages
-                });
+        // Serialize JSON fields
+        let arguments_json = serde_json::to_string(&request.arguments)?;
+        let result_json = request.result.as_ref().map(|r| serde_json::to_string(r)).transpose()?;
 
-                let response = client
-                    .post(url)
-                    .header("x-api-key", &config.api_key)
-                    .header("anthropic-version", "2023-06-01")
-                    .header("Content-Type", "application/json")
-                    .json(&request_body)
-                    .send()
-                    .await?;
+        sqlx::query(
+            r#"
+            INSERT INTO tool_executions (
+                id, message_id, tool_call_id, tool_name, tool_source,
+                arguments, result, success, error_message, execution_order,
+                started_at, completed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#
+        )
+        .bind(&id)
+        .bind(&request.message_id)
+        .bind(&request.tool_call_id)
+        .bind(&request.tool_name)
+        .bind(&request.tool_source)
+        .bind(&arguments_json)
+        .bind(&result_json)
+        .bind(request.success)
+        .bind(&request.error_message)
+        .bind(request.execution_order)
+        .bind(started_at)
+        .bind(completed_at)
+        .execute(&self.pool)
+        .await?;
 
-                if !response.status().is_success() {
-                    let error_text = response.text().await?;
-                    return Err(anyhow::anyhow!("Anthropic API request failed: {}", error_text));
-                }
+        Ok(ToolExecutionRecord {
+            id,
+            message_id: request.message_id,
+            tool_call_id: request.tool_call_id,
+            tool_name: request.tool_name,
+            tool_source: request.tool_source,
+            arguments: request.arguments,
+            result: request.result,
+            success: request.success,
+            error_message: request.error_message,
+            execution_order: request.execution_order,
+            started_at,
+            completed_at,
+        })
+    }
 
-                let response_json: serde_json::Value = response.json().await?;
-                
-                if let Some(content) = response_json["content"][0]["text"].as_str() {
-                    Ok(content.to_string())
-                } else {
-                    Err(anyhow::anyhow!("Invalid response format from Anthropic API"))
-                }
-            },
-            ApiProvider::Ollama => {
-                let url = format!(
-                    "{}/api/chat", 
-                    config.base_url.as_deref().unwrap_or("http://localhost:11434")
-                );
-                
-                let request_body = json!({
-                    "model": config.model,
-                    "messages": messages,
-                    "stream": false,
-                    "options": {
-                        "temperature": config.temperature
-                    }
-                });
+    pub async fn get_tool_executions_for_message(&self, message_id: &str) -> Result<Vec<ToolExecutionRecord>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, message_id, tool_call_id, tool_name, tool_source,
+                   arguments, result, success, error_message, execution_order,
+                   started_at, completed_at
+            FROM tool_executions
+            WHERE message_id = ?
+            ORDER BY execution_order ASC
+            "#
+        )
+        .bind(message_id)
+        .fetch_all(&self.pool)
+        .await?;
 
-                let response = client
-                    .post(&url)
-                    .header("Content-Type", "application/json")
-                    .json(&request_body)
-                    .send()
-                    .await?;
+        let mut executions = Vec::new();
+        for row in rows {
+            let arguments_json: String = row.try_get("arguments")?;
+            let arguments: serde_json::Value = serde_json::from_str(&arguments_json)?;
 
-                if !response.status().is_success() {
-                    let error_text = response.text().await?;
-                    return Err(anyhow::anyhow!("Ollama API request failed: {}", error_text));
-                }
+            let result_json: Option<String> = row.try_get("result")?;
+            let result: Option<serde_json::Value> = result_json
+                .map(|s| serde_json::from_str(&s))
+                .transpose()?;
 
-                let response_json: serde_json::Value = response.json().await?;
-                
-                if let Some(content) = response_json["message"]["content"].as_str() {
-                    Ok(content.to_string())
-                } else {
-                    Err(anyhow::anyhow!("Invalid response format from Ollama API"))
-                }
-            },
-            ApiProvider::Google => {
-                let base_url = config.base_url.as_deref().unwrap_or("https://generativelanguage.googleapis.com/v1beta/models");
-                
-                // Check if using OpenAI-compatible endpoint
-                if base_url.contains("/openai/chat/completions") {
-                    // Use OpenAI-compatible format
-                    let request_body = json!({
-                        "model": config.model,
-                        "messages": messages,
-                        "temperature": config.temperature,
-                        "max_tokens": config.max_tokens.unwrap_or(1000)
-                    });
+            executions.push(ToolExecutionRecord {
+                id: row.try_get("id")?,
+                message_id: row.try_get("message_id")?,
+                tool_call_id: row.try_get("tool_call_id")?,
+                tool_name: row.try_get("tool_name")?,
+                tool_source: row.try_get("tool_source")?,
+                arguments,
+                result,
+                success: row.try_get("success")?,
+                error_message: row.try_get("error_message")?,
+                execution_order: row.try_get("execution_order")?,
+                started_at: row.try_get("started_at")?,
+                completed_at: row.try_get("completed_at")?,
+            });
+        }
 
-                    let response = client
-                        .post(base_url)
-                        .header("Authorization", format!("Bearer {}", config.api_key))
-                        .header("Content-Type", "application/json")
-                        .json(&request_body)
-                        .send()
-                        .await?;
+        Ok(executions)
+    }
 
-                    if !response.status().is_success() {
-                        let error_text = response.text().await?;
-                        return Err(anyhow::anyhow!("Google OpenAI-compatible API request failed: {}", error_text));
-                    }
+    pub async fn get_tool_executions_for_messages(&self, message_ids: &[String]) -> Result<std::collections::HashMap<String, Vec<ToolExecutionRecord>>> {
+        if message_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
 
-                    // Parse OpenAI-compatible response
-                    let response_text = response.text().await?;
-                    
-                    match serde_json::from_str::<ChatCompletionResponse>(&response_text) {
-                        Ok(completion) => {
-                            if let Some(choice) = completion.choices.first() {
-                                // Convert content Value to String
-                                let content_str = match &choice.message.content {
-                                    serde_json::Value::String(s) => s.clone(),
-                                    other => other.to_string(),
-                                };
-                                Ok(content_str)
-                            } else {
-                                Err(anyhow::anyhow!("No response choices from Google OpenAI-compatible API"))
-                            }
-                        },
-                        Err(parse_error) => {
-                            eprintln!("Failed to parse Google OpenAI-compatible API response: {}", parse_error);
-                            eprintln!("Response body: {}", response_text);
-                            Err(anyhow::anyhow!("Failed to parse Google OpenAI-compatible API response: {}. Response: {}", parse_error, response_text))
-                        }
-                    }
-                } else {
-                    // Use original Gemini API format
-                    let full_url = format!("{}/{}:generateContent?key={}", base_url, config.model, config.api_key);
-                    
-                    // Convert messages to Google format
-                    let google_contents: Vec<serde_json::Value> = messages.into_iter().map(|msg| {
-                        json!({
-                            "role": if msg.role == "assistant" { "model" } else { "user" },
-                            "parts": [{"text": msg.content}]
-                        })
-                    }).collect();
+        // Build placeholders for IN clause
+        let placeholders: Vec<String> = message_ids.iter().map(|_| "?".to_string()).collect();
+        let query = format!(
+            r#"
+            SELECT id, message_id, tool_call_id, tool_name, tool_source,
+                   arguments, result, success, error_message, execution_order,
+                   started_at, completed_at
+            FROM tool_executions
+            WHERE message_id IN ({})
+            ORDER BY message_id, execution_order ASC
+            "#,
+            placeholders.join(", ")
+        );
 
-                    let request_body = json!({
-                        "contents": google_contents,
-                        "generationConfig": {
-                            "temperature": config.temperature,
-                            "maxOutputTokens": config.max_tokens.unwrap_or(1000)
-                        }
-                    });
+        let mut query_builder = sqlx::query(&query);
+        for id in message_ids {
+            query_builder = query_builder.bind(id);
+        }
 
-                    let response = client
-                        .post(&full_url)
-                        .header("Content-Type", "application/json")
-                        .json(&request_body)
-                        .send()
-                        .await?;
+        let rows = query_builder.fetch_all(&self.pool).await?;
 
-                    if !response.status().is_success() {
-                        let error_text = response.text().await?;
-                        return Err(anyhow::anyhow!("Google Gemini API request failed: {}", error_text));
-                    }
+        let mut result_map: std::collections::HashMap<String, Vec<ToolExecutionRecord>> = std::collections::HashMap::new();
 
-                    let response_json: serde_json::Value = response.json().await?;
-                    
-                    if let Some(content) = response_json["candidates"][0]["content"]["parts"][0]["text"].as_str() {
-                        Ok(content.to_string())
-                    } else {
-                        Err(anyhow::anyhow!("Invalid response format from Google Gemini API"))
-                    }
-                }
-            },
-            ApiProvider::Custom => {
-                // For custom providers, assume OpenAI-compatible API format
-                let url = config.base_url.as_deref().ok_or_else(|| {
-                    anyhow::anyhow!("Base URL is required for custom providers")
-                })?;
-                
-                let request_body = json!({
-                    "model": config.model,
-                    "messages": messages,
-                    "temperature": config.temperature,
-                    "max_tokens": config.max_tokens
-                });
+        for row in rows {
+            let arguments_json: String = row.try_get("arguments")?;
+            let arguments: serde_json::Value = serde_json::from_str(&arguments_json)?;
 
-                let mut request_builder = client
-                    .post(url)
-                    .header("Content-Type", "application/json");
+            let result_json: Option<String> = row.try_get("result")?;
+            let result: Option<serde_json::Value> = result_json
+                .map(|s| serde_json::from_str(&s))
+                .transpose()?;
 
-                // Add authorization header if API key is provided
-                if !config.api_key.is_empty() {
-                    request_builder = request_builder.header("Authorization", format!("Bearer {}", config.api_key));
-                }
+            let message_id: String = row.try_get("message_id")?;
+            let execution = ToolExecutionRecord {
+                id: row.try_get("id")?,
+                message_id: message_id.clone(),
+                tool_call_id: row.try_get("tool_call_id")?,
+                tool_name: row.try_get("tool_name")?,
+                tool_source: row.try_get("tool_source")?,
+                arguments,
+                result,
+                success: row.try_get("success")?,
+                error_message: row.try_get("error_message")?,
+                execution_order: row.try_get("execution_order")?,
+                started_at: row.try_get("started_at")?,
+                completed_at: row.try_get("completed_at")?,
+            };
 
-                let response = request_builder
-                    .json(&request_body)
-                    .send()
-                    .await?;
+            result_map.entry(message_id).or_insert_with(Vec::new).push(execution);
+        }
 
-                if !response.status().is_success() {
-                    let error_text = response.text().await?;
-                    return Err(anyhow::anyhow!("Custom API request failed: {}", error_text));
-                }
+        Ok(result_map)
+    }
 
-                // Try to parse as ChatCompletionResponse, but provide better error handling
-                let response_text = response.text().await?;
-                
-                match serde_json::from_str::<ChatCompletionResponse>(&response_text) {
-                    Ok(completion) => {
-                        if let Some(choice) = completion.choices.first() {
-                            // Convert content Value to String
-                            let content_str = match &choice.message.content {
-                                serde_json::Value::String(s) => s.clone(),
-                                other => other.to_string(),
-                            };
-                            Ok(content_str)
-                        } else {
-                            Err(anyhow::anyhow!("No response choices from custom API"))
-                        }
-                    },
-                    Err(parse_error) => {
-                        // Log the actual response for debugging
-                        eprintln!("Failed to parse custom API response: {}", parse_error);
-                        eprintln!("Response body: {}", response_text);
-                        Err(anyhow::anyhow!("Failed to parse custom API response: {}. Response: {}", parse_error, response_text))
-                    }
-                }
+    // MCP Server operations
+    pub async fn create_mcp_server(&self, request: CreateMcpServerRequest) -> Result<McpServer> {
+        let id = Uuid::new_v4().to_string();
+        let now = Utc::now();
+
+        // Serialize JSON fields
+        let args_json = request.args.as_ref().map(|a| serde_json::to_string(a)).transpose()?;
+        let env_json = request.env.as_ref().map(|e| serde_json::to_string(e)).transpose()?;
+        let headers_json = request.headers.as_ref().map(|h| serde_json::to_string(h)).transpose()?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO mcp_servers (
+                id, name, transport_type, command, args, env, url, headers,
+                enabled, auto_connect, connection_timeout_ms, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#
+        )
+        .bind(&id)
+        .bind(&request.name)
+        .bind(&request.transport_type)
+        .bind(&request.command)
+        .bind(&args_json)
+        .bind(&env_json)
+        .bind(&request.url)
+        .bind(&headers_json)
+        .bind(request.enabled)
+        .bind(request.auto_connect)
+        .bind(request.connection_timeout_ms)
+        .bind(now)
+        .bind(now)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(McpServer {
+            id,
+            name: request.name,
+            transport_type: request.transport_type,
+            command: request.command,
+            args: request.args,
+            env: request.env,
+            url: request.url,
+            headers: request.headers,
+            enabled: request.enabled,
+            auto_connect: request.auto_connect,
+            connection_timeout_ms: request.connection_timeout_ms,
+            created_at: now,
+            updated_at: now,
+        })
+    }
+
+    pub async fn get_mcp_servers(&self) -> Result<Vec<McpServer>> {
+        let rows = sqlx::query(
+            "SELECT * FROM mcp_servers ORDER BY name ASC"
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut servers = Vec::new();
+        for row in rows {
+            let transport_type_str: String = row.try_get("transport_type")?;
+            let transport_type = match transport_type_str.as_str() {
+                "stdio" => McpTransportType::Stdio,
+                "sse" => McpTransportType::Sse,
+                _ => return Err(anyhow::anyhow!("Invalid transport type: {}", transport_type_str)),
+            };
+
+            let args: Option<Vec<String>> = row.try_get::<Option<String>, _>("args")?
+                .and_then(|s| serde_json::from_str(&s).ok());
+            let env: Option<std::collections::HashMap<String, String>> = row.try_get::<Option<String>, _>("env")?
+                .and_then(|s| serde_json::from_str(&s).ok());
+            let headers: Option<std::collections::HashMap<String, String>> = row.try_get::<Option<String>, _>("headers")?
+                .and_then(|s| serde_json::from_str(&s).ok());
+
+            servers.push(McpServer {
+                id: row.try_get("id")?,
+                name: row.try_get("name")?,
+                transport_type,
+                command: row.try_get("command")?,
+                args,
+                env,
+                url: row.try_get("url")?,
+                headers,
+                enabled: row.try_get("enabled")?,
+                auto_connect: row.try_get("auto_connect")?,
+                connection_timeout_ms: row.try_get("connection_timeout_ms")?,
+                created_at: row.try_get("created_at")?,
+                updated_at: row.try_get("updated_at")?,
+            });
+        }
+
+        Ok(servers)
+    }
+
+    pub async fn get_mcp_server(&self, server_id: &str) -> Result<Option<McpServer>> {
+        let row = sqlx::query("SELECT * FROM mcp_servers WHERE id = ?")
+            .bind(server_id)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        match row {
+            Some(row) => {
+                let transport_type_str: String = row.try_get("transport_type")?;
+                let transport_type = match transport_type_str.as_str() {
+                    "stdio" => McpTransportType::Stdio,
+                    "sse" => McpTransportType::Sse,
+                    _ => return Err(anyhow::anyhow!("Invalid transport type: {}", transport_type_str)),
+                };
+
+                let args: Option<Vec<String>> = row.try_get::<Option<String>, _>("args")?
+                    .and_then(|s| serde_json::from_str(&s).ok());
+                let env: Option<std::collections::HashMap<String, String>> = row.try_get::<Option<String>, _>("env")?
+                    .and_then(|s| serde_json::from_str(&s).ok());
+                let headers: Option<std::collections::HashMap<String, String>> = row.try_get::<Option<String>, _>("headers")?
+                    .and_then(|s| serde_json::from_str(&s).ok());
+
+                Ok(Some(McpServer {
+                    id: row.try_get("id")?,
+                    name: row.try_get("name")?,
+                    transport_type,
+                    command: row.try_get("command")?,
+                    args,
+                    env,
+                    url: row.try_get("url")?,
+                    headers,
+                    enabled: row.try_get("enabled")?,
+                    auto_connect: row.try_get("auto_connect")?,
+                    connection_timeout_ms: row.try_get("connection_timeout_ms")?,
+                    created_at: row.try_get("created_at")?,
+                    updated_at: row.try_get("updated_at")?,
+                }))
             }
+            None => Ok(None),
         }
     }
 
-    pub async fn send_chat_completion_streaming(
-        &self, 
-        config: &ApiConfig, 
-        messages: Vec<ChatMessage>,
-        window: &tauri::Window,
-        message_id: &str,
-        chat_id: &str
-    ) -> Result<String> {
-        let client = Client::new();
-        
-        match config.provider {
-            ApiProvider::OpenAI => {
-                let url = config.base_url.as_deref().unwrap_or("https://api.openai.com/v1/chat/completions");
-                
-                let request_body = json!({
-                    "model": config.model,
-                    "messages": messages,
-                    "temperature": config.temperature,
-                    "max_tokens": config.max_tokens,
-                    "stream": true
-                });
+    pub async fn update_mcp_server(&self, server_id: &str, request: UpdateMcpServerRequest) -> Result<McpServer> {
+        let now = Utc::now();
 
-                let response = client
-                    .post(url)
-                    .header("Authorization", format!("Bearer {}", config.api_key))
-                    .header("Content-Type", "application/json")
-                    .json(&request_body)
-                    .send()
-                    .await?;
+        let args_json = request.args.as_ref().map(|a| serde_json::to_string(a)).transpose()?;
+        let env_json = request.env.as_ref().map(|e| serde_json::to_string(e)).transpose()?;
+        let headers_json = request.headers.as_ref().map(|h| serde_json::to_string(h)).transpose()?;
 
-                if !response.status().is_success() {
-                    let error_text = response.text().await?;
-                    return Err(anyhow::anyhow!("API request failed: {}", error_text));
-                }
+        sqlx::query(
+            r#"
+            UPDATE mcp_servers SET
+                name = ?, transport_type = ?, command = ?, args = ?, env = ?,
+                url = ?, headers = ?, enabled = ?, auto_connect = ?,
+                connection_timeout_ms = ?, updated_at = ?
+            WHERE id = ?
+            "#
+        )
+        .bind(&request.name)
+        .bind(&request.transport_type)
+        .bind(&request.command)
+        .bind(&args_json)
+        .bind(&env_json)
+        .bind(&request.url)
+        .bind(&headers_json)
+        .bind(request.enabled)
+        .bind(request.auto_connect)
+        .bind(request.connection_timeout_ms)
+        .bind(now)
+        .bind(server_id)
+        .execute(&self.pool)
+        .await?;
 
-                let mut full_response = String::new();
-                let mut stream = response.bytes_stream();
-                
-                use futures_util::StreamExt;
-                
-                while let Some(chunk) = stream.next().await {
-                    let chunk = chunk?;
-                    let chunk_str = String::from_utf8_lossy(&chunk);
-                    
-                    // Parse SSE format
-                    for line in chunk_str.lines() {
-                        if line.starts_with("data: ") {
-                            let data = &line[6..];
-                            if data == "[DONE]" {
-                                break;
-                            }
-                            
-                            if let Ok(json_data) = serde_json::from_str::<serde_json::Value>(data) {
-                                if let Some(choices) = json_data["choices"].as_array() {
-                                    if let Some(choice) = choices.first() {
-                                        if let Some(delta) = choice["delta"].as_object() {
-                                            if let Some(content) = delta["content"].as_str() {
-                                                full_response.push_str(content);
-                                                
-                                                // Emit streaming chunk to frontend
-                                                let _ = window.emit("streaming_chunk", serde_json::json!({
-                                                    "message_id": message_id,
-                                                    "chunk": content,
-                                                    "full_content": full_response
-                                                }));
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+        Ok(McpServer {
+            id: server_id.to_string(),
+            name: request.name,
+            transport_type: request.transport_type,
+            command: request.command,
+            args: request.args,
+            env: request.env,
+            url: request.url,
+            headers: request.headers,
+            enabled: request.enabled,
+            auto_connect: request.auto_connect,
+            connection_timeout_ms: request.connection_timeout_ms,
+            created_at: now, // Will be overwritten by actual value
+            updated_at: now,
+        })
+    }
 
-                // Emit streaming complete event with the content
-                let _ = window.emit("streaming_complete", serde_json::json!({
-                    "message_id": message_id,
-                    "content": full_response,
-                    "chat_id": chat_id
-                }));
+    pub async fn delete_mcp_server(&self, server_id: &str) -> Result<()> {
+        // Tools will be cascade deleted
+        sqlx::query("DELETE FROM mcp_servers WHERE id = ?")
+            .bind(server_id)
+            .execute(&self.pool)
+            .await?;
 
-                Ok(full_response)
-            },
-            // For other providers, fall back to non-streaming for now
-            _ => {
-                // Simulate streaming by sending the full response in chunks
-                let response = self.send_chat_completion(config, messages).await?;
-                
-                // Split response into words and send as chunks
-                let words: Vec<&str> = response.split_whitespace().collect();
-                let mut current_content = String::new();
-                
-                for (i, word) in words.iter().enumerate() {
-                    current_content.push_str(word);
-                    if i < words.len() - 1 {
-                        current_content.push(' ');
-                    }
-                    
-                    // Emit chunk
-                    let _ = window.emit("streaming_chunk", serde_json::json!({
-                        "message_id": message_id,
-                        "chunk": format!("{} ", word),
-                        "full_content": current_content
-                    }));
-                    
-                    // Small delay to simulate streaming
-                    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-                }
-                
-                // Emit streaming complete event with the content
-                let _ = window.emit("streaming_complete", serde_json::json!({
-                    "message_id": message_id,
-                    "content": response,
-                    "chat_id": chat_id
-                }));
+        Ok(())
+    }
 
-                Ok(response)
-            }
+    // MCP Tool operations
+    pub async fn sync_mcp_tools(&self, server_id: &str, tools: Vec<(String, Option<String>, serde_json::Value)>) -> Result<Vec<McpTool>> {
+        let now = Utc::now();
+
+        // Delete existing tools for this server
+        sqlx::query("DELETE FROM mcp_tools WHERE server_id = ?")
+            .bind(server_id)
+            .execute(&self.pool)
+            .await?;
+
+        let mut result_tools = Vec::new();
+
+        for (name, description, input_schema) in tools {
+            let id = Uuid::new_v4().to_string();
+            let schema_json = serde_json::to_string(&input_schema)?;
+
+            sqlx::query(
+                r#"
+                INSERT INTO mcp_tools (id, server_id, name, description, input_schema, enabled, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+                "#
+            )
+            .bind(&id)
+            .bind(server_id)
+            .bind(&name)
+            .bind(&description)
+            .bind(&schema_json)
+            .bind(now)
+            .bind(now)
+            .execute(&self.pool)
+            .await?;
+
+            result_tools.push(McpTool {
+                id,
+                server_id: server_id.to_string(),
+                name,
+                description,
+                input_schema,
+                enabled: true,
+                created_at: now,
+                updated_at: now,
+            });
         }
+
+        Ok(result_tools)
+    }
+
+    pub async fn get_mcp_tools_for_server(&self, server_id: &str) -> Result<Vec<McpTool>> {
+        let rows = sqlx::query(
+            "SELECT * FROM mcp_tools WHERE server_id = ? ORDER BY name ASC"
+        )
+        .bind(server_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut tools = Vec::new();
+        for row in rows {
+            let schema_json: String = row.try_get("input_schema")?;
+            let input_schema: serde_json::Value = serde_json::from_str(&schema_json)?;
+
+            tools.push(McpTool {
+                id: row.try_get("id")?,
+                server_id: row.try_get("server_id")?,
+                name: row.try_get("name")?,
+                description: row.try_get("description")?,
+                input_schema,
+                enabled: row.try_get("enabled")?,
+                created_at: row.try_get("created_at")?,
+                updated_at: row.try_get("updated_at")?,
+            });
+        }
+
+        Ok(tools)
+    }
+
+    pub async fn get_enabled_mcp_tools(&self) -> Result<Vec<McpTool>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT t.* FROM mcp_tools t
+            INNER JOIN mcp_servers s ON t.server_id = s.id
+            WHERE t.enabled = 1 AND s.enabled = 1
+            ORDER BY s.name, t.name
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut tools = Vec::new();
+        for row in rows {
+            let schema_json: String = row.try_get("input_schema")?;
+            let input_schema: serde_json::Value = serde_json::from_str(&schema_json)?;
+
+            tools.push(McpTool {
+                id: row.try_get("id")?,
+                server_id: row.try_get("server_id")?,
+                name: row.try_get("name")?,
+                description: row.try_get("description")?,
+                input_schema,
+                enabled: row.try_get("enabled")?,
+                created_at: row.try_get("created_at")?,
+                updated_at: row.try_get("updated_at")?,
+            });
+        }
+
+        Ok(tools)
+    }
+
+    pub async fn toggle_mcp_tool(&self, tool_id: &str, enabled: bool) -> Result<()> {
+        let now = Utc::now();
+
+        sqlx::query("UPDATE mcp_tools SET enabled = ?, updated_at = ? WHERE id = ?")
+            .bind(enabled)
+            .bind(now)
+            .bind(tool_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
     }
 }

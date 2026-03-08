@@ -5,8 +5,8 @@ use anyhow::{Result, anyhow};
 use crate::file_operations::{read_directory_contents, search_in_files, read_file_contents, write_file_contents, open_with_default_app};
 use crate::system_operations::{
     get_installed_applications, launch_application, execute_terminal_command,
-    perform_file_operation, get_running_processes, kill_process, check_permission_level,
-    FileSystemOperation, FileOperationType, PermissionLevel};
+    perform_file_operation, get_running_processes, kill_process,
+    FileSystemOperation, FileOperationType};
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AgentAction {
     pub action_type: String,
@@ -226,6 +226,89 @@ impl AgentSession {
                     },
                 ],
             },
+            AgentCapability {
+                name: "launch_application".to_string(),
+                description: "Launch an installed application".to_string(),
+                parameters: vec![
+                    AgentParameter {
+                        name: "app_name".to_string(),
+                        parameter_type: "string".to_string(),
+                        description: "Name or path of the application to launch".to_string(),
+                        required: true,
+                        default_value: None,
+                    },
+                ],
+            },
+            AgentCapability {
+                name: "get_installed_apps".to_string(),
+                description: "Get a list of installed applications on the system".to_string(),
+                parameters: vec![],
+            },
+            AgentCapability {
+                name: "execute_command".to_string(),
+                description: "Execute a terminal/shell command".to_string(),
+                parameters: vec![
+                    AgentParameter {
+                        name: "command".to_string(),
+                        parameter_type: "string".to_string(),
+                        description: "The command to execute".to_string(),
+                        required: true,
+                        default_value: None,
+                    },
+                    AgentParameter {
+                        name: "working_directory".to_string(),
+                        parameter_type: "string".to_string(),
+                        description: "Working directory for command execution".to_string(),
+                        required: false,
+                        default_value: None,
+                    },
+                ],
+            },
+            AgentCapability {
+                name: "file_operation".to_string(),
+                description: "Perform file system operations (copy, move, delete files/directories)".to_string(),
+                parameters: vec![
+                    AgentParameter {
+                        name: "operation".to_string(),
+                        parameter_type: "string".to_string(),
+                        description: "Type of operation: 'copy', 'move', 'delete', 'rename'".to_string(),
+                        required: true,
+                        default_value: None,
+                    },
+                    AgentParameter {
+                        name: "source".to_string(),
+                        parameter_type: "string".to_string(),
+                        description: "Source file or directory path".to_string(),
+                        required: true,
+                        default_value: None,
+                    },
+                    AgentParameter {
+                        name: "destination".to_string(),
+                        parameter_type: "string".to_string(),
+                        description: "Destination path (for copy, move, rename operations)".to_string(),
+                        required: false,
+                        default_value: None,
+                    },
+                ],
+            },
+            AgentCapability {
+                name: "get_processes".to_string(),
+                description: "Get a list of running processes on the system".to_string(),
+                parameters: vec![],
+            },
+            AgentCapability {
+                name: "kill_process".to_string(),
+                description: "Terminate a running process by PID".to_string(),
+                parameters: vec![
+                    AgentParameter {
+                        name: "pid".to_string(),
+                        parameter_type: "number".to_string(),
+                        description: "Process ID (PID) to terminate".to_string(),
+                        required: true,
+                        default_value: None,
+                    },
+                ],
+            },
         ]
     }
     
@@ -378,9 +461,9 @@ impl AgentSession {
     }
     
     async fn execute_launch_application(&self, params: &HashMap<String, serde_json::Value>) -> Result<serde_json::Value> {
-        let app_path = params.get("path")
+        let app_path = params.get("app_name")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| anyhow!("Missing required parameter: path"))?;
+            .ok_or_else(|| anyhow!("Missing required parameter: app_name"))?;
         
         let args = params.get("arguments")
             .and_then(|v| v.as_array())
@@ -413,13 +496,8 @@ impl AgentSession {
                 self.current_directory.lock().ok()
                     .map(|dir| dir.clone())
             });
-        
-        // Check permission level
-        let permission = check_permission_level("execute_command", params);
-        if permission.level == PermissionLevel::Dangerous {
-            return Err(anyhow!("Command requires explicit user permission: {}", command));
-        }
-        
+
+        // Permission is checked at frontend level before this is called
         let result = execute_terminal_command(command, working_dir.as_deref())?;
         Ok(serde_json::to_value(result)?)
     }
@@ -471,13 +549,8 @@ impl AgentSession {
             .and_then(|v| v.as_u64())
             .map(|v| v as u32)
             .ok_or_else(|| anyhow!("Missing required parameter: pid"))?;
-        
-        // Check permission level
-        let permission = check_permission_level("kill_process", params);
-        if permission.level == PermissionLevel::Dangerous {
-            return Err(anyhow!("Killing process requires explicit user permission: PID {}", pid));
-        }
-        
+
+        // Permission is checked at frontend level before this is called
         kill_process(pid)?;
         Ok(serde_json::Value::String(format!("Successfully terminated process with PID: {}", pid)))
     }
