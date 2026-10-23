@@ -25,6 +25,15 @@ interface MessageItemProps {
 }
 
 // Parse AI thinking content
+export function cleanUserDisplayMessage(content: string): string {
+    if (!content) return '';
+    return content
+        .replace(/\[CONNECTED DESKTOP APPLICATIONS & INTEGRATIONS\]:[\s\S]*?(?=\n\n|$)/gi, '')
+        .replace(/\[CONNECTED DESKTOP APPLICATIONS & INTEGRATIONS\]:[\s\S]*/gi, '')
+        .replace(/^\[DIRECTED_TO:[A-Z_-]+\]\s*/gi, '')
+        .trim();
+}
+
 const parseAIThinking = (content: string) => {
     const thinkingRegex = /<\|start\|>assistant<\|channel\|>thinking<\|message\|>([\s\S]*?)<\|start\|>assistant<\|channel\|>final<\|message\|>([\s\S]*?)$/;
     const thinkingMatch = content.match(thinkingRegex);
@@ -56,6 +65,8 @@ const parseAIThinking = (content: string) => {
 };
 
 export default function MessageItem({ message, formatTime, copyToClipboard, autoSpeak = false, toolExecutions, onPermissionStatusUpdate }: MessageItemProps) {
+    const isUser = message.role === "user";
+    const displayUserContent = isUser ? cleanUserDisplayMessage(message.content) : message.content;
     const aiContent = message.role === "assistant" ? parseAIThinking(message.content) : null;
     const [isThinkingOpen, setIsThinkingOpen] = useState(false);
     const [copied, setCopied] = useState(false);
@@ -86,7 +97,7 @@ export default function MessageItem({ message, formatTime, copyToClipboard, auto
         } else {
             const textToSpeak = message.role === "assistant"
                 ? extractPlainText(aiContent?.final || message.content)
-                : message.content;
+                : displayUserContent;
 
             if (textToSpeak.trim()) {
                 speak(textToSpeak);
@@ -95,7 +106,7 @@ export default function MessageItem({ message, formatTime, copyToClipboard, auto
     };
 
     const handleCopy = () => {
-        copyToClipboard(aiContent?.final || message.content);
+        copyToClipboard(aiContent?.final || displayUserContent);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
@@ -105,7 +116,6 @@ export default function MessageItem({ message, formatTime, copyToClipboard, auto
         toast.success(type === 'like' ? "Thanks for the feedback!" : "Feedback received");
     };
 
-    const isUser = message.role === "user";
     const isPermissionRequest = !!message.permission_request;
 
     // Special standalone rendering for Permission Requests (compact & centered/inline)
@@ -151,7 +161,7 @@ export default function MessageItem({ message, formatTime, copyToClipboard, auto
 
                         {/* Bubble */}
                         <div className="chat-message-bubble rounded-2xl rounded-br-xs px-4 py-2 bg-primary text-primary-foreground shadow-sm leading-relaxed whitespace-pre-wrap selection:bg-white/20">
-                            {message.content}
+                            {displayUserContent || message.content}
                         </div>
 
                         {/* Actions on hover */}

@@ -85,6 +85,8 @@ impl AgentSession {
                 "read_document".to_string(),
                 "write_file".to_string(),
                 "search_files".to_string(),
+                "duckduckgo_search".to_string(),
+                "web_search".to_string(),
                 "open_file".to_string(),
                 "change_directory".to_string(),
                 "get_file_info".to_string(),
@@ -222,6 +224,46 @@ impl AgentSession {
                 ],
             },
             AgentCapability {
+                name: "duckduckgo_search".to_string(),
+                description: "Search the web using DuckDuckGo search engine to find documentation, GitHub repositories, software guides, and current online information.".to_string(),
+                parameters: vec![
+                    AgentParameter {
+                        name: "query".to_string(),
+                        parameter_type: "string".to_string(),
+                        description: "The search query (e.g., 'amanbig chatme github', 'react 19 release notes')".to_string(),
+                        required: true,
+                        default_value: None,
+                    },
+                    AgentParameter {
+                        name: "max_results".to_string(),
+                        parameter_type: "number".to_string(),
+                        description: "Number of search results to retrieve (default: 5)".to_string(),
+                        required: false,
+                        default_value: Some(serde_json::json!(5)),
+                    },
+                ],
+            },
+            AgentCapability {
+                name: "web_search".to_string(),
+                description: "Search the web using DuckDuckGo search engine. Use this whenever asked to search online, look up GitHub repos, check documentation, or browse the web.".to_string(),
+                parameters: vec![
+                    AgentParameter {
+                        name: "query".to_string(),
+                        parameter_type: "string".to_string(),
+                        description: "The search query".to_string(),
+                        required: true,
+                        default_value: None,
+                    },
+                    AgentParameter {
+                        name: "max_results".to_string(),
+                        parameter_type: "number".to_string(),
+                        description: "Number of search results (default: 5)".to_string(),
+                        required: false,
+                        default_value: Some(serde_json::json!(5)),
+                    },
+                ],
+            },
+            AgentCapability {
                 name: "open_file".to_string(),
                 description: "Open a file with the default system application".to_string(),
                 parameters: vec![
@@ -349,6 +391,7 @@ impl AgentSession {
             "read_document" => self.execute_read_document(&parameters).await,
             "write_file" => self.execute_write_file(&parameters).await,
             "search_files" => self.execute_search_files(&parameters).await,
+            "duckduckgo_search" | "web_search" => self.execute_web_search(&parameters).await,
             "open_file" => self.execute_open_file(&parameters).await,
             "change_directory" => self.execute_change_directory(&parameters).await,
             "launch_application" => self.execute_launch_application(&parameters).await,
@@ -460,6 +503,19 @@ impl AgentSession {
             max_results,
         )?;
         
+        Ok(serde_json::to_value(results)?)
+    }
+
+    async fn execute_web_search(&self, params: &HashMap<String, serde_json::Value>) -> Result<serde_json::Value> {
+        let query = params.get("query")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("Missing required parameter: query"))?;
+        
+        let max_results = params.get("max_results")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as usize);
+        
+        let results = crate::web_search::duckduckgo_search(query, max_results).await?;
         Ok(serde_json::to_value(results)?)
     }
     

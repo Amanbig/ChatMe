@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { DirectoryContents, SearchResult, DocumentContent } from './types';
+import type { DirectoryContents, SearchResult, DocumentContent, WebSearchResult } from './types';
 
 export interface AgentTool {
     name: string;
@@ -281,6 +281,46 @@ export const webFetchTool: AgentTool = {
     }
 };
 
+// Tool: DuckDuckGo Web Search
+export const webSearchTool: AgentTool = {
+    name: "web_search",
+    description: "Search the web using DuckDuckGo search engine. Use this to find GitHub repositories, documentation, online answers, and web content.",
+    parameters: {
+        type: "object",
+        properties: {
+            query: {
+                type: "string",
+                description: "The web search query (e.g. 'amanbig chatme github', 'react 19 release notes')"
+            },
+            max_results: {
+                type: "number",
+                description: "Number of search results to retrieve (default: 5)"
+            }
+        },
+        required: ["query"]
+    },
+    execute: async (params) => {
+        try {
+            const results = await invoke('duckduckgo_search', {
+                query: params.query,
+                maxResults: params.max_results || 5
+            }) as WebSearchResult[];
+
+            if (!results || results.length === 0) {
+                return `No web results found for "${params.query}".`;
+            }
+
+            let output = `**DuckDuckGo Search Results for "${params.query}":**\n\n`;
+            for (const [i, res] of results.entries()) {
+                output += `${i + 1}. **[${res.title}](${res.url})**\n   ${res.snippet}\n\n`;
+            }
+            return output.trim();
+        } catch (error) {
+            return `Web search error: ${error}`;
+        }
+    }
+};
+
 // Tool: Execute terminal command
 export const executeCommandTool: AgentTool = {
     name: "execute_command",
@@ -323,6 +363,8 @@ export const AGENT_TOOLS: Record<string, AgentTool> = {
     read_document: readDocumentTool,
     write_file: writeFileTool,
     fetch_url: webFetchTool,
+    web_search: webSearchTool,
+    duckduckgo_search: webSearchTool,
     execute_command: executeCommandTool
 };
 
@@ -360,10 +402,33 @@ export function detectToolUsage(query: string, workingDirectory: string): { tool
         };
     }
     
-    // Search queries
-    if (lowerQuery.includes('search for') || 
-        lowerQuery.includes('find') ||
-        lowerQuery.includes('grep')) {
+    // Web / GitHub / Online search queries
+    if (
+        lowerQuery.includes('github') ||
+        lowerQuery.includes('search web') ||
+        lowerQuery.includes('search online') ||
+        lowerQuery.includes('duckduckgo') ||
+        lowerQuery.includes('google') ||
+        lowerQuery.includes('search me docs') ||
+        lowerQuery.includes('search docs') ||
+        lowerQuery.includes('docs from') ||
+        lowerQuery.includes('look up online') ||
+        lowerQuery.includes('find on web')
+    ) {
+        let q = query.trim();
+        const m = q.match(/(?:search(?:\s+me)?(?:\s+for)?|find|look up|get|show)\s+(?:the\s+)?(?:docs(?:\s+from|\s+for)?\s+)?["']?([^"']+)["']?/i);
+        if (m && m[1]) {
+            q = m[1].trim();
+        }
+        return {
+            tool: webSearchTool,
+            params: { query: q }
+        };
+    }
+
+    // Local file search queries
+    if ((lowerQuery.includes('search for') || lowerQuery.includes('grep')) && 
+        (lowerQuery.includes('in file') || lowerQuery.includes('in directory') || lowerQuery.includes('in workspace') || lowerQuery.includes('in code') || lowerQuery.includes('grep '))) {
         
         // Extract search pattern
         const searchMatch = lowerQuery.match(/(?:search for|find|grep)\s+["']?([^"']+)["']?/);

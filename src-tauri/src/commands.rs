@@ -475,6 +475,16 @@ pub async fn write_file(file_path: String, contents: String) -> Result<String, S
 }
 
 #[tauri::command]
+pub async fn duckduckgo_search(
+    query: String,
+    max_results: Option<usize>,
+) -> Result<Vec<crate::web_search::WebSearchResult>, String> {
+    crate::web_search::duckduckgo_search(&query, max_results)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn get_current_directory() -> Result<String, String> {
     std::env::current_dir()
         .map(|path| path.to_string_lossy().to_string())

@@ -12,6 +12,7 @@ import type {
   DirectoryContents,
   SearchResult,
   DocumentContent,
+  WebSearchResult,
   AgentSession,
   AgentAction,
   AgentCapability,
@@ -116,6 +117,10 @@ export async function readFile(filePath: string): Promise<string> {
 
 export async function readDocument(filePath: string, maxLength?: number): Promise<DocumentContent> {
   return await invoke('read_document', { filePath, maxLength });
+}
+
+export async function duckduckgoSearch(query: string, maxResults?: number): Promise<WebSearchResult[]> {
+  return await invoke('duckduckgo_search', { query, maxResults });
 }
 
 export async function writeFile(filePath: string, contents: string): Promise<string> {

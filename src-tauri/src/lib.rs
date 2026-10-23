@@ -9,6 +9,7 @@ mod llm_streaming;
 mod permission_manager;
 mod mcp_client;
 mod tool_registry;
+pub mod web_search;
 
 use database::Database;
 use permission_manager::PermissionManager;
@@ -67,6 +68,7 @@ pub fn run() {
                 commands::search_files,
                 commands::read_file,
                 commands::read_document,
+                commands::duckduckgo_search,
                 commands::write_file,
                 commands::get_current_directory,
                 // Agentic mode
