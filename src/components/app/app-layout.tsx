@@ -37,6 +37,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useAgent } from "@/contexts/AgentContext";
 import ThemeToggle from "./theme-toggle";
 import TerminalDrawer from "./terminal-drawer";
+import PermissionDialog from "./permission-dialog";
 import { Terminal } from "lucide-react";
 import type { ChatWithLastMessage } from "@/lib/types";
 
@@ -489,6 +490,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
             isOpen={isTerminalOpen} 
             onClose={() => setIsTerminalOpen(false)} 
           />
+
+          {/* Global System & Tool Permission Dialog */}
+          <PermissionDialog />
         </SidebarInset>
       </>
     </TooltipProvider>
