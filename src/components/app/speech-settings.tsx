@@ -26,6 +26,7 @@ export default function SpeechSettings({
     cancel,
     speaking,
     supported,
+    engine,
     voices,
     selectedVoice,
     setSelectedVoice,
@@ -36,6 +37,9 @@ export default function SpeechSettings({
     volume,
     setVolume
   } = useTextToSpeech();
+
+  const browserSupportsSpeechRecognition = typeof window !== 'undefined' && 
+    ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
 
   const [testText] = useState("Hello! This is a test of the text-to-speech functionality.");
 
@@ -64,7 +68,9 @@ export default function SpeechSettings({
             </div>
             <div>
               <CardTitle>Speech Settings</CardTitle>
-              <CardDescription>Text-to-speech is not supported in your browser.</CardDescription>
+              <CardDescription>
+                Text-to-speech engine not detected. Install <code className="text-primary font-mono text-xs">speech-dispatcher</code> (<code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">sudo apt install speech-dispatcher</code>) for native Linux voice output.
+              </CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -77,13 +83,21 @@ export default function SpeechSettings({
       {/* Main Controls Card */}
       <Card className="border-border/60">
         <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <FaVolumeUp className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <CardTitle>Speech Settings</CardTitle>
-              <CardDescription>Configure voice input and text-to-speech</CardDescription>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <FaVolumeUp className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <CardTitle>Speech Settings</CardTitle>
+                  <Badge variant="outline" className="text-[11px] gap-1 font-mono border-primary/30 text-primary bg-primary/5">
+                    <FaRobot size={10} />
+                    {engine || 'System TTS'}
+                  </Badge>
+                </div>
+                <CardDescription>Configure voice output and audio synthesis</CardDescription>
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -95,13 +109,23 @@ export default function SpeechSettings({
                 <FaMicrophone className="h-5 w-5 text-blue-500" />
               </div>
               <div>
-                <Label htmlFor="speech-recognition" className="text-base font-medium">Speech Recognition</Label>
-                <p className="text-xs text-muted-foreground">Enable voice input using your microphone</p>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="speech-recognition" className="text-base font-medium">Speech Recognition</Label>
+                  {!browserSupportsSpeechRecognition && (
+                    <Badge variant="secondary" className="text-[10px]">Web Speech API required</Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {browserSupportsSpeechRecognition 
+                    ? "Enable voice input using your microphone" 
+                    : "Microphone input requires Web Speech API (available in Chromium/Chrome). Text-to-speech output is fully enabled."}
+                </p>
               </div>
             </div>
             <Switch
               id="speech-recognition"
-              checked={speechEnabled}
+              checked={browserSupportsSpeechRecognition && speechEnabled}
+              disabled={!browserSupportsSpeechRecognition}
               onCheckedChange={onSpeechEnabledChange}
             />
           </div>

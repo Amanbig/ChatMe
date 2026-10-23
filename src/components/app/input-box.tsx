@@ -139,7 +139,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(({ onSendMessage, disabl
 
     const handleMicrophoneClick = () => {
         if (!browserSupportsSpeechRecognition) {
-            toast.error("Speech recognition is not supported in your browser");
+            toast.info("Microphone voice input requires Web Speech API (supported in Chromium/Chrome). Text-to-speech output is fully enabled via System TTS.");
             return;
         }
         if (isListening) {

@@ -10,6 +10,7 @@ mod permission_manager;
 mod mcp_client;
 mod tool_registry;
 pub mod web_search;
+pub mod tts;
 
 use database::Database;
 use permission_manager::PermissionManager;
@@ -111,6 +112,10 @@ pub fn run() {
                 commands::get_all_mcp_statuses,
                 commands::get_merged_tool_definitions,
                 commands::execute_tool_routed,
+                commands::get_tts_status,
+                commands::get_native_tts_voices,
+                commands::native_speak,
+                commands::native_cancel_speech,
             ])
             .run(tauri::generate_context!())
             .expect("error while running tauri application");

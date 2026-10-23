@@ -1234,3 +1234,29 @@ pub fn get_system_info() -> Result<serde_json::Value, String> {
     }))
 }
 
+#[tauri::command]
+pub fn get_tts_status() -> Result<crate::tts::TtsStatus, String> {
+    Ok(crate::tts::get_tts_status())
+}
+
+#[tauri::command]
+pub fn get_native_tts_voices() -> Result<Vec<crate::tts::TtsVoice>, String> {
+    Ok(crate::tts::get_native_voices())
+}
+
+#[tauri::command]
+pub fn native_speak(
+    text: String,
+    voice: Option<String>,
+    rate: Option<f32>,
+    pitch: Option<f32>,
+    volume: Option<f32>,
+) -> Result<(), String> {
+    crate::tts::speak(&text, voice.as_deref(), rate, pitch, volume)
+}
+
+#[tauri::command]
+pub fn native_cancel_speech() -> Result<(), String> {
+    crate::tts::cancel_speech()
+}
+
