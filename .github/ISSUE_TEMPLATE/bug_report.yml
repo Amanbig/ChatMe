@@ -1,0 +1,95 @@
+name: 🐛 Bug Report
+description: Create a report to help us improve ChatMe
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report an issue! Please provide as much detail as possible.
+
+  - type: input
+    id: version
+    attributes:
+      label: ChatMe Version
+      description: What version of ChatMe are you running? (e.g. v0.5.3)
+      placeholder: e.g. 0.5.3
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Windows
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (Ubuntu / Debian)
+        - Linux (Arch / Fedora / Other)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: AI Provider (if applicable)
+      description: Which AI provider or model were you using when the issue occurred?
+      options:
+        - OpenAI
+        - Anthropic Claude
+        - Google Gemini
+        - Ollama (Local)
+        - LMStudio (Local)
+        - Groq
+        - OpenRouter
+        - Together AI
+        - DeepSeek
+        - Mistral
+        - Kimi
+        - Perplexity
+        - Custom Endpoint
+        - Not Provider Specific / App Shell Issue
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Step-by-step instructions to reproduce the issue.
+      placeholder: |
+        1. Open ChatMe
+        2. Go to '...'
+        3. Click on '....'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: A clear description of what you expected to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs & Console Output
+      description: Paste any terminal logs, DevTools console errors, or screenshots.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Self-Check
+      options:
+        - label: I have searched the existing issues and confirmed this is not a duplicate.
+          required: true

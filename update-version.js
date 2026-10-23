@@ -65,10 +65,12 @@ try {
 
 console.log(`\n🎉 Version updated to ${newVersion} successfully!`);
 console.log('\nNext steps:');
-console.log('1. Review the changes');
+console.log(`1. Update RELEASE_NOTES.md and copy to release_notes/v${newVersion}.md`);
 console.log('2. Commit the version update');
-console.log('3. Push to trigger the release workflow');
+console.log('3. Create and push git tag to trigger the release workflow');
 console.log('\nCommands to run:');
 console.log(`git add .`);
 console.log(`git commit -m "bump version to ${newVersion}"`);
 console.log(`git push`);
+console.log(`git tag app-v${newVersion}`);
+console.log(`git push origin app-v${newVersion}`);
