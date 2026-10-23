@@ -242,3 +242,7 @@ export async function executeToolRouted(
 ): Promise<AgentAction> {
   return await invoke('execute_tool_routed', { sessionId, toolName, parameters });
 }
+
+export async function changeDirectory(path: string): Promise<string> {
+  return await invoke('change_directory', { path });
+}

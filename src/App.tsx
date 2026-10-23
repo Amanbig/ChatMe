@@ -8,6 +8,7 @@ import AppLayout from "./components/app/app-layout";
 import SettingsPage from "./pages/settings";
 import HomePage from "./pages/home";
 import { Toaster } from "./components/ui/sonner";
+import ErrorBoundary from "./components/app/error-boundary";
 
 const router = createBrowserRouter([
   {
@@ -42,7 +43,9 @@ function App() {
       <AgentProvider>
         <SidebarProvider defaultOpen={false}>
           <Toaster />
-          <RouterProvider router={router} />
+          <ErrorBoundary>
+            <RouterProvider router={router} />
+          </ErrorBoundary>
         </SidebarProvider>
       </AgentProvider>
     </ThemeProvider>

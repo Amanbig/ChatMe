@@ -491,6 +491,35 @@ pub async fn get_current_directory() -> Result<String, String> {
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn change_directory(path: String) -> Result<String, String> {
+    let expanded = if path.starts_with("~/") || path == "~" {
+        if let Some(home) = dirs::home_dir() {
+            if path == "~" {
+                home
+            } else {
+                home.join(&path[2..])
+            }
+        } else {
+            std::path::PathBuf::from(&path)
+        }
+    } else {
+        std::path::PathBuf::from(&path)
+    };
+
+    if !expanded.exists() {
+        return Err(format!("cd: no such file or directory: {}", path));
+    }
+    if !expanded.is_dir() {
+        return Err(format!("cd: not a directory: {}", path));
+    }
+
+    std::env::set_current_dir(&expanded).map_err(|e| format!("cd: {}", e))?;
+    std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(|e| e.to_string())
+}
+
 // Agentic Mode Commands
 #[tauri::command]
 pub async fn create_agent_session(session_id: String) -> Result<AgentSession, String> {
