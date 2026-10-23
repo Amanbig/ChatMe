@@ -1289,3 +1289,33 @@ pub fn native_cancel_speech() -> Result<(), String> {
     crate::tts::cancel_speech()
 }
 
+#[tauri::command]
+pub async fn check_for_updates() -> Result<crate::updater::UpdateCheckResult, String> {
+    crate::updater::check_for_updates()
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn download_and_install_update(
+    window: tauri::Window,
+    download_url: String,
+    filename: String,
+) -> Result<crate::updater::InstallResult, String> {
+    crate::updater::download_and_install_update(window, download_url, filename)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn restart_app(app: tauri::AppHandle) -> Result<(), String> {
+    crate::updater::restart_application(&app)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+

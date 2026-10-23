@@ -11,6 +11,7 @@ mod mcp_client;
 mod tool_registry;
 pub mod web_search;
 pub mod tts;
+pub mod updater;
 
 use database::Database;
 use permission_manager::PermissionManager;
@@ -117,6 +118,10 @@ pub fn run() {
                 commands::get_native_tts_voices,
                 commands::native_speak,
                 commands::native_cancel_speech,
+                commands::check_for_updates,
+                commands::download_and_install_update,
+                commands::restart_app,
+                commands::get_app_version,
             ])
             .run(tauri::generate_context!())
             .expect("error while running tauri application");
