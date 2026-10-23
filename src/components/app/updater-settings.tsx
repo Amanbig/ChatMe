@@ -96,7 +96,7 @@ function getInstallTypeLabel(type: InstallType): { title: string; desc: string; 
 }
 
 export default function UpdaterSettings() {
-  const [currentVersion, setCurrentVersion] = useState<string>("0.6.0");
+  const [currentVersion, setCurrentVersion] = useState<string>("0.6.5");
   const [updateData, setUpdateData] = useState<UpdateCheckResult | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<ReleaseAsset | null>(null);
   const [checking, setChecking] = useState<boolean>(false);
