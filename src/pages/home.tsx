@@ -987,6 +987,7 @@ export default function HomePage() {
                                         key={`streaming-${streamingMessage.id}`}
                                         streamingMessage={streamingMessage}
                                         autoSpeak={autoSpeak}
+                                        toolExecutions={toolExecutions.get(streamingMessage.id) || undefined}
                                     />
                                 )}
                             </div>

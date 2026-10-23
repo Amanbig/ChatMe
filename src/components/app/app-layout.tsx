@@ -369,13 +369,29 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
         <SidebarInset className="flex flex-col h-screen bg-background">
           {/* Header */}
-          <header className="sticky top-0 flex h-14 shrink-0 items-center gap-3 border-b border-border/60 bg-background/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 px-4 z-10 drag">
+          <header 
+            data-tauri-drag-region
+            onMouseDown={(e) => {
+              if (e.button === 0 && !(e.target as HTMLElement).closest('button, input, a, [role="button"], .no-drag')) {
+                appWindow.startDragging();
+              }
+            }}
+            className="sticky top-0 flex h-14 shrink-0 items-center gap-3 border-b border-border/60 bg-background/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 px-4 z-10 select-none drag"
+          >
             <div className="flex items-center gap-2 no-drag">
               <SidebarTrigger className="h-9 w-9 rounded-lg hover:bg-muted" />
             </div>
 
-            {/* Chat title */}
-            <div className="flex items-center gap-3 ml-2 flex-1 min-w-0">
+            {/* Chat title / Top Middle Draggable Area */}
+            <div 
+              data-tauri-drag-region
+              onMouseDown={(e) => {
+                if (e.button === 0 && !(e.target as HTMLElement).closest('button, input, a, [role="button"], .no-drag')) {
+                  appWindow.startDragging();
+                }
+              }}
+              className="flex items-center gap-3 ml-2 flex-1 min-w-0 cursor-default h-full"
+            >
               {activeChat ? (
                 <>
                   <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
