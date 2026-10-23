@@ -12,6 +12,8 @@ import { useAgent } from "@/contexts/AgentContext";
 import type { Message, StreamingMessage, ToolExecution, ApiConfig } from "@/lib/types";
 import { LLMClient } from "@/lib/llm-client";
 import { listen } from '@tauri-apps/api/event';
+import { Download } from 'lucide-react';
+import { exportChatToMarkdown, exportChatToJson } from '@/lib/export-utils';
 import {
     FaRobot,
     FaLightbulb,
@@ -117,6 +119,8 @@ export default function HomePage() {
     const [isGenerating, setIsGenerating] = useState(false);
     const [toolExecutions, setToolExecutions] = useState<Map<string, ToolExecution[]>>(new Map());
     const hasAutoSentRef = useRef(false);
+    const rafIdRef = useRef<number | null>(null);
+    const [chatTitle, setChatTitle] = useState<string>('Chat');
 
     const [autoSpeak] = useState(() => {
         const saved = localStorage.getItem('autoSpeak');
@@ -363,7 +367,13 @@ export default function HomePage() {
 
         try {
             setLoading(true);
-            const fetchedMessages = await getMessages(chatId);
+            const [fetchedMessages, chatData] = await Promise.all([
+                getMessages(chatId),
+                getChat(chatId)
+            ]);
+            if (chatData?.title) {
+                setChatTitle(chatData.title);
+            }
 
             const displayMessages = fetchedMessages.map(message => {
                 // Filter out permission request system messages - they're ephemeral like tool executions
@@ -494,12 +504,17 @@ export default function HomePage() {
                     {
                         onChunk: (_chunk, fullContent) => {
                             currentContentRef.current = fullContent;
-                            setStreamingMessage({
-                                id: streamingId,
-                                content: fullContent,
-                                isStreaming: true,
-                                isComplete: false,
-                            });
+                            if (rafIdRef.current === null) {
+                                rafIdRef.current = requestAnimationFrame(() => {
+                                    setStreamingMessage({
+                                        id: streamingId,
+                                        content: currentContentRef.current,
+                                        isStreaming: true,
+                                        isComplete: false,
+                                    });
+                                    rafIdRef.current = null;
+                                });
+                            }
                         },
                         onToolExecution: async (execution) => {
                             // Get current streaming content from ref
@@ -549,6 +564,10 @@ export default function HomePage() {
                             }
                         },
                         onComplete: async (content, allExecutions) => {
+                            if (rafIdRef.current !== null) {
+                                cancelAnimationFrame(rafIdRef.current);
+                                rafIdRef.current = null;
+                            }
                             // Filter out already-saved executions
                             const remainingExecutions = allExecutions.filter(
                                 exec => !savedExecutions.has(exec.tool_call_id)
@@ -679,12 +698,17 @@ export default function HomePage() {
                 {
                     onChunk: (_chunk, fullContent) => {
                         currentContentRef.current = fullContent;
-                        setStreamingMessage({
-                            id: streamingId,
-                            content: fullContent,
-                            isStreaming: true,
-                            isComplete: false,
-                        });
+                        if (rafIdRef.current === null) {
+                            rafIdRef.current = requestAnimationFrame(() => {
+                                setStreamingMessage({
+                                    id: streamingId,
+                                    content: currentContentRef.current,
+                                    isStreaming: true,
+                                    isComplete: false,
+                                });
+                                rafIdRef.current = null;
+                            });
+                        }
                     },
                     onToolExecution: async (execution) => {
                         // Get current streaming content from ref
@@ -734,6 +758,10 @@ export default function HomePage() {
                         }
                     },
                     onComplete: async (content, allExecutions) => {
+                        if (rafIdRef.current !== null) {
+                            cancelAnimationFrame(rafIdRef.current);
+                            rafIdRef.current = null;
+                        }
                         // Filter out already-saved executions
                         const remainingExecutions = allExecutions.filter(
                             exec => !savedExecutions.has(exec.tool_call_id)
@@ -863,6 +891,36 @@ export default function HomePage() {
 
     return (
         <div className="flex flex-col h-full bg-background">
+            {/* Chat Action Header */}
+            <div className="flex items-center justify-between px-6 py-2 border-b border-border/40 bg-background/80 backdrop-blur-sm text-xs">
+                <div className="flex items-center gap-2 text-muted-foreground min-w-0">
+                    <span className="font-semibold text-foreground truncate max-w-sm">{chatTitle}</span>
+                    <span>•</span>
+                    <span className="shrink-0">{messages.length} {messages.length === 1 ? 'message' : 'messages'}</span>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                    <button
+                        onClick={() => exportChatToMarkdown(chatTitle, messages)}
+                        disabled={messages.length === 0}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40 cursor-pointer"
+                        title="Export conversation as Markdown (.md)"
+                    >
+                        <Download className="h-3.5 w-3.5" />
+                        <span>Markdown</span>
+                    </button>
+                    <button
+                        onClick={() => exportChatToJson(chatTitle, messages)}
+                        disabled={messages.length === 0}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-40 cursor-pointer"
+                        title="Export conversation as JSON (.json)"
+                    >
+                        <Download className="h-3.5 w-3.5" />
+                        <span>JSON</span>
+                    </button>
+                </div>
+            </div>
+
             {/* Messages Area */}
             <div className="flex-1 min-h-0 relative">
                 <ScrollArea ref={scrollAreaRef} className="h-full">

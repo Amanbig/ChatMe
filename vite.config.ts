@@ -35,4 +35,30 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router'],
+          'vendor-ui': [
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-alert-dialog',
+            '@radix-ui/react-select',
+            '@radix-ui/react-scroll-area',
+            '@radix-ui/react-switch',
+            '@radix-ui/react-tooltip',
+            'sonner'
+          ],
+          'vendor-markdown': [
+            'react-markdown',
+            'remark-gfm',
+            'rehype-highlight',
+            'rehype-raw'
+          ],
+          'vendor-icons': ['lucide-react', 'react-icons']
+        }
+      }
+    }
+  }
 }));
