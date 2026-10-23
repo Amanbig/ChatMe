@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import InputBox from "@/components/app/input-box";
 import MessageItem from "@/components/app/message-item";
 import StreamingMessageItem from "@/components/app/streaming-message-item";
@@ -12,8 +13,9 @@ import { useAgent } from "@/contexts/AgentContext";
 import type { Message, StreamingMessage, ToolExecution, ApiConfig } from "@/lib/types";
 import { LLMClient } from "@/lib/llm-client";
 import { listen } from '@tauri-apps/api/event';
-import { Download } from 'lucide-react';
+import { Download, AlertTriangle, RefreshCw, X } from 'lucide-react';
 import { exportChatToMarkdown, exportChatToJson } from '@/lib/export-utils';
+import { parseAppError } from '@/lib/error-handler';
 import {
     FaRobot,
     FaLightbulb,
@@ -188,6 +190,14 @@ export default function HomePage() {
     const hasAutoSentRef = useRef(false);
     const rafIdRef = useRef<number | null>(null);
     const [chatTitle, setChatTitle] = useState<string>('Chat');
+    const [generationError, setGenerationError] = useState<{
+        title: string;
+        message: string;
+        actionLabel?: string;
+        actionType?: string;
+        isRetryable: boolean;
+        lastContent?: string;
+    } | null>(null);
 
     const [autoSpeak] = useState(() => {
         const saved = localStorage.getItem('autoSpeak');
@@ -652,7 +662,9 @@ export default function HomePage() {
                 console.error('Failed to auto-send message:', error);
                 setIsGenerating(false);
                 setStreamingMessage(null);
-                toast.error(error instanceof Error ? error.message : 'Failed to send message. Please try again.');
+                const parsed = parseAppError(error);
+                setGenerationError(parsed);
+                toast.error(parsed.title, { description: parsed.message });
             }
         };
 
@@ -664,10 +676,11 @@ export default function HomePage() {
     const handleSendMessage = async (content: string, images?: string[], appMetadataContext?: string, subagentRole?: string) => {
         if (!chatId || (!content.trim() && !images?.length) || isGenerating) return;
 
+        const cleanUserText = content.trim();
+
         try {
             setIsGenerating(true);
-
-            const cleanUserText = content.trim();
+            setGenerationError(null);
 
             const agentResponse = await handleAgentQuery(cleanUserText, workingDirectory);
 
@@ -853,7 +866,9 @@ export default function HomePage() {
             console.error('Failed to send message:', error);
             setIsGenerating(false);
             setStreamingMessage(null);
-            toast.error(error instanceof Error ? error.message : 'Failed to send message. Please check your configuration and try again.');
+            const parsed = parseAppError(error);
+            setGenerationError({ ...parsed, lastContent: cleanUserText });
+            toast.error(parsed.title, { description: parsed.message });
         }
     };
 
@@ -1019,6 +1034,52 @@ export default function HomePage() {
                     </div>
                 </ScrollArea>
             </div>
+
+            {/* Inline Error & Recovery Banner */}
+            {generationError && (
+                <div className="mx-4 my-2 p-3 rounded-xl border border-destructive/40 bg-destructive/10 text-xs flex items-center justify-between gap-3 animate-in fade-in duration-200">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                        <div className="min-w-0">
+                            <span className="font-semibold text-destructive block">{generationError.title}</span>
+                            <span className="text-muted-foreground text-[11px] block truncate">{generationError.message}</span>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        {generationError.actionType === 'settings' ? (
+                            <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="h-7 text-xs border-destructive/40 hover:bg-destructive/20 cursor-pointer"
+                                onClick={() => navigate('/settings')}
+                            >
+                                Settings
+                            </Button>
+                        ) : generationError.isRetryable && generationError.lastContent ? (
+                            <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="h-7 text-xs border-destructive/40 hover:bg-destructive/20 gap-1.5 cursor-pointer"
+                                onClick={() => {
+                                    const contentToRetry = generationError.lastContent!;
+                                    setGenerationError(null);
+                                    handleSendMessage(contentToRetry);
+                                }}
+                            >
+                                <RefreshCw className="h-3 w-3" />
+                                Retry
+                            </Button>
+                        ) : null}
+                        <button 
+                            onClick={() => setGenerationError(null)}
+                            className="text-muted-foreground hover:text-foreground p-1 rounded cursor-pointer transition-colors"
+                            title="Dismiss error"
+                        >
+                            <X className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Input Box */}
             <div className="flex-shrink-0">

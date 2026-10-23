@@ -72,6 +72,7 @@ pub fn run() {
                 commands::duckduckgo_search,
                 commands::write_file,
                 commands::get_current_directory,
+                commands::change_directory,
                 // Agentic mode
                 commands::create_agent_session,
                 commands::get_agent_capabilities,

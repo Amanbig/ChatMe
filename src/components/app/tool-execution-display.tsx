@@ -236,10 +236,24 @@ export default function ToolExecutionDisplay({ executions }: ToolExecutionDispla
                                 {/* Error */}
                                 {!exec.success && exec.error_message && (
                                     <div className="space-y-1">
-                                        <span className="text-[10px] font-semibold text-destructive uppercase tracking-wider">
-                                            Error Details
-                                        </span>
-                                        <div className="rounded-lg bg-destructive/10 border border-destructive/30 p-2.5 text-destructive font-mono text-[11px]">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[10px] font-semibold text-destructive uppercase tracking-wider">
+                                                Error Details
+                                            </span>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    copyToClipboard(exec.error_message || '', 'error message');
+                                                }}
+                                                className="h-5 px-1.5 text-[10px] gap-1 text-destructive/80 hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+                                            >
+                                                <FaCopy size={9} />
+                                                Copy Error
+                                            </Button>
+                                        </div>
+                                        <div className="rounded-lg bg-destructive/10 border border-destructive/30 p-2.5 text-destructive font-mono text-[11px] whitespace-pre-wrap break-words">
                                             {exec.error_message}
                                         </div>
                                     </div>
