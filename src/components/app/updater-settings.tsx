@@ -533,20 +533,20 @@ export default function UpdaterSettings() {
         </Card>
       )}
 
-      {/* Release History / Older Releases */}
+      {/* Previous Release (only show the immediate previous version) */}
       {updateData && updateData.all_releases && updateData.all_releases.length > 1 && (
         <Card className="border border-border/60 bg-card/40">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <RotateCcw className="w-4 h-4 text-muted-foreground" />
-              Previous Releases History
+              Previous Release
             </CardTitle>
             <CardDescription className="text-xs">
-              View and download previous releases from GitHub
+              View the previous version from GitHub
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 pt-1">
-            {updateData.all_releases.slice(1, 5).map((rel) => (
+            {updateData.all_releases.slice(1, 2).map((rel) => (
               <div
                 key={rel.tag_name}
                 className="flex items-center justify-between p-2.5 rounded-lg border border-border/30 bg-muted/20 text-xs hover:bg-muted/30 transition-colors"
