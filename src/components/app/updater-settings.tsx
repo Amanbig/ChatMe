@@ -28,6 +28,7 @@ import {
   Package,
   HardDrive,
   FileCode,
+  FileText,
   ExternalLink,
   RotateCcw,
   Sparkles,
@@ -95,7 +96,7 @@ function getInstallTypeLabel(type: InstallType): { title: string; desc: string; 
 }
 
 export default function UpdaterSettings() {
-  const [currentVersion, setCurrentVersion] = useState<string>("0.6.0");
+  const [currentVersion, setCurrentVersion] = useState<string>("0.6.5");
   const [updateData, setUpdateData] = useState<UpdateCheckResult | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<ReleaseAsset | null>(null);
   const [checking, setChecking] = useState<boolean>(false);
@@ -412,7 +413,7 @@ export default function UpdaterSettings() {
                     {updateData.release.name}
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground flex items-center gap-3">
+                <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-3">
                   <span>Tag: {updateData.release.tag_name}</span>
                   {updateData.release.published_at && (
                     <span>
@@ -432,6 +433,15 @@ export default function UpdaterSettings() {
                   >
                     View on GitHub <ExternalLink className="w-3 h-3" />
                   </a>
+                  <a
+                    href="https://github.com/Amanbig/ChatMe/blob/main/LICENSE"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 hover:underline text-primary"
+                  >
+                    <FileText className="w-3 h-3" />
+                    Apache-2.0 License <ExternalLink className="w-3 h-3" />
+                  </a>
                 </p>
               </div>
 
@@ -450,7 +460,7 @@ export default function UpdaterSettings() {
           </CardHeader>
 
           <CardContent className="pt-4 space-y-4">
-            {/* Package selector & Authorization details */}
+            {/* Target Package & Authorization details */}
             <div className="p-4 rounded-xl border border-border/50 bg-muted/20 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="space-y-0.5">
@@ -459,29 +469,21 @@ export default function UpdaterSettings() {
                     Target Installation Package:
                   </span>
                   <p className="text-[11px] text-muted-foreground">
-                    Selected package for your operating system and CPU architecture.
+                    Automatically matched to your operating system and installation format.
                   </p>
                 </div>
 
-                {/* Package Asset Dropdown */}
-                {updateData.release.assets.length > 0 && (
-                  <select
-                    className="text-xs bg-background border border-border rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary max-w-xs truncate"
-                    value={selectedAsset?.name || ""}
-                    onChange={(e) => {
-                      const found = updateData.release?.assets.find(
-                        (a) => a.name === e.target.value
-                      );
-                      if (found) setSelectedAsset(found);
-                    }}
-                    disabled={downloading}
-                  >
-                    {updateData.release.assets.map((asset) => (
-                      <option key={asset.name} value={asset.name}>
-                        {asset.name} ({formatBytes(asset.size)})
-                      </option>
-                    ))}
-                  </select>
+                {/* Detected Package Badge */}
+                {selectedAsset && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background/80 border border-border/60 text-xs font-mono text-foreground shrink-0 shadow-xs">
+                    <Package className="w-3.5 h-3.5 text-primary shrink-0" />
+                    <span className="font-medium truncate max-w-[260px] sm:max-w-xs">
+                      {selectedAsset.name}
+                    </span>
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                      {formatBytes(selectedAsset.size)}
+                    </Badge>
+                  </div>
                 )}
               </div>
 
@@ -541,20 +543,20 @@ export default function UpdaterSettings() {
         </Card>
       )}
 
-      {/* Release History / Older Releases */}
+      {/* Previous Release (only show the immediate previous version) */}
       {updateData && updateData.all_releases && updateData.all_releases.length > 1 && (
         <Card className="border border-border/60 bg-card/40">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <RotateCcw className="w-4 h-4 text-muted-foreground" />
-              Previous Releases History
+              Previous Release
             </CardTitle>
             <CardDescription className="text-xs">
-              View and download previous releases from GitHub
+              View the previous version from GitHub
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 pt-1">
-            {updateData.all_releases.slice(1, 5).map((rel) => (
+            {updateData.all_releases.slice(1, 2).map((rel) => (
               <div
                 key={rel.tag_name}
                 className="flex items-center justify-between p-2.5 rounded-lg border border-border/30 bg-muted/20 text-xs hover:bg-muted/30 transition-colors"

@@ -1,7 +1,10 @@
 {
   "name": "chatme",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.6.5",
+  "description": "The Open-Source, Multi-Agent Desktop AI with System Access, App Integrations & Auto-Updater",
+  "author": "Amanpreet Singh <amanpreetsingh5231@gmail.com>",
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
