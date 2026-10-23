@@ -70,9 +70,9 @@ export const CODE_FONT_OPTIONS = [
 
 export const DEFAULT_TYPOGRAPHY: TypographySettings = {
     fontFamily: FONT_FAMILY_OPTIONS[0].value,
-    fontSize: 14,
+    fontSize: 13,
     codeFontFamily: CODE_FONT_OPTIONS[0].value,
-    codeFontSize: 13,
+    codeFontSize: 12,
     density: 'comfortable',
     lineHeight: 'normal'
 };

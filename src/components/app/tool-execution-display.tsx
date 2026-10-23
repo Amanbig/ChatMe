@@ -61,6 +61,12 @@ export default function ToolExecutionDisplay({ executions }: ToolExecutionDispla
                     icon: <FaFolderOpen className="text-blue-500 shrink-0" size={12} />,
                     color: 'border-blue-500/30 bg-blue-500/5'
                 };
+            case 'read_document':
+                return {
+                    name: 'Read Document (PDF/Text)',
+                    icon: <FaFolderOpen className="text-blue-500 shrink-0" size={12} />,
+                    color: 'border-blue-500/30 bg-blue-500/5'
+                };
             case 'write_file':
                 return {
                     name: 'Write File',

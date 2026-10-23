@@ -36,4 +36,5 @@ walkdir = "2.4"
 opener = "0.7"
 tokio-fs = "0.1"
 mime_guess = "2.0"
+pdf-extract = "0.12"
 

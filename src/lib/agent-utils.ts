@@ -51,7 +51,13 @@ export async function executeAgentCommand(command: string, params: any): Promise
                 });
             
             case 'read_file':
-                return await invoke('read_file', { filePath: params.filePath });
+                return await invoke('read_file', { filePath: params.filePath || params.path || params.file_path });
+            
+            case 'read_document':
+                return await invoke('read_document', { 
+                    filePath: params.filePath || params.path || params.file_path,
+                    maxLength: params.maxLength || params.max_length
+                });
             
             case 'write_file':
                 return await invoke('write_file', { 
@@ -258,9 +264,10 @@ export async function parseAndExecuteCommands(response: string): Promise<string>
             } else if (cmd.command === 'search_files') {
                 commandComponent = formatSearchResults(result, cmd.params?.pattern || '');
                 
-            } else if (cmd.command === 'read_file') {
-                // For file reading, show as code block
-                commandComponent = `\n\`\`\`\n${result}\n\`\`\`\n`;
+            } else if (cmd.command === 'read_file' || cmd.command === 'read_document') {
+                // For file or document reading, show as formatted code block
+                const docText = typeof result === 'object' && result?.content ? result.content : result;
+                commandComponent = `\n\`\`\`\n${docText}\n\`\`\`\n`;
                 
             } else if (cmd.command === 'get_processes') {
                 let processes = result;
@@ -434,7 +441,10 @@ Commands will be executed and results shown as expandable components in the chat
 3. **read_directory** - List files and folders
    Syntax: [EXECUTE:{"command":"read_directory","params":{"directoryPath":"${currentDir}","recursive":false}}]
 
-4. **read_file** - Read file contents  
+4. **read_document** - Extract full text from documents (PDF, TXT, Markdown, CSV, JSON, and source code files)
+   Syntax: [EXECUTE:{"command":"read_document","params":{"filePath":"manual.pdf"}}]
+
+5. **read_file** - Read file contents  
    Syntax: [EXECUTE:{"command":"read_file","params":{"filePath":"package.json"}}]
 
 5. **write_file** - Write content to a file

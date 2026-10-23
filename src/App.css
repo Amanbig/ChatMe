@@ -13,15 +13,22 @@
 /* Ensure full height layout and customizable typography */
 :root {
   --app-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --app-font-size: 14px;
+  --app-font-size: 13px;
   --app-code-font: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
-  --app-code-font-size: 13px;
+  --app-code-font-size: 12px;
   --app-line-height: 1.6;
-  --app-message-py: 0.75rem;
-  --app-message-gap: 0.875rem;
+  --app-message-py: 0.625rem;
+  --app-message-gap: 0.75rem;
 }
 
-html,
+html {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  /* Keep root rem base stable at 16px so layout boxes do not squish */
+  font-size: 16px;
+}
+
 body,
 #root {
   height: 100%;
@@ -87,8 +94,10 @@ body,
 }
 
 /* Custom markdown styles for assistant messages */
+.chat-message-bubble,
 .markdown-content {
-  line-height: 1.7;
+  font-size: var(--app-font-size);
+  line-height: var(--app-line-height);
 }
 
 .markdown-content pre {

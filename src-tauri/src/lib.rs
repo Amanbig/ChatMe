@@ -66,6 +66,7 @@ pub fn run() {
                 commands::read_directory,
                 commands::search_files,
                 commands::read_file,
+                commands::read_document,
                 commands::write_file,
                 commands::get_current_directory,
                 // Agentic mode

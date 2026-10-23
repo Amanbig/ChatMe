@@ -32,6 +32,18 @@ pub struct DirectoryContents {
     pub total_directories: usize,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DocumentContent {
+    pub file_name: String,
+    pub file_path: String,
+    pub file_type: String,
+    pub size_bytes: u64,
+    pub content: String,
+    pub line_count: usize,
+    pub page_count: Option<usize>,
+    pub is_truncated: bool,
+}
+
 /// Open a file or directory with the default system application
 pub fn open_with_default_app(path: &str) -> Result<()> {
     let path = Path::new(path);
@@ -182,7 +194,13 @@ pub fn search_in_files(
     Ok(results)
 }
 
-/// Read file contents as text
+/// Extract text content from a PDF file
+pub fn extract_pdf_text(path: &Path) -> Result<String> {
+    pdf_extract::extract_text(path)
+        .map_err(|e| anyhow!("Failed to extract text from PDF {}: {}", path.display(), e))
+}
+
+/// Read file contents as text or extract from document
 pub fn read_file_contents(file_path: &str) -> Result<String> {
     let path = Path::new(file_path);
     
@@ -193,6 +211,15 @@ pub fn read_file_contents(file_path: &str) -> Result<String> {
     if !path.is_file() {
         return Err(anyhow!("Path is not a file: {}", path.display()));
     }
+
+    let ext = path
+        .extension()
+        .map(|s| s.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+
+    if ext == "pdf" {
+        return extract_pdf_text(path);
+    }
     
     // Check if file is binary
     if is_binary_file(path)? {
@@ -201,6 +228,71 @@ pub fn read_file_contents(file_path: &str) -> Result<String> {
     
     fs::read_to_string(path)
         .map_err(|e| anyhow!("Failed to read file: {}", e))
+}
+
+/// Read document or file contents with support for PDF, plain text, Markdown, code, CSV, JSON, etc.
+pub fn read_document_contents(file_path: &str, max_length: Option<usize>) -> Result<DocumentContent> {
+    let path = Path::new(file_path);
+    
+    if !path.exists() {
+        return Err(anyhow!("File does not exist: {}", path.display()));
+    }
+    
+    if !path.is_file() {
+        return Err(anyhow!("Path is not a file: {}", path.display()));
+    }
+    
+    let metadata = fs::metadata(path)
+        .map_err(|e| anyhow!("Failed to read metadata for {}: {}", path.display(), e))?;
+    let size_bytes = metadata.len();
+    
+    let file_name = path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+    
+    let ext = path
+        .extension()
+        .map(|s| s.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    
+    let (mut raw_content, file_type, page_count) = if ext == "pdf" {
+        let text = extract_pdf_text(path)?;
+        // Estimate page count by form feeds '\x0C' or PDF markers
+        let pages = text.matches('\x0C').count() + 1;
+        (text, "pdf".to_string(), Some(pages))
+    } else {
+        // Text / Markdown / Code / Config / Data files
+        let text = if is_binary_file(path)? {
+            return Err(anyhow!("Unsupported binary file type: {}. Supported formats include PDF, TXT, MD, CSV, JSON, and source code files.", ext));
+        } else {
+            fs::read_to_string(path)
+                .map_err(|e| anyhow!("Failed to read text file {}: {}", path.display(), e))?
+        };
+        let ftype = if ext.is_empty() { "text".to_string() } else { ext.clone() };
+        (text, ftype, None)
+    };
+    
+    let max_len = max_length.unwrap_or(100_000); // 100k chars default
+    let is_truncated = raw_content.len() > max_len;
+    if is_truncated {
+        raw_content.truncate(max_len);
+        raw_content.push_str("\n\n... [Content truncated due to length limit] ...");
+    }
+    
+    let line_count = raw_content.lines().count();
+    
+    Ok(DocumentContent {
+        file_name,
+        file_path: path.to_string_lossy().to_string(),
+        file_type,
+        size_bytes,
+        content: raw_content,
+        line_count,
+        page_count,
+        is_truncated,
+    })
 }
 
 /// Write contents to a file

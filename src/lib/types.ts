@@ -192,6 +192,17 @@ export interface ToolCall {
   };
 }
 
+export interface DocumentContent {
+  file_name: string;
+  file_path: string;
+  file_type: string;
+  size_bytes: number;
+  content: string;
+  line_count: number;
+  page_count?: number;
+  is_truncated: boolean;
+}
+
 export interface ToolExecution {
   tool_call_id: string;
   tool_name: string;

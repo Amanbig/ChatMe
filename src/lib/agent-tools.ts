@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { DirectoryContents, SearchResult } from './types';
+import type { DirectoryContents, SearchResult, DocumentContent } from './types';
 
 export interface AgentTool {
     name: string;
@@ -168,6 +168,40 @@ export const readFileTool: AgentTool = {
     }
 };
 
+// Tool: Read document / file content (supports PDF, TXT, MD, CSV, JSON, code, etc.)
+export const readDocumentTool: AgentTool = {
+    name: "read_document",
+    description: "Extract text from documents and files including PDF (.pdf), plain text (.txt), Markdown (.md), JSON (.json), CSV (.csv), and source code files.",
+    parameters: {
+        type: "object",
+        properties: {
+            file_path: {
+                type: "string",
+                description: "The path of the file to read (supports .pdf, .txt, .md, .csv, .json, source code, etc.)"
+            },
+            max_length: {
+                type: "number",
+                description: "Optional maximum characters to extract (default: 100,000)"
+            }
+        },
+        required: ["file_path"]
+    },
+    execute: async (params) => {
+        try {
+            const doc = await invoke('read_document', { 
+                filePath: params.file_path,
+                maxLength: params.max_length
+            }) as DocumentContent;
+            
+            const pageStr = doc.page_count ? ` (${doc.page_count} pages)` : '';
+            const truncStr = doc.is_truncated ? ' [Content truncated due to length limit]' : '';
+            return `**Extracted from ${doc.file_name}${pageStr} [Type: ${doc.file_type}, ${doc.line_count} lines]:**\n\n${doc.content}${truncStr ? '\n\n' + truncStr : ''}`;
+        } catch (error) {
+            return `Error reading document: ${error}`;
+        }
+    }
+};
+
 // Tool: Write file content
 export const writeFileTool: AgentTool = {
     name: "write_file",
@@ -286,6 +320,7 @@ export const AGENT_TOOLS: Record<string, AgentTool> = {
     list_files: listFilesTool,
     search_files: searchFilesTool,
     read_file: readFileTool,
+    read_document: readDocumentTool,
     write_file: writeFileTool,
     fetch_url: webFetchTool,
     execute_command: executeCommandTool
