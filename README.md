@@ -2,7 +2,17 @@
 
 ChatMe combines agent-driven AI, cross-platform responsiveness, and voice interaction into a single desktop/web app, empowering developers and users to interact with AI like never before. ChatMe supports multiple AI providers with a beautiful, responsive interface and advanced features including voice interaction and powerful agent mode with full system access.
 
-## 🆕 **What's New in v0.5.3**
+## 🆕 **What's New in v0.6.0**
+- **🖥️ "Work with Apps" (ChatGPT Desktop Style)**: Attach context from running desktop apps (VS Code, Cursor, Chrome, Terminal, File Manager) directly into your prompt.
+- **🤖 Multi-Agent Autonomous Swarm**: Summon specialized sub-agents (Planner, Full-Stack Coder, Web Researcher, Security Reviewer, DevOps Operator) with visual orchestration cards.
+- **⚡ Interactive CodeBlock Runner**: Direct "Run" action on code blocks (`bash`, `sh`, `python`, `node`) with inline terminal output drawers.
+- **📊 Line-by-Line Diff Viewer**: Automatic colored diff styling for code modification reviews.
+- **💻 Integrated Developer Terminal**: Slide-up workspace terminal (`Ctrl + \``) with command history and live output.
+- **🚀 Performance Optimization**: Vite bundle code-splitting (-63% bundle size from 1.2MB to 475kB) and 60fps streaming batching.
+- **📤 Chat Export**: Instant one-click export to Markdown (`.md`) and JSON (`.json`).
+- **🐧 Linux GPU Fix**: Seamless WebKitGTK software compositing fallback for NVIDIA GPUs.
+
+### **Previous Release - v0.5.3**
 - **⚡ Hybrid Architecture**: Revolutionary change - Rust backend handles all HTTP requests, completely bypassing CORS
 - **🌐 13 Provider Support**: Added 5+ new providers (Kimi, OpenRouter, Together AI, Groq, Perplexity) - now supporting 13 total!
 - **📡 Native Streaming**: Provider-specific implementations for OpenAI, Anthropic, and Google with optimal performance

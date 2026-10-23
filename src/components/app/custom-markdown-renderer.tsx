@@ -5,6 +5,7 @@ import rehypeRaw from 'rehype-raw';
 import FileListDisplay from "./file-list-display";
 import CommandExecution from "./command-execution";
 import CodeBlock from "./code-block";
+import AgentOrchestratorCard from "./agent-orchestrator-card";
 
 interface CustomMarkdownRendererProps {
     content: string;
@@ -47,11 +48,13 @@ export default function CustomMarkdownRenderer({ content }: CustomMarkdownRender
     // Check if content contains custom components
     const fileListRegex = /<file-list-component data='([^']+)'><\/file-list-component>/g;
     const commandExecRegex = /<command-execution data='([^']+)'><\/command-execution>/g;
+    const delegationRegex = /\[(?:SUMMON_AGENT|DELEGATE):({[^}]+})\]/g;
     
     // Find all custom components
     const allMatches = [
         ...[...content.matchAll(fileListRegex)].map(m => ({ type: 'file-list', match: m })),
-        ...[...content.matchAll(commandExecRegex)].map(m => ({ type: 'command', match: m }))
+        ...[...content.matchAll(commandExecRegex)].map(m => ({ type: 'command', match: m })),
+        ...[...content.matchAll(delegationRegex)].map(m => ({ type: 'delegation', match: m }))
     ].sort((a, b) => (a.match.index || 0) - (b.match.index || 0));
     
     const matches = allMatches;
@@ -113,6 +116,18 @@ export default function CustomMarkdownRenderer({ content }: CustomMarkdownRender
                         status={componentData.status || 'success'}
                         type={componentData.type}
                         working_directory={componentData.working_directory}
+                    />
+                );
+            } else if (item.type === 'delegation') {
+                const role = (componentData.role || componentData.agent || 'planner').toLowerCase();
+                const task = componentData.task || componentData.objective || 'Delegated subtask';
+                parts.push(
+                    <AgentOrchestratorCard
+                        key={`delegation-${index}`}
+                        roleId={role}
+                        task={task}
+                        status={componentData.status || 'completed'}
+                        result={componentData.result}
                     />
                 );
             }
