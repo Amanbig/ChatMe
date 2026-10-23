@@ -79,7 +79,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(({ onSendMessage, disabl
     useEffect(() => {
         if (textareaRef.current) {
             textareaRef.current.style.height = "auto";
-            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
+            textareaRef.current.style.height = `${Math.min(Math.max(textareaRef.current.scrollHeight, 28), 160)}px`;
         }
     }, [message]);
 
@@ -233,7 +233,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(({ onSendMessage, disabl
 
                     {/* Main input container */}
                     <div
-                        className={`relative flex items-end gap-2 bg-card rounded-2xl border-2 p-2 shadow-lg transition-all duration-300 ${isFocused
+                        className={`relative flex items-center gap-2 bg-card rounded-2xl border-2 p-2 shadow-lg transition-all duration-300 ${isFocused
                             ? 'border-primary/50 shadow-primary/10 ring-4 ring-primary/5'
                             : 'border-border/40 hover:border-border/60'
                             } ${disabled ? 'opacity-60' : ''}`}
@@ -283,7 +283,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(({ onSendMessage, disabl
                                             : "Type your message here..."
                                 }
                                 disabled={disabled}
-                                className="min-h-[44px] max-h-[160px] resize-none border-0 bg-transparent px-2 py-2.5 text-sm placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none disabled:opacity-50 leading-relaxed"
+                                className="min-h-[38px] max-h-[160px] resize-none border-0 bg-transparent px-2 py-2 text-sm placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none disabled:opacity-50 leading-normal"
                                 rows={1}
                             />
 
