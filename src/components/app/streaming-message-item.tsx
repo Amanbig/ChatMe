@@ -45,16 +45,15 @@ const parseAIThinking = (content: string) => {
     };
 };
 
-// Typing indicator component
 function TypingIndicator() {
     return (
-        <div className="flex items-center gap-1.5 px-1 py-2">
+        <div className="flex items-center gap-1.5 px-1 py-1.5">
             <div className="flex items-center gap-1">
-                <span className="w-2 h-2 bg-primary/60 rounded-full typing-dot" />
-                <span className="w-2 h-2 bg-primary/60 rounded-full typing-dot" style={{ animationDelay: '0.2s' }} />
-                <span className="w-2 h-2 bg-primary/60 rounded-full typing-dot" style={{ animationDelay: '0.4s' }} />
+                <span className="w-1.5 h-1.5 bg-primary/70 rounded-full animate-bounce" />
+                <span className="w-1.5 h-1.5 bg-primary/70 rounded-full animate-bounce [animation-delay:0.2s]" />
+                <span className="w-1.5 h-1.5 bg-primary/70 rounded-full animate-bounce [animation-delay:0.4s]" />
             </div>
-            <span className="text-xs text-muted-foreground ml-1">AI is thinking...</span>
+            <span className="text-[11px] text-muted-foreground ml-1">Streaming response...</span>
         </div>
     );
 }
@@ -64,7 +63,6 @@ export default function StreamingMessageItem({ streamingMessage, autoSpeak = fal
     const [isStreamingThinkingOpen, setIsStreamingThinkingOpen] = useState(true);
 
     const { speak, cancel, speaking, supported } = useTextToSpeech();
-
     void autoSpeak;
 
     const extractPlainText = (markdownContent: string): string => {
@@ -88,7 +86,6 @@ export default function StreamingMessageItem({ streamingMessage, autoSpeak = fal
             cancel();
         } else {
             const textToSpeak = extractPlainText(streamingAIContent?.final || streamingMessage.content);
-
             if (textToSpeak.trim()) {
                 speak(textToSpeak);
             }
@@ -99,54 +96,52 @@ export default function StreamingMessageItem({ streamingMessage, autoSpeak = fal
         !streamingMessage.content.includes('<|channel|>final<|message|>');
 
     return (
-        <div className="flex gap-4 justify-start message-animate group">
-            {/* AI Avatar with pulse animation */}
-            <div className="flex-shrink-0 mt-1">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20">
-                    <FaRobot size={16} className="text-primary-foreground" />
+        <div className="flex gap-3 my-3 group animate-in fade-in duration-200">
+            {/* AI Avatar */}
+            <div className="shrink-0 mt-0.5">
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary/25 via-accent/20 to-primary/10 border border-primary/30 flex items-center justify-center shadow-xs">
+                    <FaRobot size={15} className="text-primary animate-pulse" />
                 </div>
             </div>
 
-            <div className="flex flex-col max-w-[85%] items-start gap-1.5">
-                {/* Sender Label */}
-                <div className="flex items-center gap-2 px-1">
-                    <span className="text-xs font-medium text-primary">AI Assistant</span>
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 gap-1 animate-pulse">
+            <div className="flex flex-col flex-1 min-w-0 max-w-full gap-1.5">
+                {/* Header */}
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-foreground">AI Assistant</span>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 gap-1 text-primary border-primary/30 bg-primary/5 animate-pulse">
                         <span className="w-1.5 h-1.5 bg-primary rounded-full" />
                         Generating
                     </Badge>
                     {streamingAIContent.hasThinking && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 gap-1">
-                            <FaBrain size={8} />
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 gap-1 text-muted-foreground border-border/50">
+                            <FaBrain size={8} className="text-primary" />
                             Reasoning
                         </Badge>
                     )}
                 </div>
 
-                {/* Streaming AI Thinking Section */}
+                {/* AI Thinking Collapsible */}
                 {streamingAIContent.hasThinking && (
                     <Collapsible open={isStreamingThinkingOpen} onOpenChange={setIsStreamingThinkingOpen}>
                         <CollapsibleTrigger asChild>
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5 rounded-lg bg-muted/50 hover:bg-muted"
+                                className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground flex items-center gap-1.5 rounded-lg bg-muted/40 hover:bg-muted border border-border/40"
                             >
-                                <FaBrain size={11} className="text-accent" />
+                                <FaBrain size={10} className="text-primary" />
                                 <span>Thinking process</span>
-                                {isStreamingThinkingOpen ? <FaChevronUp size={10} /> : <FaChevronDown size={10} />}
+                                {isStreamingThinkingOpen ? <FaChevronUp size={9} /> : <FaChevronDown size={9} />}
                             </Button>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
-                            <div className="mt-2 bg-muted/40 border border-border/50 rounded-xl p-3 text-xs">
-                                <div className="text-muted-foreground markdown-content">
-                                    <ReactMarkdown
-                                        remarkPlugins={[remarkGfm]}
-                                        rehypePlugins={[rehypeHighlight, rehypeRaw]}
-                                    >
-                                        {streamingAIContent.thinking}
-                                    </ReactMarkdown>
-                                </div>
+                            <div className="mt-1.5 bg-muted/30 border border-border/40 rounded-xl p-3 text-xs text-muted-foreground font-mono leading-relaxed max-h-60 overflow-y-auto">
+                                <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    rehypePlugins={[rehypeHighlight, rehypeRaw]}
+                                >
+                                    {streamingAIContent.thinking}
+                                </ReactMarkdown>
                                 {isThinking && (
                                     <div className="mt-2 pt-2 border-t border-border/30">
                                         <TypingIndicator />
@@ -157,16 +152,11 @@ export default function StreamingMessageItem({ streamingMessage, autoSpeak = fal
                     </Collapsible>
                 )}
 
-                {/* Main Streaming Message Content */}
-                <div className="relative rounded-2xl rounded-bl-md bg-card border border-border/60 w-full px-5 py-3.5 shadow-sm hover:border-border/80 transition-all">
-                    {/* Progress bar at top */}
-                    <div className="absolute top-0 left-4 right-4 h-0.5 bg-muted rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-primary/50 via-primary to-accent/50 animate-[shimmer_1.5s_infinite]"
-                            style={{
-                                backgroundSize: '200% 100%',
-                                animation: 'shimmer 1.5s ease-in-out infinite'
-                            }}
-                        />
+                {/* Content Bubble */}
+                <div className="relative rounded-2xl rounded-tl-xs bg-card/70 backdrop-blur-xs border border-border/50 px-4 py-3 shadow-xs">
+                    {/* Top Shimmer */}
+                    <div className="absolute top-0 left-4 right-4 h-0.5 bg-primary/20 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-transparent via-primary to-transparent animate-pulse w-full" />
                     </div>
 
                     <div className="text-sm markdown-content leading-relaxed">
@@ -178,28 +168,23 @@ export default function StreamingMessageItem({ streamingMessage, autoSpeak = fal
                         </ReactMarkdown>
                     </div>
 
-                    {/* Typing indicator when no final content yet */}
                     {isThinking && !streamingAIContent.hasThinking && (
                         <TypingIndicator />
                     )}
                 </div>
 
-                {/* Message Actions */}
-                <div className="flex items-center gap-1 px-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    <span className="text-[11px] text-muted-foreground">Generating response...</span>
-
+                {/* Footer */}
+                <div className="flex items-center gap-1 px-1">
+                    <span className="text-[10px] text-muted-foreground">Generating response...</span>
                     {supported && (
-                        <>
-                            <div className="w-px h-3 bg-border mx-1" />
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                className={`h-6 w-6 p-0 rounded-md ${speaking ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground'}`}
-                                onClick={handleSpeak}
-                            >
-                                {speaking ? <FaStop size={11} /> : <FaVolumeUp size={11} />}
-                            </Button>
-                        </>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`h-5 w-5 p-0 rounded-md ml-1 ${speaking ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground'}`}
+                            onClick={handleSpeak}
+                        >
+                            {speaking ? <FaStop size={9} /> : <FaVolumeUp size={9} />}
+                        </Button>
                     )}
                 </div>
             </div>
