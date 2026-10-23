@@ -450,7 +450,7 @@ export default function UpdaterSettings() {
           </CardHeader>
 
           <CardContent className="pt-4 space-y-4">
-            {/* Package selector & Authorization details */}
+            {/* Target Package & Authorization details */}
             <div className="p-4 rounded-xl border border-border/50 bg-muted/20 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="space-y-0.5">
@@ -459,29 +459,21 @@ export default function UpdaterSettings() {
                     Target Installation Package:
                   </span>
                   <p className="text-[11px] text-muted-foreground">
-                    Selected package for your operating system and CPU architecture.
+                    Automatically matched to your operating system and installation format.
                   </p>
                 </div>
 
-                {/* Package Asset Dropdown */}
-                {updateData.release.assets.length > 0 && (
-                  <select
-                    className="text-xs bg-background border border-border rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary max-w-xs truncate"
-                    value={selectedAsset?.name || ""}
-                    onChange={(e) => {
-                      const found = updateData.release?.assets.find(
-                        (a) => a.name === e.target.value
-                      );
-                      if (found) setSelectedAsset(found);
-                    }}
-                    disabled={downloading}
-                  >
-                    {updateData.release.assets.map((asset) => (
-                      <option key={asset.name} value={asset.name}>
-                        {asset.name} ({formatBytes(asset.size)})
-                      </option>
-                    ))}
-                  </select>
+                {/* Detected Package Badge */}
+                {selectedAsset && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background/80 border border-border/60 text-xs font-mono text-foreground shrink-0 shadow-xs">
+                    <Package className="w-3.5 h-3.5 text-primary shrink-0" />
+                    <span className="font-medium truncate max-w-[260px] sm:max-w-xs">
+                      {selectedAsset.name}
+                    </span>
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
+                      {formatBytes(selectedAsset.size)}
+                    </Badge>
+                  </div>
                 )}
               </div>
 
