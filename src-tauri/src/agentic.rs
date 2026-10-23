@@ -82,6 +82,7 @@ impl AgentSession {
             capabilities: vec![
                 "list_directory".to_string(),
                 "read_file".to_string(),
+                "read_document".to_string(),
                 "write_file".to_string(),
                 "search_files".to_string(),
                 "open_file".to_string(),
@@ -128,6 +129,26 @@ impl AgentSession {
                         parameter_type: "string".to_string(),
                         description: "File path to read".to_string(),
                         required: true,
+                        default_value: None,
+                    },
+                ],
+            },
+            AgentCapability {
+                name: "read_document".to_string(),
+                description: "Read and extract contents from documents including PDF (.pdf), plain text (.txt), Markdown (.md), CSV (.csv), JSON (.json), and code files".to_string(),
+                parameters: vec![
+                    AgentParameter {
+                        name: "path".to_string(),
+                        parameter_type: "string".to_string(),
+                        description: "File path of the document or text file to extract".to_string(),
+                        required: true,
+                        default_value: None,
+                    },
+                    AgentParameter {
+                        name: "max_length".to_string(),
+                        parameter_type: "number".to_string(),
+                        description: "Maximum character count to extract (optional)".to_string(),
+                        required: false,
                         default_value: None,
                     },
                 ],
@@ -325,6 +346,7 @@ impl AgentSession {
         let result = match action_type {
             "list_directory" => self.execute_list_directory(&parameters).await,
             "read_file" => self.execute_read_file(&parameters).await,
+            "read_document" => self.execute_read_document(&parameters).await,
             "write_file" => self.execute_write_file(&parameters).await,
             "search_files" => self.execute_search_files(&parameters).await,
             "open_file" => self.execute_open_file(&parameters).await,
@@ -377,6 +399,19 @@ impl AgentSession {
         
         let contents = read_file_contents(path)?;
         Ok(serde_json::Value::String(contents))
+    }
+
+    async fn execute_read_document(&self, params: &HashMap<String, serde_json::Value>) -> Result<serde_json::Value> {
+        let path = params.get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("Missing required parameter: path"))?;
+        
+        let max_length = params.get("max_length")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as usize);
+        
+        let doc = crate::file_operations::read_document_contents(path, max_length)?;
+        Ok(serde_json::to_value(doc)?)
     }
     
     async fn execute_write_file(&self, params: &HashMap<String, serde_json::Value>) -> Result<serde_json::Value> {

@@ -2,7 +2,8 @@ use crate::database::Database;
 use crate::models::*;
 use crate::file_operations::{
     open_with_default_app, read_directory_contents, search_in_files,
-    read_file_contents, write_file_contents, DirectoryContents, SearchResult
+    read_file_contents, write_file_contents, read_document_contents,
+    DirectoryContents, SearchResult, DocumentContent
 };
 use crate::agentic::{AgentSession, AgentAction, AgentCapability};
 use crate::tools::get_all_tool_definitions;
@@ -456,6 +457,14 @@ pub async fn search_files(
 #[tauri::command]
 pub async fn read_file(file_path: String) -> Result<String, String> {
     read_file_contents(&file_path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn read_document(
+    file_path: String,
+    max_length: Option<usize>,
+) -> Result<DocumentContent, String> {
+    read_document_contents(&file_path, max_length).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

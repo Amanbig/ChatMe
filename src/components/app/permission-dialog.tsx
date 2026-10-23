@@ -122,6 +122,7 @@ export default function PermissionDialog() {
                 return <FaTerminal className="text-amber-500" size={16} />;
             case 'write_file':
             case 'read_file':
+            case 'read_document':
                 return <FaFolderOpen className="text-blue-500" size={16} />;
             case 'fetch_url':
                 return <FaGlobe className="text-emerald-500" size={16} />;

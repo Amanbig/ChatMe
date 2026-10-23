@@ -11,6 +11,7 @@ import type {
   UpdateApiConfigRequest,
   DirectoryContents,
   SearchResult,
+  DocumentContent,
   AgentSession,
   AgentAction,
   AgentCapability,
@@ -111,6 +112,10 @@ export async function searchFiles(
 
 export async function readFile(filePath: string): Promise<string> {
   return await invoke('read_file', { filePath });
+}
+
+export async function readDocument(filePath: string, maxLength?: number): Promise<DocumentContent> {
+  return await invoke('read_document', { filePath, maxLength });
 }
 
 export async function writeFile(filePath: string, contents: string): Promise<string> {
