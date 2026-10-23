@@ -324,3 +324,56 @@ export interface UpdateMcpServerRequest {
   auto_connect?: boolean;
   connection_timeout_ms?: number;
 }
+
+// Updater types
+export type InstallType =
+  | 'app_image'
+  | 'deb'
+  | 'rpm'
+  | 'dmg'
+  | 'windows_exe'
+  | 'windows_msi'
+  | 'dev'
+  | 'unknown';
+
+export interface ReleaseAsset {
+  name: string;
+  size: number;
+  download_url: string;
+  content_type?: string | null;
+}
+
+export interface ReleaseInfo {
+  tag_name: string;
+  version: string;
+  name: string;
+  body: string;
+  published_at?: string | null;
+  html_url: string;
+  assets: ReleaseAsset[];
+}
+
+export interface UpdateCheckResult {
+  current_version: string;
+  latest_version: string;
+  has_update: boolean;
+  install_type: InstallType;
+  install_path?: string | null;
+  matched_asset?: ReleaseAsset | null;
+  release?: ReleaseInfo | null;
+  all_releases: ReleaseInfo[];
+}
+
+export interface DownloadProgressPayload {
+  downloaded_bytes: number;
+  total_bytes?: number | null;
+  percentage: number;
+  status: 'downloading' | 'authorizing' | 'installing' | 'done' | 'error';
+  message: string;
+}
+
+export interface InstallResult {
+  success: boolean;
+  message: string;
+  requires_restart: boolean;
+}

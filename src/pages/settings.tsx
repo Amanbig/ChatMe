@@ -13,6 +13,8 @@ import ModelSelector from "@/components/app/model-selector";
 import PermissionsSettings from "@/components/app/permissions-settings";
 import McpServerSettings from "@/components/app/mcp-server-settings";
 import AppearanceSettings from "@/components/app/appearance-settings";
+import UpdaterSettings from "@/components/app/updater-settings";
+import { useLocation } from "react-router";
 import {
     FaRobot,
     FaGoogle,
@@ -32,7 +34,8 @@ import {
     FaTimes,
     FaSave,
     FaShieldAlt,
-    FaPalette
+    FaPalette,
+    FaDownload
 } from "react-icons/fa";
 import {
     getApiConfigs,
@@ -176,7 +179,7 @@ const providerTemplates: ProviderTemplate[] = [
     }
 ];
 
-type TabType = 'api' | 'agent' | 'mcp' | 'speech' | 'permissions' | 'appearance';
+type TabType = 'api' | 'agent' | 'mcp' | 'speech' | 'permissions' | 'appearance' | 'updates';
 
 // Edit Form Component - shown inline
 function ConfigEditForm({
@@ -473,7 +476,9 @@ function CreateConfigForm({
 }
 
 export default function SettingsPage() {
-    const [activeTab, setActiveTab] = useState<TabType>('api');
+    const location = useLocation();
+    const queryTab = new URLSearchParams(location.search).get('tab') as TabType | null;
+    const [activeTab, setActiveTab] = useState<TabType>(queryTab || 'api');
     const [configs, setConfigs] = useState<ApiConfig[]>([]);
     const [editingConfigId, setEditingConfigId] = useState<string | null>(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -611,6 +616,7 @@ export default function SettingsPage() {
         { id: 'mcp' as TabType, label: 'MCP Servers', icon: <FaServer size={14} /> },
         { id: 'speech' as TabType, label: 'Speech', icon: <FaMicrophone size={14} /> },
         { id: 'permissions' as TabType, label: 'Permissions', icon: <FaShieldAlt size={14} /> },
+        { id: 'updates' as TabType, label: 'Updates', icon: <FaDownload size={14} /> },
     ];
 
     return (
@@ -868,6 +874,11 @@ export default function SettingsPage() {
                         {/* Appearance & Typography Tab */}
                         {activeTab === 'appearance' && (
                             <AppearanceSettings />
+                        )}
+
+                        {/* Updates Tab */}
+                        {activeTab === 'updates' && (
+                            <UpdaterSettings />
                         )}
                     </div>
                 </div>

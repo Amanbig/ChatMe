@@ -22,7 +22,9 @@ import type {
   McpServer,
   McpTool,
   CreateMcpServerRequest,
-  UpdateMcpServerRequest
+  UpdateMcpServerRequest,
+  UpdateCheckResult,
+  InstallResult
 } from './types';
 
 // Chat operations
@@ -246,3 +248,24 @@ export async function executeToolRouted(
 export async function changeDirectory(path: string): Promise<string> {
   return await invoke('change_directory', { path });
 }
+
+// Updater operations
+export async function checkForUpdates(): Promise<UpdateCheckResult> {
+  return await invoke('check_for_updates');
+}
+
+export async function downloadAndInstallUpdate(
+  downloadUrl: string,
+  filename: string
+): Promise<InstallResult> {
+  return await invoke('download_and_install_update', { downloadUrl, filename });
+}
+
+export async function restartApp(): Promise<void> {
+  return await invoke('restart_app');
+}
+
+export async function getAppVersion(): Promise<string> {
+  return await invoke('get_app_version');
+}
+

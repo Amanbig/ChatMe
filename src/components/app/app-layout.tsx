@@ -31,7 +31,7 @@ import { RxCross2 } from "react-icons/rx";
 import { VscChromeMinimize } from "react-icons/vsc";
 import { IoMdSquareOutline } from "react-icons/io";
 import { useNavigate, useLocation } from "react-router";
-import { getChats, createChat, deleteChat as deleteChatApi } from "@/lib/api";
+import { getChats, createChat, deleteChat as deleteChatApi, checkForUpdates } from "@/lib/api";
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAgent } from "@/contexts/AgentContext";
@@ -58,6 +58,21 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+
+  useEffect(() => {
+    async function checkAppUpdates() {
+      try {
+        const res = await checkForUpdates();
+        if (res.has_update) {
+          setUpdateAvailable(true);
+        }
+      } catch {
+        // ignore background check failure
+      }
+    }
+    checkAppUpdates();
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -350,16 +365,28 @@ export default function AppLayout({ children }: AppLayoutProps) {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  onClick={() => navigate('/settings')}
+                  onClick={() => navigate(updateAvailable ? '/settings?tab=updates' : '/settings')}
                   isActive={location.pathname === '/settings'}
-                  className="gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 hover:bg-muted/80"
+                  className="gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 hover:bg-muted/80 relative"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center relative">
                     <FaCog size={16} />
+                    {updateAvailable && (
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-primary rounded-full ring-2 ring-background animate-pulse" />
+                    )}
                   </div>
-                  <div className="flex flex-col items-start">
-                    <span className="font-medium text-sm">Settings</span>
-                    <span className="text-[11px] text-muted-foreground">Configure app & AI</span>
+                  <div className="flex flex-col items-start flex-1 min-w-0">
+                    <div className="flex items-center justify-between w-full">
+                      <span className="font-medium text-sm">Settings</span>
+                      {updateAvailable && (
+                        <Badge variant="default" className="text-[10px] px-1.5 py-0 h-4 bg-primary text-primary-foreground font-semibold">
+                          Update
+                        </Badge>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-muted-foreground truncate">
+                      {updateAvailable ? "New version available" : "Configure app & AI"}
+                    </span>
                   </div>
                 </SidebarMenuButton>
               </SidebarMenuItem>
