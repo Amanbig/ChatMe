@@ -20,6 +20,14 @@ use agentic::AgentSession;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    {
+        // Fix WebKitGTK DMA-BUF permission denied error with NVIDIA drivers on Linux
+        if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        }
+    }
+
     tauri::async_runtime::block_on(async {
         let db = Database::new().await.expect("Failed to initialize database");
         let agent_sessions: Mutex<HashMap<String, AgentSession>> = Mutex::new(HashMap::new());
