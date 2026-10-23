@@ -12,6 +12,7 @@ import AgentMode from "../components/app/agent-mode";
 import ModelSelector from "@/components/app/model-selector";
 import PermissionsSettings from "@/components/app/permissions-settings";
 import McpServerSettings from "@/components/app/mcp-server-settings";
+import AppearanceSettings from "@/components/app/appearance-settings";
 import {
     FaRobot,
     FaGoogle,
@@ -30,7 +31,8 @@ import {
     FaPlus,
     FaTimes,
     FaSave,
-    FaShieldAlt
+    FaShieldAlt,
+    FaPalette
 } from "react-icons/fa";
 import {
     getApiConfigs,
@@ -174,7 +176,7 @@ const providerTemplates: ProviderTemplate[] = [
     }
 ];
 
-type TabType = 'api' | 'agent' | 'mcp' | 'speech' | 'permissions';
+type TabType = 'api' | 'agent' | 'mcp' | 'speech' | 'permissions' | 'appearance';
 
 // Edit Form Component - shown inline
 function ConfigEditForm({
@@ -603,11 +605,12 @@ export default function SettingsPage() {
     };
 
     const tabs = [
-        { id: 'api' as TabType, label: 'API Configs', icon: <FaKey size={16} /> },
-        { id: 'agent' as TabType, label: 'Agent Mode', icon: <FaBrain size={16} /> },
-        { id: 'mcp' as TabType, label: 'MCP Servers', icon: <FaServer size={16} /> },
-        { id: 'speech' as TabType, label: 'Speech', icon: <FaMicrophone size={16} /> },
-        { id: 'permissions' as TabType, label: 'Permissions', icon: <FaShieldAlt size={16} /> },
+        { id: 'api' as TabType, label: 'API Configs', icon: <FaKey size={14} /> },
+        { id: 'appearance' as TabType, label: 'Appearance', icon: <FaPalette size={14} /> },
+        { id: 'agent' as TabType, label: 'Agent Swarm', icon: <FaBrain size={14} /> },
+        { id: 'mcp' as TabType, label: 'MCP Servers', icon: <FaServer size={14} /> },
+        { id: 'speech' as TabType, label: 'Speech', icon: <FaMicrophone size={14} /> },
+        { id: 'permissions' as TabType, label: 'Permissions', icon: <FaShieldAlt size={14} /> },
     ];
 
     return (
@@ -615,23 +618,23 @@ export default function SettingsPage() {
             {/* Header */}
             <div className="flex items-center gap-4 px-6 py-4 border-b border-border/60 bg-card/50">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center shrink-0">
-                    <FaSlidersH size={20} className="text-primary" />
+                    <FaSlidersH size={18} className="text-primary" />
                 </div>
                 <div className="flex-1">
                     <h1 className="text-xl font-bold text-foreground">Settings</h1>
-                    <p className="text-xs text-muted-foreground">Configure your AI providers and preferences</p>
+                    <p className="text-xs text-muted-foreground">Configure AI providers, typography, agent swarm, and permissions</p>
                 </div>
             </div>
 
-            {/* Tabs */}
-            <div className="flex items-center gap-1 px-6 py-3 border-b border-border/40 bg-background">
+            {/* Redesigned Tab Navigation Bar */}
+            <div className="flex items-center gap-1.5 px-6 py-2.5 border-b border-border/40 bg-muted/20 overflow-x-auto">
                 {tabs.map((tab) => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${activeTab === tab.id
-                            ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all duration-200 cursor-pointer select-none shrink-0 ${activeTab === tab.id
+                            ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/25 font-semibold'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                             }`}
                     >
                         {tab.icon}
@@ -860,6 +863,11 @@ export default function SettingsPage() {
                         {/* Permissions Tab */}
                         {activeTab === 'permissions' && (
                             <PermissionsSettings />
+                        )}
+
+                        {/* Appearance & Typography Tab */}
+                        {activeTab === 'appearance' && (
+                            <AppearanceSettings />
                         )}
                     </div>
                 </div>

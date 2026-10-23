@@ -15,6 +15,7 @@ import {
     FaFileAlt,
     FaDesktop
 } from "react-icons/fa";
+import { SUB_AGENTS } from "../../lib/multi-agent";
 import { useAgent } from "../../contexts/AgentContext";
 
 const capabilities = [
@@ -162,11 +163,39 @@ export default function AgentMode() {
                     <div className="p-4 rounded-xl border-2 border-yellow-500/20 bg-yellow-500/5 flex items-start gap-3">
                         <FaShieldAlt className="h-5 w-5 text-yellow-600 mt-0.5 shrink-0" />
                         <div>
-                            <h4 className="font-medium text-sm">Security First</h4>
+                            <h4 className="font-medium text-sm">Security First & Human Authorization</h4>
                             <p className="text-xs text-muted-foreground mt-1">
-                                All potentially dangerous operations require your explicit permission.
-                                The agent will never execute harmful commands without your approval.
+                                Dangerous operations (terminal execution, app launches, modifying files) trigger an interactive Permission Dialog modal for your explicit approval before running.
                             </p>
+                        </div>
+                    </div>
+
+                    {/* LangGraph-style Multi-Agent Swarm Section */}
+                    <div className="space-y-3 pt-2">
+                        <div className="flex items-center justify-between">
+                            <Label className="font-medium text-sm flex items-center gap-2">
+                                <FaBrain className="h-4 w-4 text-primary" />
+                                Autonomous Agent Graph Swarm
+                            </Label>
+                            <Badge variant="outline" className="text-[10px] font-mono border-primary/40 text-primary">
+                                LangGraph StateGraph Architecture
+                            </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            When executing multi-step requests, the supervisor routes tasks across specialized subagents through typed state graph channels:
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
+                            {Object.values(SUB_AGENTS).map((subAgent) => (
+                                <div key={subAgent.id} className="p-3 rounded-xl border border-border/50 bg-card/60 space-y-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-base select-none">{subAgent.avatar}</span>
+                                        <span className="text-xs font-semibold text-foreground">{subAgent.title}</span>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground line-clamp-2">
+                                        {subAgent.description}
+                                    </p>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </CardContent>

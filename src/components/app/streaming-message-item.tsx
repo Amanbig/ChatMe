@@ -7,12 +7,14 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
-import type { StreamingMessage } from "@/lib/types";
+import type { StreamingMessage, ToolExecution } from "@/lib/types";
 import { useTextToSpeech } from "../../hooks/use-text-to-speech";
+import ToolExecutionDisplay from "./tool-execution-display";
 
 interface StreamingMessageItemProps {
     streamingMessage: StreamingMessage;
     autoSpeak?: boolean;
+    toolExecutions?: ToolExecution[];
 }
 
 const parseAIThinking = (content: string) => {
@@ -58,7 +60,11 @@ function TypingIndicator() {
     );
 }
 
-export default function StreamingMessageItem({ streamingMessage, autoSpeak = false }: StreamingMessageItemProps) {
+export default function StreamingMessageItem({
+    streamingMessage,
+    autoSpeak = false,
+    toolExecutions = []
+}: StreamingMessageItemProps) {
     const streamingAIContent = parseAIThinking(streamingMessage.content);
     const [isStreamingThinkingOpen, setIsStreamingThinkingOpen] = useState(true);
 
@@ -170,6 +176,13 @@ export default function StreamingMessageItem({ streamingMessage, autoSpeak = fal
 
                     {isThinking && !streamingAIContent.hasThinking && (
                         <TypingIndicator />
+                    )}
+
+                    {/* Live Tool Executions */}
+                    {toolExecutions && toolExecutions.length > 0 && (
+                        <div className="mt-3 pt-2.5 border-t border-border/40">
+                            <ToolExecutionDisplay executions={toolExecutions} />
+                        </div>
                     )}
                 </div>
 
