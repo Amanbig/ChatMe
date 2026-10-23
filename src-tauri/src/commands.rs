@@ -475,6 +475,16 @@ pub async fn write_file(file_path: String, contents: String) -> Result<String, S
 }
 
 #[tauri::command]
+pub async fn duckduckgo_search(
+    query: String,
+    max_results: Option<usize>,
+) -> Result<Vec<crate::web_search::WebSearchResult>, String> {
+    crate::web_search::duckduckgo_search(&query, max_results)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn get_current_directory() -> Result<String, String> {
     std::env::current_dir()
         .map(|path| path.to_string_lossy().to_string())
@@ -1222,5 +1232,31 @@ pub fn get_system_info() -> Result<serde_json::Value, String> {
         "arch": std::env::consts::ARCH,
         "family": std::env::consts::FAMILY,
     }))
+}
+
+#[tauri::command]
+pub fn get_tts_status() -> Result<crate::tts::TtsStatus, String> {
+    Ok(crate::tts::get_tts_status())
+}
+
+#[tauri::command]
+pub fn get_native_tts_voices() -> Result<Vec<crate::tts::TtsVoice>, String> {
+    Ok(crate::tts::get_native_voices())
+}
+
+#[tauri::command]
+pub fn native_speak(
+    text: String,
+    voice: Option<String>,
+    rate: Option<f32>,
+    pitch: Option<f32>,
+    volume: Option<f32>,
+) -> Result<(), String> {
+    crate::tts::speak(&text, voice.as_deref(), rate, pitch, volume)
+}
+
+#[tauri::command]
+pub fn native_cancel_speech() -> Result<(), String> {
+    crate::tts::cancel_speech()
 }
 

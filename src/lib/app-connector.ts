@@ -92,6 +92,9 @@ export function getConnectedAppsContext(apps: ConnectedApp[], workingDirectory?:
         if (app.id === 'terminal' || app.id === 'vscode') {
             promptContext += ` Current Workspace Directory: \`${workingDirectory || '.'}\`.`;
         }
+        if (app.id === 'browser') {
+            promptContext += ` For looking up online docs, repositories, news, or general web search, use the web_search / duckduckgo_search tools.`;
+        }
         promptContext += '\n';
     }
     promptContext += 'You have user-authorized access to read context and perform operations for these connected apps.\n';

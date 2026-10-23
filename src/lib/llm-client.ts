@@ -76,7 +76,8 @@ export class LLMClient {
     chatId: string,
     messages: Message[],
     useTools: boolean = false,
-    callbacks?: StreamCallbacks
+    callbacks?: StreamCallbacks,
+    contextPrompt?: string
   ): Promise<{ content: string; executions: ToolExecution[] }> {
     const sessionId = `chat-${chatId}`;
     await createOrGetAgentSession(sessionId);
@@ -86,7 +87,7 @@ export class LLMClient {
       await this.ensureSystemInfo();
     }
 
-    const llmMessages = this.convertMessagesToLLMFormat(messages, useTools);
+    const llmMessages = this.convertMessagesToLLMFormat(messages, useTools, contextPrompt);
     const tools = useTools ? await getMergedToolDefinitions() : [];
     const allExecutions: ToolExecution[] = [];
 
@@ -298,7 +299,7 @@ export class LLMClient {
   /**
    * Convert chat messages to LLM format
    */
-  private convertMessagesToLLMFormat(messages: Message[], useTools: boolean = false): LLMMessage[] {
+  private convertMessagesToLLMFormat(messages: Message[], useTools: boolean = false, contextPrompt?: string): LLMMessage[] {
     const llmMessages: LLMMessage[] = messages.map(msg => {
       // Handle messages with images (multimodal content)
       if (msg.images && msg.images.length > 0) {
@@ -354,6 +355,23 @@ export class LLMClient {
       };
     });
 
+    // If contextPrompt was provided (e.g. connected apps or sub-agent persona), inject into latest user message
+    if (contextPrompt && contextPrompt.trim()) {
+      for (let i = llmMessages.length - 1; i >= 0; i--) {
+        if (llmMessages[i].role === 'user') {
+          if (typeof llmMessages[i].content === 'string') {
+            llmMessages[i].content = `${llmMessages[i].content}\n\n${contextPrompt.trim()}`;
+          } else if (Array.isArray(llmMessages[i].content)) {
+            (llmMessages[i].content as any[]).push({
+              type: 'text',
+              text: `\n\n${contextPrompt.trim()}`
+            });
+          }
+          break;
+        }
+      }
+    }
+
     // Add system message if tools are enabled
     if (useTools) {
       // Build OS-specific guidance
@@ -390,20 +408,21 @@ IMPORTANT: The user is running Linux (${osArch}). Use Unix/Linux commands:
 
       llmMessages.unshift({
         role: 'system',
-        content: `You are an AI assistant with access to powerful tools for interacting with the user's computer. You have the following capabilities:
+        content: `You are an AI assistant with access to powerful tools for interacting with the user's computer and the web. You have the following capabilities:
 
-- File operations: Read, write, search files and directories
+- Web search: Search the internet, GitHub repositories, software guides, and documentation using duckduckgo_search or web_search
+- Document reading: Read and extract text from PDF, text, markdown, and config files using read_document
+- File operations: Read, write, list files and directories on the local machine
 - Terminal commands: Execute shell commands
 - Process management: List and control running processes
 - Application control: Launch applications
 ${osGuidance}
 
-When the user asks you to perform a task that requires these capabilities, USE the tools directly - don't explain how to use them or show JSON examples. Just call the appropriate tool and provide the results in a natural, conversational way.
-
-For example:
-- If asked "list files", use the list_directory tool and show the results
-- If asked "search for X", use the search_files tool and report what you found
-- If asked "read file Y", use the read_file tool and discuss the contents
+Tool Usage Guidelines:
+- For searching online docs, GitHub repositories, news, or general web questions, ALWAYS use the duckduckgo_search or web_search tool. DO NOT search the local workspace directory for external GitHub or online documentation queries.
+- For local filesystem workspace searches on disk, use search_files or list_directory.
+- For reading rich document files (.pdf, .txt, .md, .json, .csv), use read_document.
+- USE the tools directly - don't explain how to use them or show JSON examples. Just call the appropriate tool and provide the results in a natural, conversational way.
 
 Be proactive and helpful. Use tools whenever they can help accomplish the user's goals.`,
       });

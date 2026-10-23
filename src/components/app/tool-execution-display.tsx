@@ -79,6 +79,19 @@ export default function ToolExecutionDisplay({ executions }: ToolExecutionDispla
                     icon: <FaGlobe className="text-emerald-500 shrink-0" size={12} />,
                     color: 'border-emerald-500/30 bg-emerald-500/5'
                 };
+            case 'duckduckgo_search':
+            case 'web_search':
+                return {
+                    name: 'DuckDuckGo Web Search',
+                    icon: <FaGlobe className="text-cyan-500 shrink-0" size={12} />,
+                    color: 'border-cyan-500/30 bg-cyan-500/5'
+                };
+            case 'search_files':
+                return {
+                    name: 'Search Files',
+                    icon: <FaFolderOpen className="text-blue-500 shrink-0" size={12} />,
+                    color: 'border-blue-500/30 bg-blue-500/5'
+                };
             case 'launch_app':
             case 'get_installed_apps':
                 return {
@@ -98,6 +111,8 @@ export default function ToolExecutionDisplay({ executions }: ToolExecutionDispla
     const getPrimaryParam = (exec: ToolExecution) => {
         const args = exec.arguments || {};
         if (args.command) return `$ ${args.command}`;
+        if (args.query) return `🔍 ${args.query}`;
+        if (args.pattern) return `🔎 "${args.pattern}" in ${args.directory || '.'}`;
         if (args.path || args.file_path) return args.path || args.file_path;
         if (args.url) return args.url;
         if (args.app_path) return args.app_path;

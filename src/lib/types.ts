@@ -192,6 +192,12 @@ export interface ToolCall {
   };
 }
 
+export interface WebSearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
 export interface DocumentContent {
   file_name: string;
   file_path: string;

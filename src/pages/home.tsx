@@ -417,8 +417,15 @@ export default function HomePage() {
                     return null;
                 }
 
-                if (message.role === 'user' && message.content.includes('[AGENT MODE ACTIVE]')) {
-                    const cleanContent = message.content.split('\n\n[AGENT MODE ACTIVE]')[0].trim();
+                if (message.role === 'user') {
+                    let cleanContent = message.content;
+                    if (cleanContent.includes('[CONNECTED DESKTOP APPLICATIONS & INTEGRATIONS]:')) {
+                        cleanContent = cleanContent.split('\n\n[CONNECTED DESKTOP APPLICATIONS & INTEGRATIONS]:')[0].trim();
+                    }
+                    if (cleanContent.includes('[AGENT MODE ACTIVE]')) {
+                        cleanContent = cleanContent.split('\n\n[AGENT MODE ACTIVE]')[0].trim();
+                    }
+                    cleanContent = cleanContent.replace(/^\[DIRECTED_TO:[A-Z_-]+\]\s*/i, '').trim();
                     if (cleanContent.length > 0) {
                         return { ...message, content: cleanContent };
                     }
@@ -483,13 +490,14 @@ export default function HomePage() {
     // Auto-send LLM response when coming from welcome screen
     useEffect(() => {
         const autoSendMessage = async () => {
-            const locationState = location.state as { autoSend?: boolean } | null;
+            const locationState = location.state as { autoSend?: boolean; contextPrompt?: string } | null;
 
             if (!chatId || !locationState?.autoSend || hasAutoSentRef.current || loading || isGenerating) {
                 return;
             }
 
             hasAutoSentRef.current = true;
+            const contextPrompt = locationState?.contextPrompt;
 
             // Clear the navigation state to prevent re-triggering
             navigate(location.pathname, { replace: true, state: {} });
@@ -637,7 +645,8 @@ export default function HomePage() {
                             setStreamingMessage(null);
                             setIsGenerating(false);
                         }
-                    }
+                    },
+                    contextPrompt
                 );
             } catch (error) {
                 console.error('Failed to auto-send message:', error);
@@ -652,18 +661,20 @@ export default function HomePage() {
         }
     }, [chatId, loading, location.state]);
 
-    const handleSendMessage = async (content: string, images?: string[]) => {
+    const handleSendMessage = async (content: string, images?: string[], appMetadataContext?: string, subagentRole?: string) => {
         if (!chatId || (!content.trim() && !images?.length) || isGenerating) return;
 
         try {
             setIsGenerating(true);
 
-            const agentResponse = await handleAgentQuery(content.trim(), workingDirectory);
+            const cleanUserText = content.trim();
+
+            const agentResponse = await handleAgentQuery(cleanUserText, workingDirectory);
 
             if (agentResponse) {
                 const userMessage = await createMessage({
                     chat_id: chatId,
-                    content: content.trim(),
+                    content: cleanUserText,
                     role: 'user',
                     images
                 });
@@ -681,10 +692,10 @@ export default function HomePage() {
                 return;
             }
 
-            // Create user message in database
+            // Create user message in database with pure clean content
             const userMessage = await createMessage({
                 chat_id: chatId,
-                content: content.trim(),
+                content: cleanUserText,
                 role: 'user',
                 images
             });
@@ -831,7 +842,11 @@ export default function HomePage() {
                         setStreamingMessage(null);
                         setIsGenerating(false);
                     }
-                }
+                },
+                [
+                    subagentRole ? `[DIRECTED_TO:${subagentRole}]` : '',
+                    appMetadataContext || ''
+                ].filter(Boolean).join('\n\n') || undefined
             );
 
         } catch (error) {
@@ -884,7 +899,7 @@ export default function HomePage() {
 
     // Welcome screen when no chat selected
     if (!chatId) {
-        const handleStartChat = async (content: string, images?: string[]) => {
+        const handleStartChat = async (content: string, images?: string[], appMetadataContext?: string, subagentRole?: string) => {
             if (!content.trim() && !images?.length) return;
 
             try {
@@ -903,9 +918,18 @@ export default function HomePage() {
                     images
                 });
 
+                const combinedContext = [
+                    subagentRole ? `[DIRECTED_TO:${subagentRole}]` : '',
+                    appMetadataContext || ''
+                ].filter(Boolean).join('\n\n');
+
                 // Navigate to the new chat - autoSendMessage effect will handle the LLM response
                 navigate(`/chat/${newChat.id}`, {
-                    state: { autoSend: true, initialMessage: userMessage.id }
+                    state: { 
+                        autoSend: true, 
+                        initialMessage: userMessage.id,
+                        contextPrompt: combinedContext || undefined
+                    }
                 });
 
                 toast.success('New chat created!');

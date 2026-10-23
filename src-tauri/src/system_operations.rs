@@ -821,7 +821,7 @@ pub fn check_permission_level(operation: &str, params: &HashMap<String, serde_js
             }
         },
 
-        "read_file" | "read_document" | "search_files" | "read_directory" | "list_directory" | "open_file" => {
+        "read_file" | "read_document" | "search_files" | "read_directory" | "list_directory" | "open_file" | "duckduckgo_search" | "web_search" => {
             if let Some(path) = params.get("file_path")
                 .or_else(|| params.get("directory_path"))
                 .and_then(|v| v.as_str())

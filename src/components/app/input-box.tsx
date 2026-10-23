@@ -17,7 +17,7 @@ import {
 import { Badge } from "../ui/badge";
 
 interface InputBoxProps {
-    onSendMessage?: (message: string, images?: string[]) => void;
+    onSendMessage?: (message: string, images?: string[], appMetadataContext?: string, subagentRole?: string) => void;
     disabled?: boolean;
 }
 
@@ -104,23 +104,29 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(({ onSendMessage, disabl
 
     const handleSend = () => {
         if ((message.trim() || selectedImages.length > 0) && !disabled) {
-            let outgoingMessage = message.trim();
-            if (outgoingMessage) {
-                setLastCommand(outgoingMessage);
+            const rawUserMessage = message.trim();
+            if (rawUserMessage) {
+                setLastCommand(rawUserMessage);
             }
 
-            // Append connected apps context if any attached
+            // Keep connected apps context separate from visible user message
+            let contextPrompt = '';
             if (attachedApps.length > 0) {
-                outgoingMessage += getConnectedAppsContext(attachedApps);
+                contextPrompt += getConnectedAppsContext(attachedApps);
             }
 
-            // Prepend specialized sub-agent persona if selected
+            let subagentRole: string | undefined = undefined;
             if (selectedRole !== 'auto' && SUB_AGENTS[selectedRole]) {
                 const agent = SUB_AGENTS[selectedRole];
-                outgoingMessage = `[DIRECTED_TO:${agent.id.toUpperCase()}]\n${outgoingMessage}`;
+                subagentRole = agent.id.toUpperCase();
             }
 
-            onSendMessage?.(outgoingMessage, selectedImages.length > 0 ? selectedImages : undefined);
+            onSendMessage?.(
+                rawUserMessage,
+                selectedImages.length > 0 ? selectedImages : undefined,
+                contextPrompt || undefined,
+                subagentRole
+            );
             setMessage("");
             setSelectedImages([]);
             setIsTyping(false);
@@ -133,7 +139,7 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(({ onSendMessage, disabl
 
     const handleMicrophoneClick = () => {
         if (!browserSupportsSpeechRecognition) {
-            toast.error("Speech recognition is not supported in your browser");
+            toast.info("Microphone voice input requires Web Speech API (supported in Chromium/Chrome). Text-to-speech output is fully enabled via System TTS.");
             return;
         }
         if (isListening) {

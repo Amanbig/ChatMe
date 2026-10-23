@@ -30,13 +30,31 @@ html {
 }
 
 body,
+#root,
+button,
+input,
+textarea,
+select,
+.chat-message-bubble,
+.markdown-content {
+  font-family: var(--app-font-family);
+}
+
+body,
 #root {
   height: 100%;
   margin: 0;
   padding: 0;
-  font-family: var(--app-font-family);
   font-size: var(--app-font-size);
   line-height: var(--app-line-height);
+}
+
+code,
+pre,
+kbd,
+samp,
+.font-mono {
+  font-family: var(--app-code-font) !important;
 }
 
 /* Smooth theme transitions */
