@@ -1,18 +1,14 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
     FaExclamationTriangle,
     FaShieldAlt,
-    FaInfoCircle,
     FaCheck,
     FaTimes,
-    FaLock
+    FaChevronDown,
+    FaChevronUp
 } from 'react-icons/fa';
-import { toast } from 'sonner';
 import type { PermissionRequest } from '@/lib/types';
 
 interface PermissionRequestMessageProps {
@@ -25,212 +21,141 @@ export default function PermissionRequestMessage({
     onStatusUpdate
 }: PermissionRequestMessageProps) {
     const [responding, setResponding] = useState(false);
-    const [expanded, setExpanded] = useState(permissionRequest.status === 'pending');
+    const [expanded, setExpanded] = useState(false);
 
-    // Auto-collapse when permission is resolved
+    // Auto-collapse when resolved
     useEffect(() => {
         if (permissionRequest.status !== 'pending') {
-            // Wait a moment before collapsing so user sees the result
-            const timer = setTimeout(() => setExpanded(false), 2000);
-            return () => clearTimeout(timer);
+            setExpanded(false);
         }
     }, [permissionRequest.status]);
 
-    const getLevelIcon = () => {
-        switch (permissionRequest.level) {
-            case 'Dangerous':
-                return <FaExclamationTriangle className="text-destructive" size={16} />;
-            case 'Moderate':
-                return <FaShieldAlt className="text-yellow-500" size={16} />;
-            default:
-                return <FaInfoCircle className="text-blue-500" size={16} />;
-        }
-    };
-
-    const getLevelColor = () => {
-        switch (permissionRequest.level) {
-            case 'Dangerous':
-                return 'border-destructive/50 bg-destructive/5';
-            case 'Moderate':
-                return 'border-yellow-500/50 bg-yellow-500/5';
-            default:
-                return 'border-blue-500/50 bg-blue-500/5';
-        }
-    };
-
-    const getStatusBadge = () => {
-        switch (permissionRequest.status) {
-            case 'approved':
-                return (
-                    <Badge variant="default" className="bg-green-500 hover:bg-green-600">
-                        <FaCheck size={10} className="mr-1" />
-                        Approved
-                    </Badge>
-                );
-            case 'denied':
-                return (
-                    <Badge variant="destructive">
-                        <FaTimes size={10} className="mr-1" />
-                        Denied
-                    </Badge>
-                );
-            default:
-                return (
-                    <Badge variant="secondary" className="animate-pulse">
-                        <FaLock size={10} className="mr-1" />
-                        Awaiting Permission
-                    </Badge>
-                );
-        }
-    };
-
     const handleResponse = async (approved: boolean) => {
-        if (permissionRequest.status !== 'pending' || responding) {
-            return;
-        }
+        if (permissionRequest.status !== 'pending' || responding) return;
 
         setResponding(true);
-
         try {
             await invoke('respond_to_permission', {
                 requestId: permissionRequest.id,
                 approved
             });
-
-            // Update the status in the parent
             onStatusUpdate(permissionRequest.id, approved ? 'approved' : 'denied');
-
-            toast.success(approved ? 'Permission granted' : 'Permission denied');
         } catch (error) {
             console.error('Failed to respond to permission:', error);
-            if (!String(error).includes('Permission request not found')) {
-                toast.error('Failed to send permission response');
-            }
         } finally {
             setResponding(false);
         }
     };
 
-    // Collapsed view for resolved permissions
-    if (permissionRequest.status !== 'pending' && !expanded) {
+    const isPending = permissionRequest.status === 'pending';
+    const isApproved = permissionRequest.status === 'approved';
+
+    // Compact resolved state (when approved or denied)
+    if (!isPending && !expanded) {
         return (
-            <div
+            <div 
                 onClick={() => setExpanded(true)}
-                className="flex items-center gap-2 px-3 py-2 bg-muted/30 border border-muted-foreground/20 rounded-md cursor-pointer hover:bg-muted/50 transition-colors"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/40 hover:bg-muted/70 border border-border/40 text-xs text-muted-foreground transition-colors cursor-pointer select-none"
+                title="Click to view permission details"
             >
-                {getLevelIcon()}
-                <span className="text-xs text-muted-foreground flex-1">
-                    Permission {permissionRequest.status === 'approved' ? 'granted' : 'denied'}: {permissionRequest.operation}
-                </span>
-                {getStatusBadge()}
+                <div className="flex items-center gap-1.5">
+                    {isApproved ? (
+                        <FaCheck size={10} className="text-emerald-500" />
+                    ) : (
+                        <FaTimes size={10} className="text-rose-500" />
+                    )}
+                    <span className="font-mono font-medium text-foreground text-[11px]">
+                        {permissionRequest.operation}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                        {isApproved ? 'approved' : 'denied'}
+                    </span>
+                </div>
+                <FaChevronDown size={9} className="opacity-50" />
             </div>
         );
     }
 
+    // Pending or expanded state
     return (
-        <Card className={`border-2 ${getLevelColor()} shadow-sm`}>
-            <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        {getLevelIcon()}
-                        <span className="font-semibold text-sm">Permission Required</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {getStatusBadge()}
-                        {permissionRequest.status !== 'pending' && (
-                            <button
-                                onClick={() => setExpanded(false)}
-                                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                                Collapse
-                            </button>
-                        )}
-                    </div>
-                </div>
-            </CardHeader>
-
-            <CardContent className="space-y-3">
-                {/* Operation Info */}
-                <div className="space-y-2">
-                    <div className="flex items-start gap-2">
-                        <span className="text-xs font-semibold text-muted-foreground min-w-[80px]">
-                            Operation:
-                        </span>
-                        <span className="text-xs font-mono bg-muted/50 px-2 py-0.5 rounded">
-                            {permissionRequest.operation}
-                        </span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                        <span className="text-xs font-semibold text-muted-foreground min-w-[80px]">
-                            Description:
-                        </span>
-                        <span className="text-xs">{permissionRequest.description}</span>
-                    </div>
+        <div className={`rounded-xl border p-3 text-xs transition-all duration-200 ${
+            isPending 
+                ? 'border-amber-500/40 bg-amber-500/5 shadow-xs' 
+                : 'border-border/60 bg-card/60'
+        }`}>
+            {/* Header */}
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-border/40">
+                <div className="flex items-center gap-2">
+                    {permissionRequest.level === 'Dangerous' ? (
+                        <FaExclamationTriangle className="text-rose-500" size={13} />
+                    ) : (
+                        <FaShieldAlt className="text-amber-500" size={13} />
+                    )}
+                    <span className="font-semibold text-foreground">
+                        {isPending ? 'Permission Authorization' : 'Permission Record'}
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full font-mono bg-muted text-muted-foreground border border-border/40">
+                        {permissionRequest.level}
+                    </span>
                 </div>
 
-                {/* Details */}
-                {Object.keys(permissionRequest.details).length > 0 && (
-                    <div className="rounded-lg border bg-muted/30 p-2.5">
-                        <div className="text-xs font-semibold mb-1.5">Details:</div>
-                        <div className="space-y-1">
-                            {Object.entries(permissionRequest.details).map(([key, value]) => (
-                                <div key={key} className="flex gap-2 text-xs">
-                                    <span className="text-muted-foreground capitalize min-w-[60px]">
-                                        {key}:
-                                    </span>
-                                    <span className="font-mono text-[11px] break-all flex-1">
-                                        {value}
-                                    </span>
-                                </div>
-                            ))}
+                {!isPending && (
+                    <button 
+                        onClick={() => setExpanded(false)}
+                        className="text-muted-foreground hover:text-foreground p-0.5 rounded cursor-pointer"
+                    >
+                        <FaChevronUp size={10} />
+                    </button>
+                )}
+            </div>
+
+            {/* Operation & description */}
+            <div className="space-y-1 mb-2.5">
+                <div className="flex items-center gap-1.5 font-mono text-[11px] text-foreground font-medium">
+                    <span>Operation:</span>
+                    <span className="text-primary">{permissionRequest.operation}</span>
+                </div>
+                <p className="text-muted-foreground text-[11px] leading-relaxed">
+                    {permissionRequest.description}
+                </p>
+            </div>
+
+            {/* Parameters / Details */}
+            {permissionRequest.details && Object.keys(permissionRequest.details).length > 0 && (
+                <div className="bg-muted/40 rounded-lg p-2 font-mono text-[10px] text-muted-foreground border border-border/40 space-y-1 mb-2.5">
+                    {Object.entries(permissionRequest.details).map(([key, val]) => (
+                        <div key={key} className="flex gap-2 truncate">
+                            <span className="text-foreground/80 font-medium shrink-0">{key}:</span>
+                            <span className="truncate">{String(val)}</span>
                         </div>
-                    </div>
-                )}
+                    ))}
+                </div>
+            )}
 
-                {/* Warning for dangerous operations */}
-                {permissionRequest.level === 'Dangerous' && permissionRequest.status === 'pending' && (
-                    <Alert variant="destructive" className="py-2">
-                        <FaExclamationTriangle className="h-3 w-3" />
-                        <AlertDescription className="text-xs">
-                            <strong>Warning:</strong> This is a potentially dangerous operation.
-                            Only approve if you understand what it does.
-                        </AlertDescription>
-                    </Alert>
-                )}
-
-                {/* Action Buttons - only show if pending */}
-                {permissionRequest.status === 'pending' && (
-                    <div className="flex gap-2 pt-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleResponse(false)}
-                            disabled={responding}
-                            className="flex-1 h-8 text-xs"
-                        >
-                            <FaTimes size={10} className="mr-1" />
-                            Deny
-                        </Button>
-                        <Button
-                            variant={permissionRequest.level === 'Dangerous' ? 'destructive' : 'default'}
-                            size="sm"
-                            onClick={() => handleResponse(true)}
-                            disabled={responding}
-                            className="flex-1 h-8 text-xs"
-                        >
-                            <FaCheck size={10} className="mr-1" />
-                            {responding ? 'Processing...' : 'Allow'}
-                        </Button>
-                    </div>
-                )}
-
-                {/* Status message for completed requests */}
-                {permissionRequest.status !== 'pending' && (
-                    <div className="text-xs text-muted-foreground text-center py-1">
-                        Permission {permissionRequest.status === 'approved' ? 'granted' : 'denied'} by user
-                    </div>
-                )}
-            </CardContent>
-        </Card>
+            {/* Action Buttons for Pending */}
+            {isPending && (
+                <div className="flex items-center gap-2 pt-1">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleResponse(false)}
+                        disabled={responding}
+                        className="flex-1 h-7 text-xs rounded-lg border-border/60 hover:bg-rose-500/10 hover:text-rose-500 hover:border-rose-500/40 cursor-pointer"
+                    >
+                        <FaTimes size={10} className="mr-1.5" />
+                        Deny
+                    </Button>
+                    <Button
+                        size="sm"
+                        onClick={() => handleResponse(true)}
+                        disabled={responding}
+                        className="flex-1 h-7 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs cursor-pointer"
+                    >
+                        <FaCheck size={10} className="mr-1.5" />
+                        {responding ? 'Authorizing...' : 'Allow'}
+                    </Button>
+                </div>
+            )}
+        </div>
     );
 }

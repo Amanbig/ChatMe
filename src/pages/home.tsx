@@ -1000,7 +1000,7 @@ export default function HomePage() {
                         ) : messages.length === 0 && !streamingMessage ? (
                             <EmptyChatState />
                         ) : (
-                            <div className="space-y-6 p-4 pb-8">
+                            <div className="space-y-3.5 p-4 sm:p-6 pb-8">
                                 {messages.map((message) => (
                                     <MessageItem
                                         key={message.id}

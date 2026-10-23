@@ -1,442 +1,194 @@
-# ChatMe 🤖
-
-ChatMe combines agent-driven AI, cross-platform responsiveness, and voice interaction into a single desktop/web app, empowering developers and users to interact with AI like never before. ChatMe supports multiple AI providers with a beautiful, responsive interface and advanced features including voice interaction and powerful agent mode with full system access.
-
-## 🆕 **What's New in v0.6.0**
-- **🖥️ "Work with Apps" (ChatGPT Desktop Style)**: Attach context from running desktop apps (VS Code, Cursor, Chrome, Terminal, File Manager) directly into your prompt.
-- **🤖 Multi-Agent Autonomous Swarm**: Summon specialized sub-agents (Planner, Full-Stack Coder, Web Researcher, Security Reviewer, DevOps Operator) with visual orchestration cards.
-- **⚡ Interactive CodeBlock Runner**: Direct "Run" action on code blocks (`bash`, `sh`, `python`, `node`) with inline terminal output drawers.
-- **📊 Line-by-Line Diff Viewer**: Automatic colored diff styling for code modification reviews.
-- **💻 Integrated Developer Terminal**: Slide-up workspace terminal (`Ctrl + \``) with command history and live output.
-- **🚀 Performance Optimization**: Vite bundle code-splitting (-63% bundle size from 1.2MB to 475kB) and 60fps streaming batching.
-- **📤 Chat Export**: Instant one-click export to Markdown (`.md`) and JSON (`.json`).
-- **🐧 Linux GPU Fix**: Seamless WebKitGTK software compositing fallback for NVIDIA GPUs.
-
-### **Previous Release - v0.5.3**
-- **⚡ Hybrid Architecture**: Revolutionary change - Rust backend handles all HTTP requests, completely bypassing CORS
-- **🌐 13 Provider Support**: Added 5+ new providers (Kimi, OpenRouter, Together AI, Groq, Perplexity) - now supporting 13 total!
-- **📡 Native Streaming**: Provider-specific implementations for OpenAI, Anthropic, and Google with optimal performance
-- **🎨 Enhanced UX**: Improved delete button flow, welcome screen auto-send, and smoother interactions
-- **🔧 Bug Fixes**: Fixed tool parameter mismatch and various UX improvements
-- **🚀 Better Reliability**: Improved error handling, streaming compatibility, and overall stability
-- **🌐 MCP support**: Added MCP support for seamless integration with other tools
-
-### **Previous Release - v0.4.0**
-- **🚀 Enhanced Agent Mode**: Execute terminal commands, launch apps, and manage processes
-- **📊 Command Execution Cards**: Interactive, expandable results with timing and copy buttons
-- **⌨️ Keyboard Shortcuts**: Ctrl+K to focus, Ctrl+R to repeat last command
-- **🎨 Improved UI**: Better dark mode support, polished settings page
-- **🔒 Permission System**: Safety checks for dangerous operations
-- **💬 Natural AI Flow**: AI explains, executes, and continues in one response
-
-### 🚀 **Key Highlights**
-- **🤖 Powerful Agent Mode**: Full system access with terminal commands and app control
-- **🎤 Voice Interaction**: Speech-to-text input and text-to-speech output with customizable voices
-- **🎯 Multi-Provider Support**: OpenAI, Google Gemini, Claude, Ollama, and custom APIs
-- **📱 Mobile-Optimized**: Responsive design that works beautifully on all devices
-- **🎨 Modern UI**: Custom title bar, dark/light themes, and smooth animations
-- **⚡ Real-time Features**: Live streaming responses and interactive command execution
-
-### 📱 **Cross-Platform Features**
-- **Touch-Friendly Controls**: Large tap targets for accessibility
-- **Adaptive Layout**: Auto-resizing sidebar and components for different screen sizes
-- **Image Upload**: File selection with drag-and-drop and preview functionality
-- **Mobile-Optimized**: UI components that work well on tablets and small screens
-- **Gesture Support**: Smooth scrolling and intuitive interactions
-
-## 🌟 Platform Support
-
-- **🖥️ Desktop**: Windows, macOS, Linux
-- **🌐 Web**: Progressive Web App capabilities
-- **📱 Mobile**: UI is responsive and mobile-friendly (native mobile apps coming soon)
-
-## 📸 Screenshots
-
 <div align="center">
-  <table>
-    <tr>
-      <td align="center">
-        <img src="images/light.png" alt="ChatMe Light Theme" width="450"/>
-        <br/>
-        <sub><b>Light Theme</b></sub>
-      </td>
-      <td align="center">
-        <img src="images/dark.png" alt="ChatMe Dark Theme" width="450"/>
-        <br/>
-        <sub><b>Dark Theme</b></sub>
-      </td>
-    </tr>
-  </table>
+
+# ChatMe 🤖
+### The Open-Source, Multi-Agent Desktop AI with System Access & App Integrations
+
+[![GitHub Release](https://img.shields.io/github/v/release/Amanbig/ChatMe?color=38bdf8&style=for-the-badge&logo=github)](https://github.com/Amanbig/ChatMe/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-emerald?style=for-the-badge)](LICENSE)
+[![Tauri v2](https://img.shields.io/badge/Tauri-v2.10-24C8D8?style=for-the-badge&logo=tauri&logoColor=white)](https://v2.tauri.app/)
+[![React 19](https://img.shields.io/badge/React-v19.3-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![Rust](https://img.shields.io/badge/Rust-Stable-DEA584?style=for-the-badge&logo=rust&logoColor=black)](https://www.rust-lang.org/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-brightgreen?style=for-the-badge)](CONTRIBUTING.md)
+
+<p align="center">
+  <b>ChatMe</b> is a fast, privacy-first desktop application that combines <b>multi-agent autonomous workflows</b>, <b>ChatGPT Desktop-style app connections</b>, <b>direct code execution</b>, and <b>voice interaction</b> powered by 13+ cloud and local AI providers.
+</p>
+
+[Download Latest Release](https://github.com/Amanbig/ChatMe/releases) • [Features](#-core-features) • [Architecture](#-architecture) • [Getting Started](#-getting-started) • [Contributing](CONTRIBUTING.md)
+
+<br/>
+
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="images/light.png" alt="ChatMe Light Theme" width="440"/>
+      <br/><sub><b>Light Mode</b></sub>
+    </td>
+    <td align="center">
+      <img src="images/dark.png" alt="ChatMe Dark Theme" width="440"/>
+      <br/><sub><b>Dark Mode</b></sub>
+    </td>
+  </tr>
+</table>
+
 </div>
 
 ---
 
+## ⚡ What Sets ChatMe Apart?
 
-## ✨ Features
+| Feature | ChatMe (Open Source) | ChatGPT Desktop | Claude Desktop |
+| :--- | :---: | :---: | :---: |
+| **Local Offline Models (Ollama, LMStudio)** | ✅ Native | ❌ Cloud only | ❌ Cloud only |
+| **Multi-Provider Ecosystem (13+ APIs)** | ✅ Universal | ❌ OpenAI only | ❌ Anthropic only |
+| **"Work with Apps" Context Attachment** | ✅ VS Code, Terminal, Browser | ✅ Limited apps | ❌ None |
+| **Autonomous Multi-Agent Swarm** | ✅ Planner, Coder, Reviewer, etc. | ❌ Single agent | ❌ Single agent |
+| **Interactive In-Chat Code Runner** | ✅ Direct Run (Bash, Python, Node) | ❌ Read-only | ❌ Read-only |
+| **Integrated Developer Terminal Drawer** | ✅ Instant (`Ctrl + \``) | ❌ None | ❌ None |
+| **Model Context Protocol (MCP)** | ✅ First-class client | ❌ None | ✅ Supported |
+| **Full Data Ownership (Local SQLite)** | ✅ 100% On-Device | ❌ Cloud hosted | ❌ Cloud hosted |
 
-### 🎯 **Multi-Provider AI Support (13 Providers)**
-- **OpenAI**: GPT-4, GPT-4 Turbo, GPT-3.5 Turbo and many more
-- **Anthropic Claude**: Claude 3/3.5 Opus, Sonnet, Haiku (native streaming)
-- **Google Gemini**: Gemini Pro, Gemini 1.5 Flash/Pro and many more (native streaming)
-- **Mistral AI**: Mistral Large, Mixtral 8x7B, and more
-- **DeepSeek**: DeepSeek Chat and Coder models
-- **LMStudio**: Local LLM inference server
-- **Ollama**: Local models (Llama 2, CodeLlama, Mistral, etc.)
-- **Kimi**: Moonshot AI models
-- **OpenRouter**: Unified API for multiple providers
-- **Together AI**: Open-source models at scale
-- **Groq**: Ultra-fast LLM inference
-- **Perplexity**: Search-enhanced AI responses
-- **Custom APIs**: Any OpenAI-compatible endpoint
+---
 
-### 🤖 **Enhanced Agent Mode (NEW!)**
-- **Full System Access**: Execute terminal commands, launch applications, and manage files
-- **Natural Conversation Flow**: AI explains, executes, and continues conversation in a single response
-- **Interactive Command Cards**: Expandable command execution results with timing and copy buttons
-- **Terminal Command Execution**: Run npm, git, python, and any shell commands
-- **Application Management**: Launch and manage system applications
-- **Process Control**: List and terminate running processes
-- **File Operations**: Copy, move, delete, rename files and folders
-- **Permission System**: Safety checks for dangerous operations
-- **Smart Context Awareness**: AI understands your working directory and project context
+## 🌟 Core Features
 
-### 🎤 **Speech Features**
-- **Speech-to-Text**: Click the microphone button to dictate messages using voice input
-- **Text-to-Speech**: AI responses can be read aloud with natural-sounding voices
-- **Auto-Speak Mode**: Automatically read AI responses when they arrive
-- **Voice Customization**: Choose from multiple system voices with adjustable rate, pitch, and volume
-- **Real-time Transcription**: See your speech being converted to text in real-time
-- **Browser Integration**: Uses Web Speech API for cross-platform compatibility
+### 🖥️ 1. "Work with Apps" (ChatGPT Desktop Style)
+- Connect ChatMe with running applications on your computer:
+  - **VS Code & Cursor**: Injects active workspace directory, file hierarchy, and editing context.
+  - **Developer Terminal**: Grants shell authorization and directory awareness.
+  - **Web Browsers**: Reads external URLs, parses web documentation, and inspects APIs.
+  - **File Explorer**: Analyzes directory trees and project assets.
+- Live background app detection with visual connection pills in the input toolbar.
 
-### 🎨 **Modern Interface**
-- **Custom Title Bar**: Integrated window controls with drag functionality (desktop)
-- **Mobile-First Design**: Touch-optimized interface for mobile devices
-- **Responsive Layout**: Auto-adapting sidebar and layout for all screen sizes
-- **Dark/Light Theme**: System-aware theme switching
-- **Agent Toggle**: Quick agent mode toggle with visual indicator in the title bar
-- **Smooth Animations**: Polished user experience with transitions
+### 🤖 2. Multi-Agent Autonomous Swarm
+- Direct queries to specialized sub-agents or let the **Autonomous Swarm** self-coordinate:
+  - 🧠 **Architecture & Planning Agent**: Breaks complex goals into milestone roadmaps.
+  - 💻 **Full-Stack Engineering Agent**: Writes code, modifies files, and creates diffs.
+  - 🔍 **Research & Web Intelligence Agent**: Scrapes web docs and inspects codebase patterns.
+  - 🛡️ **Security & Quality Reviewer**: Audits proposed changes for safety and edge cases.
+  - ⚡ **DevOps & System Operator**: Executes shell commands and monitors diagnostics.
+- Interactive **Agent Orchestrator Cards** display real-time sub-task progression.
 
-### 📱 **Mobile Features**
-- **Touch-Optimized Controls**: Minimum 44px touch targets for accessibility
-- **Mobile Sidebar**: Auto-collapsing navigation to save screen space
-- **Image Upload**: Camera and gallery integration for image uploads
-- **Gesture Support**: Smooth scrolling and touch interactions
-- **Mobile Keyboard**: Optimized input handling for mobile keyboards
-- **Responsive Images**: Properly scaled image previews and displays
+### ⚡ 3. Interactive CodeBlock Runner & Diff Viewer
+- Direct **"Run"** action on code blocks (`bash`, `sh`, `zsh`, `python`, `node`) with inline execution drawers displaying exit codes, stdout, stderr, and run duration.
+- Automatic line-by-line colored **Diff Viewer** for `diff` and `patch` blocks.
 
-### 💬 **Advanced Chat Features**
-- **Real-time Streaming**: Live message streaming for supported providers
-- **Image Analysis**: Upload and analyze images with AI vision models
-- **AI Thinking Display**: Collapsible sections showing AI reasoning process
-- **Message Management**: Copy, export, and share conversations
-- **Chat History**: Persistent chat storage with SQLite
-- **Markdown Support**: Rich text rendering with syntax highlighting
-- **Custom Components**: Enhanced rendering for file listings and command executions
-- **Scroll Management**: Intelligent auto-scrolling and manual scroll control
-- **Keyboard Shortcuts**: Ctrl+K (focus input), Ctrl+R (repeat last command), Enter (send)
+### 💻 4. Slide-Up Developer Terminal Drawer
+- Press **`Ctrl + \``** (or **`Cmd + \``**) or click **Terminal** in the top navigation bar to toggle the integrated terminal.
+- Run shell commands, inspect build logs, and navigate command history with Up/Down arrow keys.
 
-### ⚙️ **Configuration & Settings**
-- **Provider Management**: Easy setup and switching between AI providers
-- **API Testing**: Built-in connection testing with CORS-aware error handling
-- **Model Selection**: Support for different models per provider
-- **Parameter Tuning**: Temperature, max tokens, and other settings
-- **Speech Settings**: Configure voice input/output preferences and voice selection
-- **Agent Configuration**: Set working directories and enable/disable agent mode
-- **Default Configurations**: Set preferred providers for new chats
+### 🌐 5. 13+ Cloud & Local AI Providers
+- **Cloud Providers**: OpenAI (GPT-4o), Anthropic Claude (3.5 Sonnet), Google Gemini (1.5 Pro), DeepSeek, Groq, Mistral AI, OpenRouter, Together AI, Kimi, Perplexity.
+- **Local & Offline**: Ollama, LMStudio, and custom OpenAI-compatible endpoints.
+- **Native Streaming**: Rust backend delivers ultra-low latency chunked streaming without CORS limitations.
 
-## 🎙️ Speech Features Guide
+### 🎤 6. Real-time Speech Interaction
+- **Speech-to-Text (STT)**: High-accuracy voice dictation directly into the prompt.
+- **Text-to-Speech (TTS)**: Natural voice playback with adjustable pitch, speed, and volume.
 
-### **Voice Input (Speech-to-Text)**
-1. **Click the microphone button** in the input box
-2. **Grant permission** when prompted by your browser
-3. **Start speaking** - see real-time transcription
-4. **Click again to stop** recording
-5. **Edit if needed** and send your message
+### 📤 7. One-Click Chat Exporter
+- Export conversations to clean **Markdown (`.md`)** or structured **JSON (`.json`)** with one click directly from the chat header.
 
-### **AI Voice Output (Text-to-Speech)**
-1. **Click the speaker icon** next to any AI message
-2. **Listen to the response** being read aloud
-3. **Stop playback** by clicking the stop button
-4. **Enable auto-speak** in settings for automatic reading
+---
 
-### **Speech Settings Configuration**
-- **Speech Recognition**: Toggle voice input on/off
-- **Auto-Speak Responses**: Automatically read AI responses
-- **Voice Selection**: Choose from available system voices
-- **Speech Rate**: Adjust reading speed (0.5x to 2x)
-- **Speech Pitch**: Control voice pitch (0 to 2)
-- **Volume Control**: Set playback volume (0% to 100%)
+## 🏛️ Architecture
 
-## 🤖 Agent Mode Guide
+ChatMe pairs a high-performance **Rust backend** (using Tauri v2) with a **React 19 + Tailwind v4** client:
 
-### **Enabling Agent Mode**
-1. **Toggle the agent switch** in the settings or title bar
-2. **Set working directory** (optional) for file operations
-3. **Ask natural questions** and the AI will execute commands
-4. **Watch commands execute** in real-time with results
+```mermaid
+flowchart TD
+    subgraph Frontend["Frontend Client (React 19 + TypeScript)"]
+        UI["Modern Chat Canvas"]
+        ToolsBar["Work with Apps & Sub-Agent Selector"]
+        Terminal["Developer Terminal Drawer"]
+        Runner["CodeBlock Runner & Diff Viewer"]
+    end
 
-### **Agent Capabilities**
-- **Terminal Commands**: "Run npm install" → Executes the command
-- **Application Launch**: "Open Chrome browser" → Launches Chrome
-- **File Operations**: "Copy this file to backup folder" → Performs file operation
-- **Process Management**: "Show running processes" → Lists all processes
-- **Git Operations**: "Check git status" → Runs git commands
-- **Build & Deploy**: "Build the project" → Executes build scripts
-- **System Info**: "Check Node version" → Runs system commands
+    subgraph IPC["Tauri v2 IPC Bridge"]
+        Commands["Rust Command Invocations"]
+        Events["Real-Time Streaming & Permissions"]
+    end
 
-### **Command Execution Display**
-- **Expandable Cards**: Click to view command output
-- **Execution Time**: See how long commands took
-- **Copy Button**: Copy commands with one click
-- **Status Indicators**: Success/error/running states
-- **Working Directory**: Shows where commands executed
+    subgraph Backend["Native Rust Backend"]
+        HTTP["CORS-Free HTTP Engine (reqwest + tokio)"]
+        AgentCore["Agentic Session & Tool Executor"]
+        DB["Local SQLite Storage (sqlx)"]
+        SysOps["Shell, Process & File Operations"]
+        MCP["Model Context Protocol Client"]
+    end
 
-### **Keyboard Shortcuts**
-- **Ctrl+K / Cmd+K**: Focus the input box from anywhere
-- **Ctrl+R / Cmd+R**: Repeat the last command
-- **Enter**: Send message
-- **Shift+Enter**: New line in message
+    UI --> Commands
+    ToolsBar --> Commands
+    Terminal --> Commands
+    Runner --> Commands
+    Commands --> AgentCore
+    Commands --> HTTP
+    Commands --> DB
+    AgentCore --> SysOps
+    AgentCore --> MCP
+    Events -.-> UI
+```
 
-### **Example Agent Mode Interactions**
-
-**User**: "Check if npm is installed and show me the version"
-**AI**: "I'll check if npm is installed and show you the version.
-[Executes: npm --version]
-✅ npm version 10.2.5 is installed. This is a recent version compatible with most modern Node.js projects."
-
-**User**: "Run the development server"
-**AI**: "I'll start the development server for you.
-[Executes: npm run dev]
-The server is now running on http://localhost:1420. You can open this in your browser to see your application."
-
-**User**: "Show me all TypeScript files in the src folder"
-**AI**: "I'll search for all TypeScript files in the src directory.
-[Executes: search for *.ts and *.tsx files]
-Found 42 TypeScript files in your src folder. The main components are in src/components/ and pages are in src/pages/."
-
-**User**: "Open Chrome and go to GitHub"
-**AI**: "I'll launch Chrome and navigate to GitHub for you.
-[Executes: launch Chrome with https://github.com]
-Chrome has been opened with GitHub loaded. You can now browse your repositories."
+---
 
 ## 🚀 Getting Started
 
-### 📦 Downloads
-
-#### Desktop Applications
-- **Windows**: Download `.exe` installer from [Releases](https://github.com/Amanbig/ChatMe/releases)
-- **macOS**: Download `.dmg` file (Intel and Apple Silicon supported)
-- **Linux**: Download `.deb` package or `.AppImage`
-
-#### Mobile Support
-- **Responsive Web UI**: The application works well on mobile browsers
-- **Native Mobile Apps**: Coming soon - currently in development
-
 ### Prerequisites
+- [Node.js](https://nodejs.org/) (v18 or higher)
+- [npm](https://www.npmjs.com/)
+- [Rust & Cargo](https://rustup.rs/) (stable toolchain)
+- Platform-specific Tauri prerequisites (see [Tauri Prerequisites](https://v2.tauri.app/start/prerequisites/))
 
-- **Node.js** (v18 or higher)
-- **Rust** (latest stable)
-- **pnpm/npm/yarn** (package manager)
+### Installation & Development
 
-### Installation
-
-1. **Clone the repository**
+1. **Clone the repository:**
    ```bash
    git clone https://github.com/Amanbig/ChatMe.git
    cd ChatMe
    ```
 
-2. **Install dependencies**
+2. **Install dependencies:**
    ```bash
    npm install
    ```
 
-3. **Start development server**
+3. **Start in Web Development mode:**
    ```bash
-   npm run tauri dev
+   npm run dev
    ```
 
-4. **Build for production**
+4. **Run as Desktop App (Tauri):**
    ```bash
-   npm run tauri build
+   npm run tauri:dev
    ```
 
-### 🌐 Testing on Mobile Devices
+### Building Release Binaries
 
-While native mobile apps are in development, you can test the responsive UI:
-
-1. **Browser dev tools**: Use mobile device simulation
-2. **Local network**: Access the dev server from mobile browsers
-3. **Responsive testing**: Resize desktop window to test different screen sizes
-
-## 🔧 Configuration
-
-### Setting up AI Providers
-
-1. **Launch ChatMe** and navigate to Settings
-2. **Select a Provider** from the available cards
-3. **Configure the API**:
-   - **API Key**: Your provider's API key
-   - **Base URL**: Custom endpoint (optional for most providers)
-   - **Model**: Choose from available models
-   - **Parameters**: Adjust temperature, max tokens, etc.
-4. **Test Connection** to verify setup
-5. **Set as Default** (optional)
-
-### Provider-Specific Setup
-
-#### OpenAI
-- **URL**: `https://api.openai.com/v1/chat/completions`
-- **Models**: `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo`
-
-#### Google Gemini
-- **OpenAI-Compatible**: `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`
-- **Original API**: `https://generativelanguage.googleapis.com/v1beta`
-- **Models**: `gemini-pro`, `gemini-1.5-flash`, `gemini-1.5-pro`
-
-#### Mistral AI (Custom)
-- **URL**: `https://api.mistral.ai/v1/chat/completions`
-- **Models**: `mistral-large-latest`, `mixtral-8x7b-instruct`
-
-#### Ollama (Local)
-- **URL**: `http://localhost:11434`
-- **Models**: Any locally installed Ollama model
-
-## 🛠️ Tech Stack
-
-### Frontend
-- **Tauri**: Cross-platform desktop framework
-- **React 18**: Modern React with hooks and context
-- **TypeScript**: Type-safe development
-- **Vite**: Lightning-fast build tool
-- **shadcn/ui**: Modern component library
-- **Tailwind CSS**: Utility-first styling
-- **React Router**: Client-side routing
-- **Sonner**: Toast notifications
-- **React Markdown**: Rich text rendering with custom components
-
-### Backend (Hybrid Architecture)
-- **Rust**: High-performance backend handling all HTTP requests
-- **SQLite**: Local database storage with migrations
-- **Reqwest**: HTTP client for LLM API calls (bypasses CORS)
-- **Server-Sent Events**: Native streaming for all providers
-- **Tauri Commands**: File system operations and agent capabilities
-- **Serde**: JSON serialization
-- **Tokio**: Async runtime
-- **Frontend LLM Client**: TypeScript tool calling logic using official SDKs patterns
-
-### Features & Architecture
-- **Hybrid Architecture**: Rust handles HTTP (no CORS issues), frontend handles tool calling
-- **Real-time Events**: Tauri event system for streaming
-- **Speech Integration**: Web Speech API for voice input/output
-- **Agent System**: Intelligent file operations with LLM-driven commands
-- **Provider-Specific Streaming**: Native implementations for OpenAI, Anthropic, and Google
-- **Error Handling**: Comprehensive error management with user-friendly messages
-- **Theme System**: Dark/light mode switching with system preference detection
-- **Custom Rendering**: Enhanced markdown with interactive file components
-- **Tool Calling**: Multi-turn conversations with automatic tool execution
-
-## 📁 Project Structure
-
-```
-ChatMe/
-├── src/                    # Frontend React code
-│   ├── components/         # Reusable UI components
-│   │   ├── ui/            # shadcn/ui components
-│   │   └── app/           # Application-specific components
-│   ├── pages/             # Page components
-│   ├── lib/               # Utilities and API client
-│   └── assets/            # Static assets
-├── src-tauri/             # Rust backend
-│   ├── src/               # Rust source code
-│   │   ├── commands.rs    # Tauri commands
-│   │   ├── database.rs    # Database operations
-│   │   └── models.rs      # Data models
-│   └── Cargo.toml         # Rust dependencies
-├── public/                # Public assets
-└── package.json           # Node.js dependencies
-```
-
-## 🚀 Building & Distribution
-
-### Development
+To compile native release binaries for your operating system:
 ```bash
-npm run dev          # Start dev server
-npm run build        # Build frontend
-cargo tauri dev      # Run Tauri development
+npm run tauri:build
 ```
-
-### Production
-```bash
-npm run build               # Build frontend
-cargo tauri build          # Build desktop app
-cargo tauri build --debug  # Build with debug info
-```
-
-### Version Management
-
-ChatMe uses semantic versioning (SemVer) across all components. Version updates are automated:
-
-```bash
-# Update version manually
-npm run update-version 0.4.0
-
-# Or use semantic version bumps
-npm run version:patch    # 0.3.0 → 0.3.1
-npm run version:minor    # 0.3.0 → 0.4.0  
-npm run version:major    # 0.3.0 → 1.0.0
-```
-
-**Version files updated automatically:**
-- `package.json` and `package-lock.json`
-- `src-tauri/Cargo.toml` and `Cargo.lock`
-- `src-tauri/tauri.conf.json`
-
-**Release Process:**
-1. Update version using scripts above
-2. Commit changes: `git commit -m "bump version to x.x.x"`
-3. Push to main: `git push`
-4. GitHub Actions will automatically build and create release
-
-### Platform Support
-- **Windows**: Native .exe and .msi installers
-- **macOS**: .app bundle and .dmg installer (Intel and Apple Silicon)
-- **Linux**: .deb, .rpm, and AppImage formats
-- **Cross-platform**: Responsive UI that works on various screen sizes
-
-## 🤝 Contributing
-
-We welcome contributions! Please follow these steps:
-
-1. **Fork the repository**
-2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
-3. **Commit changes**: `git commit -m 'Add amazing feature'`
-4. **Push to branch**: `git push origin feature/amazing-feature`
-5. **Open a Pull Request**
-
-### Development Guidelines
-- Use TypeScript for type safety
-- Follow the existing code style
-- Add tests for new features
-- Update documentation as needed
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **Tauri Team**: For the amazing desktop framework
-- **shadcn**: For the beautiful UI components
-- **Vercel**: For the inspiration and design patterns
-- **OpenAI, Anthropic, Google**: For providing excellent AI APIs
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/Amanbig/ChatMe/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Amanbig/ChatMe/discussions)
-- **Email**: [amanpreetsinghjhiwant7@gmail.com](mailto:amanpreetsinghjhiwant7@gmail.com)
+Artifacts will be output to `src-tauri/target/release/bundle/`.
 
 ---
 
-Made with ❤️ by [Amanbig](https://github.com/Amanbig)
+## 🤝 Contributing
+
+We welcome contributions from developers worldwide! Whether fixing bugs, adding new sub-agent personas, or improving UI responsiveness:
+
+1. Check out our [Contributing Guidelines](CONTRIBUTING.md).
+2. Adhere to the [Code of Conduct](CODE_OF_CONDUCT.md).
+3. Report bugs or suggest features using our [Issue Templates](.github/ISSUE_TEMPLATE/).
+4. Open a Pull Request following our [PR Template](.github/pull_request_template.md).
+
+---
+
+## 🛡️ Security
+
+ChatMe takes user privacy and local machine execution seriously. For vulnerability reporting, please review our [Security Policy](SECURITY.md).
+
+---
+
+## 📄 License
+
+This project is open-source under the [MIT License](LICENSE).
