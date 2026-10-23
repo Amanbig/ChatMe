@@ -489,6 +489,54 @@ pub fn execute_terminal_command(command: &str, working_dir: Option<&str>) -> Res
         }
     }
 
+    let trimmed = command.trim();
+    let lower = trimmed.to_lowercase();
+    let first_word = lower.split_whitespace().next().unwrap_or("");
+
+    // Intercept text editor commands: vim, nano, vi, emacs, edit, open
+    if ["vim", "vi", "nano", "emacs", "edit", "open", "code"].contains(&first_word) {
+        let file_arg = trimmed.split_whitespace().nth(1);
+        if let Some(file) = file_arg {
+            let target_path = if let Some(dir) = working_dir {
+                std::path::Path::new(dir).join(file).to_string_lossy().to_string()
+            } else {
+                file.to_string()
+            };
+
+            // If file does not exist, create it empty so system editor can open it
+            let path_obj = std::path::Path::new(&target_path);
+            if !path_obj.exists() {
+                if let Some(parent) = path_obj.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                let _ = std::fs::File::create(&target_path);
+            }
+
+            opener::open(&target_path)
+                .map_err(|e| anyhow!("Failed to open file: {}", e))?;
+
+            return Ok(CommandResult {
+                stdout: format!("Opened '{}' in default system editor.", file),
+                stderr: String::new(),
+                exit_code: 0,
+                success: true,
+            });
+        } else if ["vim", "vi", "nano", "emacs"].contains(&first_word) {
+            return Err(anyhow!(
+                "Interactive editor '{}' requires a filename or GUI. Usage: {} <filename> (opens in desktop editor)",
+                first_word, first_word
+            ));
+        }
+    }
+
+    // Intercept interactive utilities that require a full PTY to avoid hanging
+    if ["top", "htop"].contains(&first_word) && !command.contains("-b") {
+        return Err(anyhow!(
+            "'{}' requires an interactive terminal. To run in batch mode, try: '{} -b -n 1'",
+            first_word, first_word
+        ));
+    }
+
     let mut cmd = if cfg!(target_os = "windows") {
         let mut c = Command::new("cmd");
         c.args(&["/C", command]);

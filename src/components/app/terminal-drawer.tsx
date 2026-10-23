@@ -33,6 +33,31 @@ export default function TerminalDrawer({ isOpen, onClose }: TerminalDrawerProps)
     const terminalContainerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
+    const handleCancelExecution = () => {
+        setIsExecuting(false);
+        setActiveRunningCmd('');
+        setLines(prev => [
+            ...prev,
+            { id: `cancel-${Date.now()}`, type: 'system', text: '^C (Process interrupted)' }
+        ]);
+        setTimeout(() => inputRef.current?.focus(), 50);
+    };
+
+    // Global Ctrl+C listener when terminal is open
+    useEffect(() => {
+        const handleGlobalKeyDown = (e: KeyboardEvent) => {
+            if (!isOpen) return;
+            if (e.ctrlKey && (e.key === 'c' || e.key === 'C')) {
+                if (isExecuting) {
+                    e.preventDefault();
+                    handleCancelExecution();
+                }
+            }
+        };
+        window.addEventListener('keydown', handleGlobalKeyDown);
+        return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+    }, [isOpen, isExecuting]);
+
     // Initial setup on open
     useEffect(() => {
         if (isOpen) {
@@ -136,6 +161,7 @@ export default function TerminalDrawer({ isOpen, onClose }: TerminalDrawerProps)
                         'ChatMe Terminal Commands & Keybindings:',
                         '  cd <dir>      Change working directory (supports ~, .., relative, absolute)',
                         '  pwd           Print current working directory',
+                        '  edit <file>   Open/edit file in your default desktop editor (also: vim, nano, code)',
                         '  clear / cls   Clear terminal output screen (or Ctrl+L)',
                         '  history       Print numbered history of executed commands',
                         '  exit          Close terminal drawer',
@@ -192,7 +218,56 @@ export default function TerminalDrawer({ isOpen, onClose }: TerminalDrawerProps)
             return;
         }
 
-        // 7. System Shell execution
+        // 7. Built-in: file editing (edit, open, vim, nano, vi, emacs, code)
+        const lowerFirst = trimmed.toLowerCase().split(/\s+/)[0];
+        if (['edit', 'open', 'vim', 'nano', 'vi', 'emacs', 'code'].includes(lowerFirst)) {
+            const parts = trimmed.split(/\s+/);
+            const fileTarget = parts[1];
+
+            if (!fileTarget) {
+                setLines(prev => [
+                    ...prev,
+                    promptLine,
+                    {
+                        id: `edit-help-${Date.now()}`,
+                        type: 'info',
+                        text: `Interactive editor '${lowerFirst}' requires a target filename.\nUsage: ${lowerFirst} <filename> (automatically opens in your default desktop editor)`
+                    }
+                ]);
+                return;
+            }
+
+            try {
+                const res = await invoke<any>('execute_command', {
+                    command: trimmed,
+                    workingDirectory: workingDirectory || null,
+                    requestPermission: false
+                });
+
+                setLines(prev => [
+                    ...prev,
+                    promptLine,
+                    {
+                        id: `open-succ-${Date.now()}`,
+                        type: 'info',
+                        text: res.stdout || `Opened '${fileTarget}' in your default desktop editor.`
+                    }
+                ]);
+            } catch (err: any) {
+                setLines(prev => [
+                    ...prev,
+                    promptLine,
+                    {
+                        id: `open-err-${Date.now()}`,
+                        type: 'stderr',
+                        text: err?.message || String(err)
+                    }
+                ]);
+            }
+            return;
+        }
+
+        // 8. System Shell execution
         setIsExecuting(true);
         setActiveRunningCmd(trimmed);
         const startTime = Date.now();
@@ -459,10 +534,16 @@ export default function TerminalDrawer({ isOpen, onClose }: TerminalDrawerProps)
 
                 {/* Running process state */}
                 {isExecuting && (
-                    <div className="flex items-center gap-2 text-emerald-400/90 text-xs py-0.5 pl-0.5">
-                        <Loader2 className="h-3 w-3 animate-spin" />
+                    <div className="flex items-center gap-2 text-emerald-400/90 text-xs py-1 pl-0.5">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         <span>Running: {activeRunningCmd}</span>
-                        <span className="text-zinc-600 text-[10px]">(press Ctrl+C to cancel)</span>
+                        <button
+                            type="button"
+                            onClick={handleCancelExecution}
+                            className="text-rose-400 hover:text-rose-300 bg-rose-950/40 hover:bg-rose-950/80 border border-rose-900/50 px-2 py-0.5 rounded text-[11px] cursor-pointer ml-1 transition-colors"
+                        >
+                            Cancel (Ctrl+C)
+                        </button>
                     </div>
                 )}
 
@@ -483,13 +564,12 @@ export default function TerminalDrawer({ isOpen, onClose }: TerminalDrawerProps)
                             value={command}
                             onChange={(e) => setCommand(e.target.value)}
                             onKeyDown={handleKeyDown}
-                            disabled={isExecuting}
                             autoFocus
                             spellCheck={false}
                             autoCapitalize="off"
                             autoComplete="off"
                             className="w-full bg-transparent border-0 outline-none p-0 m-0 font-mono text-xs text-zinc-100 placeholder:text-zinc-700 focus:ring-0"
-                            placeholder={isExecuting ? '' : 'type command...'}
+                            placeholder={isExecuting ? 'command in progress (Ctrl+C to cancel)...' : 'type command...'}
                         />
                     </div>
                     {command.trim() && !isExecuting && (
