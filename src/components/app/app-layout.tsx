@@ -36,6 +36,8 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAgent } from "@/contexts/AgentContext";
 import ThemeToggle from "./theme-toggle";
+import TerminalDrawer from "./terminal-drawer";
+import { Terminal } from "lucide-react";
 import type { ChatWithLastMessage } from "@/lib/types";
 
 interface AppLayoutProps {
@@ -54,6 +56,18 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === '`') {
+        e.preventDefault();
+        setIsTerminalOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     loadChats();
@@ -388,6 +402,20 @@ export default function AppLayout({ children }: AppLayoutProps) {
               )}
             </div>
 
+            {/* Terminal Drawer Toggle Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsTerminalOpen(!isTerminalOpen)}
+              className={`h-8 gap-1.5 px-2.5 text-xs font-mono rounded-xl border-border/50 no-drag transition-colors ${
+                isTerminalOpen ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground'
+              }`}
+              title="Toggle Developer Terminal (Ctrl+`)"
+            >
+              <Terminal className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Terminal</span>
+            </Button>
+
             {/* Agent Mode Toggle */}
             <div className="flex items-center gap-2 no-drag px-3 py-1.5 rounded-xl bg-muted/50 border border-border/40">
               <span className="text-xs font-medium">Agent Mode</span>
@@ -455,6 +483,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <div className="flex-1 min-h-0 overflow-hidden">
             {children}
           </div>
+
+          {/* Developer Terminal Drawer */}
+          <TerminalDrawer 
+            isOpen={isTerminalOpen} 
+            onClose={() => setIsTerminalOpen(false)} 
+          />
         </SidebarInset>
       </>
     </TooltipProvider>

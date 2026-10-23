@@ -168,12 +168,127 @@ export const readFileTool: AgentTool = {
     }
 };
 
+// Tool: Write file content
+export const writeFileTool: AgentTool = {
+    name: "write_file",
+    description: "Write or create a file with given content",
+    parameters: {
+        type: "object",
+        properties: {
+            file_path: {
+                type: "string",
+                description: "The path of the file to write to"
+            },
+            content: {
+                type: "string",
+                description: "The textual content to write into the file"
+            }
+        },
+        required: ["file_path", "content"]
+    },
+    execute: async (params) => {
+        try {
+            await invoke('write_file', { 
+                filePath: params.file_path, 
+                contents: params.content 
+            });
+            const fileName = params.file_path.split(/[/\\]/).pop();
+            return `✅ **Successfully wrote to [${fileName}](file://${params.file_path.replace(/\\/g, '/')})** (${params.content.length} characters)`;
+        } catch (error) {
+            return `Error writing to file: ${error}`;
+        }
+    }
+};
+
+// Tool: Fetch URL or web page content
+export const webFetchTool: AgentTool = {
+    name: "fetch_url",
+    description: "Fetch and read text content from a web URL",
+    parameters: {
+        type: "object",
+        properties: {
+            url: {
+                type: "string",
+                description: "The HTTP or HTTPS URL to fetch"
+            }
+        },
+        required: ["url"]
+    },
+    execute: async (params) => {
+        try {
+            let targetUrl = params.url.trim();
+            if (!/^https?:\/\//i.test(targetUrl)) {
+                targetUrl = 'https://' + targetUrl;
+            }
+
+            const res = await fetch(targetUrl);
+            if (!res.ok) {
+                return `Error fetching URL ${targetUrl}: HTTP ${res.status} ${res.statusText}`;
+            }
+
+            const html = await res.text();
+            // Basic HTML to readable text extraction
+            const cleanText = html
+                .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+                .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/&nbsp;/g, ' ')
+                .replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            const truncated = cleanText.length > 4000 ? cleanText.substring(0, 4000) + '...\n\n*(Truncated due to length)*' : cleanText;
+            return `**Content fetched from ${targetUrl}:**\n\n${truncated}`;
+        } catch (error) {
+            return `Error fetching ${params.url}: ${error}`;
+        }
+    }
+};
+
+// Tool: Execute terminal command
+export const executeCommandTool: AgentTool = {
+    name: "execute_command",
+    description: "Execute a shell command",
+    parameters: {
+        type: "object",
+        properties: {
+            command: {
+                type: "string",
+                description: "The shell command to execute"
+            },
+            working_directory: {
+                type: "string",
+                description: "Working directory (optional)"
+            }
+        },
+        required: ["command"]
+    },
+    execute: async (params) => {
+        try {
+            const result = await invoke<any>('execute_command', {
+                command: params.command,
+                workingDirectory: params.working_directory || null,
+                requestPermission: false
+            });
+            const output = [result.stdout, result.stderr].filter(Boolean).join('\n') || '(no output)';
+            return `\`\`\`bash\n$ ${params.command}\n${output}\n\`\`\``;
+        } catch (error) {
+            return `Error executing command: ${error}`;
+        }
+    }
+};
+
 // Registry of all available tools
 export const AGENT_TOOLS: Record<string, AgentTool> = {
     get_current_directory: getCurrentDirectoryTool,
     list_files: listFilesTool,
     search_files: searchFilesTool,
-    read_file: readFileTool
+    read_file: readFileTool,
+    write_file: writeFileTool,
+    fetch_url: webFetchTool,
+    execute_command: executeCommandTool
 };
 
 // Function to detect if a query should use tools and which tool to use
@@ -241,6 +356,15 @@ export function detectToolUsage(query: string, workingDirectory: string): { tool
                 params: { file_path: fileMatch[1] }
             };
         }
+    }
+
+    // Web fetch queries
+    const urlMatch = query.match(/https?:\/\/[^\s"'<>]+/i);
+    if (urlMatch && (lowerQuery.includes('fetch') || lowerQuery.includes('read') || lowerQuery.includes('open') || lowerQuery.includes('summarize') || lowerQuery.includes('browse') || lowerQuery.includes('what is'))) {
+        return {
+            tool: webFetchTool,
+            params: { url: urlMatch[0] }
+        };
     }
     
     return null;
