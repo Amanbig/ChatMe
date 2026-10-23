@@ -1,35 +1,43 @@
-# ChatMe v0.5.3 Release Notes
+# ChatMe v0.6.0 Release Notes 🚀
 
-## 🚀 What's New in v0.5.3
+## 🌟 What's New in v0.6.0
 
-### ⚡ Hybrid Architecture
-- Rust backend now securely handles external HTTP requests, completely bypassing browser CORS restrictions.
-- Dramatically improved network reliability and streaming throughput.
+A major milestone release introducing ChatGPT Desktop-style App Integrations, Multi-Agent Autonomous Orchestration, an Interactive Code Runner & Diff Viewer, an Integrated Developer Terminal, Vite Bundle Optimization (-63%), and Chat Export.
 
-### 🌐 13 AI Providers
-- Out-of-the-box support for:
-  - **OpenAI** (GPT-4o, GPT-4 Turbo, GPT-3.5)
-  - **Anthropic Claude** (Claude 3.5 Sonnet, Claude 3 Opus, Haiku)
-  - **Google Gemini** (Gemini 1.5 Pro, Gemini 1.5 Flash)
-  - **Local Models**: Ollama & LMStudio
-  - **Fast & Open Providers**: Groq, Together AI, Mistral AI, DeepSeek, OpenRouter, Kimi, Perplexity
-  - **Custom Endpoints**: Any OpenAI-compatible server
+### 🖥️ "Work with Apps" (ChatGPT Desktop Style)
+- Connect ChatMe with your installed and running desktop applications:
+  - **VS Code & Cursor**: Seamlessly attaches workspace paths and project file context.
+  - **Developer Terminal**: Grants shell execution authorization and working directory awareness.
+  - **Web Browser (Chrome / Firefox / Edge)**: Inspects live URLs, scrapes technical documentation, and parses web content.
+  - **File Explorer**: Reads folder trees and manages project assets.
+- Live background app detection with visual connection pills in the input toolbar.
 
-### 📡 Native Streaming
-- Provider-tailored streaming pipelines for OpenAI, Anthropic, and Google with minimal latency.
+### 🤖 Multi-Agent Autonomous Swarm
+- Delegate complex workflows to specialized sub-agents:
+  - 🧠 **Planner / Architecture Agent**: Decomposes high-level objectives into phased roadmaps.
+  - 💻 **Full-Stack Coder Agent**: Writes production-grade components, refactors code, and runs diffs.
+  - 🔍 **Research & Intelligence Agent**: Scrapes web docs and inspects codebase patterns.
+  - 🛡️ **Quality & Security Reviewer**: Audits proposed changes for safety and edge cases.
+  - ⚡ **System & DevOps Agent**: Monitors system diagnostics and shell execution.
+- Interactive **Agent Orchestrator Cards** visualizes sub-agent delegations and task outcomes.
 
-### 🔌 Model Context Protocol (MCP) Support
-- Seamless connection to local and remote MCP servers.
-- Dynamic tool discovery and execution.
+### ⚡ Interactive CodeBlock & Direct Runner
+- Direct **"Run"** action on code blocks (`bash`, `sh`, `python`, `node`, `powershell`) with inline terminal output drawer showing exit codes, stdout, stderr, and execution duration.
+- Automatic interactive line-by-line colored **Diff Viewer** for `diff` and `patch` blocks (emerald for additions, rose for deletions).
 
-### 🛡️ Enhanced Permissions & Safety
-- Granular permission prompts before running shell commands or modifying files.
-- Improved control over tool execution privileges.
+### 💻 Developer Terminal Drawer
+- Slide-up developer terminal accessible from the top header or via keyboard shortcut **`Ctrl + \``** / **`Cmd + \``**.
+- Interactive command history with Up/Down arrow key navigation.
 
-### 🎨 UI & UX Refinements
-- Polished starter prompt cards and home screen transitions.
-- Improved message deletion with confirmation flow.
-- Smoother mobile and responsive window adjustments.
+### 🚀 Memory & Performance Optimization
+- **Vite Bundle Code-Splitting**: Slashed main bundle from **1,237 kB** down to **475 kB** (-63%), eliminating large chunk warnings and significantly improving initial startup memory.
+- **RequestAnimationFrame Streaming**: Batches token streams to 60fps, preventing 50-100 unnecessary React re-renders per second and slashing memory churn during high-speed streaming.
+
+### 📤 Chat Export & Knowledge Management
+- One-click export of conversations to clean **Markdown (`.md`)** or structured **JSON (`.json`)** from the chat header.
+
+### 🐧 Linux GPU & WebKitGTK Rendering Fix
+- Resolved `KMS: DRM_IOCTL_MODE_CREATE_DUMB failed: Permission denied` and `Failed to create GBM buffer` errors on Linux NVIDIA drivers via `WEBKIT_DISABLE_DMABUF_RENDERER=1`.
 
 ---
 

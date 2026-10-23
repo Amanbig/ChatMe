@@ -4,6 +4,10 @@ import { Textarea } from "../ui/textarea";
 import { FaArrowRight, FaPaperclip, FaMicrophone, FaTimes, FaStop, FaKeyboard, FaMagic } from "react-icons/fa";
 import { useSpeechRecognition } from "../../hooks/use-speech-recognition";
 import { toast } from "sonner";
+import ConnectedAppsBar from "./connected-apps-bar";
+import SubagentSelector from "./subagent-selector";
+import { type ConnectedApp, getConnectedAppsContext } from "@/lib/app-connector";
+import { SUB_AGENTS } from "@/lib/multi-agent";
 import {
     Tooltip,
     TooltipContent,
@@ -30,6 +34,19 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(({ onSendMessage, disabl
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [lastCommand, setLastCommand] = useState<string>("");
+    const [attachedApps, setAttachedApps] = useState<ConnectedApp[]>([]);
+    const [selectedRole, setSelectedRole] = useState<string>('auto');
+
+    const handleToggleApp = (app: ConnectedApp) => {
+        setAttachedApps(prev => {
+            const exists = prev.some(a => a.id === app.id);
+            if (exists) {
+                return prev.filter(a => a.id !== app.id);
+            } else {
+                return [...prev, app];
+            }
+        });
+    };
 
     const {
         isListening,
@@ -87,11 +104,23 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(({ onSendMessage, disabl
 
     const handleSend = () => {
         if ((message.trim() || selectedImages.length > 0) && !disabled) {
-            const trimmedMessage = message.trim();
-            if (trimmedMessage) {
-                setLastCommand(trimmedMessage);
+            let outgoingMessage = message.trim();
+            if (outgoingMessage) {
+                setLastCommand(outgoingMessage);
             }
-            onSendMessage?.(trimmedMessage, selectedImages.length > 0 ? selectedImages : undefined);
+
+            // Append connected apps context if any attached
+            if (attachedApps.length > 0) {
+                outgoingMessage += getConnectedAppsContext(attachedApps);
+            }
+
+            // Prepend specialized sub-agent persona if selected
+            if (selectedRole !== 'auto' && SUB_AGENTS[selectedRole]) {
+                const agent = SUB_AGENTS[selectedRole];
+                outgoingMessage = `[DIRECTED_TO:${agent.id.toUpperCase()}]\n${outgoingMessage}`;
+            }
+
+            onSendMessage?.(outgoingMessage, selectedImages.length > 0 ? selectedImages : undefined);
             setMessage("");
             setSelectedImages([]);
             setIsTyping(false);
@@ -189,6 +218,18 @@ const InputBox = forwardRef<InputBoxRef, InputBoxProps>(({ onSendMessage, disabl
                             </div>
                         </div>
                     )}
+
+                    {/* Top Toolbar: Connected Apps & Sub-Agent selector */}
+                    <div className="flex items-center justify-between pb-1.5 px-1 gap-2 flex-wrap">
+                        <ConnectedAppsBar 
+                            attachedApps={attachedApps} 
+                            onToggleApp={handleToggleApp} 
+                        />
+                        <SubagentSelector 
+                            activeRole={selectedRole} 
+                            onSelectRole={setSelectedRole} 
+                        />
+                    </div>
 
                     {/* Main input container */}
                     <div

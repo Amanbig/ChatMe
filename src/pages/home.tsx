@@ -18,8 +18,6 @@ import {
     FaRobot,
     FaLightbulb,
     FaCode,
-    FaImage,
-    FaMicrophone,
     FaBolt,
     FaRocket,
     FaBrain,
@@ -28,65 +26,134 @@ import {
 
 // Welcome screen component
 function WelcomeScreen({ onSuggestion }: { onSuggestion: (text: string) => void }) {
+    const [activeCategory, setActiveCategory] = useState<'all' | 'code' | 'agent' | 'research'>('all');
+
     const suggestions = [
-        { icon: <FaLightbulb size={18} />, text: "Help me brainstorm ideas for a project", color: "from-amber-500 to-orange-500" },
-        { icon: <FaCode size={18} />, text: "Explain how async/await works in JavaScript", color: "from-blue-500 to-cyan-500" },
-        { icon: <FaImage size={18} />, text: "Generate a creative image description", color: "from-purple-500 to-pink-500" },
-        { icon: <FaBolt size={18} />, text: "Write a Python script to automate file organization", color: "from-green-500 to-emerald-500" },
+        {
+            category: 'code',
+            icon: <FaCode size={18} />,
+            title: "Code Architecture & Refactor",
+            text: "Review project codebase structure, identify memory bottlenecks, and suggest clean refactorings",
+            color: "from-blue-500 to-indigo-600"
+        },
+        {
+            category: 'agent',
+            icon: <FaBolt size={18} />,
+            title: "System Diagnostics & Terminal",
+            text: "Check git status, list active project files, and inspect workspace diagnostics",
+            color: "from-emerald-500 to-teal-600"
+        },
+        {
+            category: 'research',
+            icon: <FaBrain size={18} />,
+            title: "Documentation & Deep Research",
+            text: "Fetch documentation, extract key technical specifications, and summarize actionable insights",
+            color: "from-purple-500 to-pink-600"
+        },
+        {
+            category: 'all',
+            icon: <FaLightbulb size={18} />,
+            title: "Autonomous Agent Team",
+            text: "Decompose a multi-step objective and coordinate specialized planner, coder, and reviewer subagents",
+            color: "from-amber-500 to-orange-600"
+        },
     ];
 
+    const filtered = activeCategory === 'all' 
+        ? suggestions 
+        : suggestions.filter(s => s.category === activeCategory || s.category === 'all');
+
     return (
-        <div className="flex flex-col items-center justify-center min-h-[70vh] px-4 py-12">
+        <div className="flex flex-col items-center justify-center min-h-[70vh] px-4 py-8">
             {/* Hero */}
-            <div className="text-center mb-10">
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent shadow-xl shadow-primary/20 mb-6 animate-in zoom-in-95 duration-300">
-                    <FaRobot size={40} className="text-primary-foreground" />
+            <div className="text-center mb-8 max-w-xl">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-primary via-primary/80 to-accent shadow-xl shadow-primary/25 mb-5 ring-4 ring-primary/10 animate-in zoom-in-95 duration-300">
+                    <FaRobot size={38} className="text-primary-foreground" />
                 </div>
-                <h1 className="text-3xl font-bold mb-3 bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-                    What can I help you with?
+                <h1 className="text-3xl font-extrabold tracking-tight mb-2.5 bg-gradient-to-r from-foreground via-foreground/90 to-foreground/60 bg-clip-text text-transparent">
+                    What can we build together?
                 </h1>
-                <p className="text-muted-foreground max-w-md mx-auto text-sm leading-relaxed">
-                    Chat with an AI assistant that can answer questions, help with coding,
-                    analyze images, and even control your computer with Agent Mode.
+                <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed max-w-md mx-auto">
+                    Your desktop AI partner with multi-agent coordination, direct terminal execution, and deep app integrations.
                 </p>
+
+                {/* Categories Pill Switcher */}
+                <div className="flex items-center justify-center gap-1.5 mt-5 p-1 rounded-full bg-muted/60 border border-border/50 max-w-xs mx-auto text-xs">
+                    <button
+                        onClick={() => setActiveCategory('all')}
+                        className={`px-3 py-1 rounded-full font-medium transition-all cursor-pointer ${
+                            activeCategory === 'all' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                    >
+                        Featured
+                    </button>
+                    <button
+                        onClick={() => setActiveCategory('code')}
+                        className={`px-3 py-1 rounded-full font-medium transition-all cursor-pointer ${
+                            activeCategory === 'code' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                    >
+                        Coding
+                    </button>
+                    <button
+                        onClick={() => setActiveCategory('agent')}
+                        className={`px-3 py-1 rounded-full font-medium transition-all cursor-pointer ${
+                            activeCategory === 'agent' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                    >
+                        Agent
+                    </button>
+                    <button
+                        onClick={() => setActiveCategory('research')}
+                        className={`px-3 py-1 rounded-full font-medium transition-all cursor-pointer ${
+                            activeCategory === 'research' ? 'bg-background shadow-xs text-foreground' : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                    >
+                        Research
+                    </button>
+                </div>
             </div>
 
             {/* Suggestions Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl w-full mb-10">
-                {suggestions.map((suggestion, index) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-w-2xl w-full mb-8">
+                {filtered.map((suggestion, index) => (
                     <button
                         key={index}
                         onClick={() => onSuggestion(suggestion.text)}
-                        className="group flex items-center gap-4 p-4 rounded-xl border border-border/60 bg-card/50 hover:bg-card hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 text-left"
-                        style={{ animationDelay: `${index * 100}ms` }}
+                        className="group flex flex-col justify-between p-4 rounded-xl border border-border/70 bg-card/50 hover:bg-card hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 transition-all duration-200 text-left cursor-pointer"
                     >
-                        <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${suggestion.color} flex items-center justify-center text-white shadow-md group-hover:scale-110 transition-transform duration-200`}>
-                            {suggestion.icon}
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${suggestion.color} flex items-center justify-center text-white shadow-xs group-hover:scale-105 transition-transform duration-200 shrink-0`}>
+                                {suggestion.icon}
+                            </div>
+                            <span className="text-xs font-semibold text-foreground">
+                                {suggestion.title}
+                            </span>
                         </div>
-                        <span className="text-sm font-medium text-foreground/90 group-hover:text-foreground">
+                        <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
                             {suggestion.text}
-                        </span>
+                        </p>
                     </button>
                 ))}
             </div>
 
-            {/* Features */}
-            <div className="flex flex-wrap justify-center gap-4 text-xs text-muted-foreground">
-                <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
-                    <FaBrain size={12} className="text-primary" />
-                    Reasoning AI
+            {/* Badges */}
+            <div className="flex flex-wrap justify-center gap-2 text-[11px] text-muted-foreground">
+                <Badge variant="outline" className="gap-1.5 px-3 py-1 bg-card/40 border-border/60">
+                    <FaBrain size={11} className="text-primary" />
+                    Multi-Agent Orchestration
                 </Badge>
-                <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
-                    <FaImage size={12} className="text-primary" />
-                    Vision Support
+                <Badge variant="outline" className="gap-1.5 px-3 py-1 bg-card/40 border-border/60">
+                    <FaBolt size={11} className="text-emerald-500" />
+                    Work with Apps
                 </Badge>
-                <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
-                    <FaMicrophone size={12} className="text-primary" />
-                    Voice Input
+                <Badge variant="outline" className="gap-1.5 px-3 py-1 bg-card/40 border-border/60">
+                    <FaCode size={11} className="text-blue-500" />
+                    Interactive Code Runner
                 </Badge>
-                <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
-                    <FaRocket size={12} className="text-primary" />
-                    Agent Mode
+                <Badge variant="outline" className="gap-1.5 px-3 py-1 bg-card/40 border-border/60">
+                    <FaRocket size={11} className="text-purple-500" />
+                    Native Streaming
                 </Badge>
             </div>
         </div>
