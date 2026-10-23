@@ -159,7 +159,7 @@ export default function StreamingMessageItem({
                 )}
 
                 {/* Content Bubble */}
-                <div className="relative rounded-2xl rounded-tl-xs bg-card/70 backdrop-blur-xs border border-border/50 px-4 py-3 shadow-xs">
+                <div className="chat-message-bubble relative rounded-2xl rounded-tl-xs bg-card/70 backdrop-blur-xs border border-border/50 px-4 py-2.5 shadow-xs">
                     {/* Top Shimmer */}
                     <div className="absolute top-0 left-4 right-4 h-0.5 bg-primary/20 rounded-full overflow-hidden">
                         <div className="h-full bg-gradient-to-r from-transparent via-primary to-transparent animate-pulse w-full" />

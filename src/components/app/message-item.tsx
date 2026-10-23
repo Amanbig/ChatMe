@@ -150,7 +150,7 @@ export default function MessageItem({ message, formatTime, copyToClipboard, auto
                         )}
 
                         {/* Bubble */}
-                        <div className="rounded-2xl rounded-br-xs px-4 py-2.5 bg-primary text-primary-foreground text-sm shadow-sm leading-relaxed whitespace-pre-wrap selection:bg-white/20">
+                        <div className="chat-message-bubble rounded-2xl rounded-br-xs px-4 py-2 bg-primary text-primary-foreground shadow-sm leading-relaxed whitespace-pre-wrap selection:bg-white/20">
                             {message.content}
                         </div>
 
@@ -230,7 +230,7 @@ export default function MessageItem({ message, formatTime, copyToClipboard, auto
                     )}
 
                     {/* Main Content Bubble */}
-                    <div className="rounded-2xl rounded-tl-xs px-4 py-3 bg-card/70 backdrop-blur-xs border border-border/50 text-sm shadow-xs leading-relaxed overflow-hidden">
+                    <div className="chat-message-bubble rounded-2xl rounded-tl-xs px-4 py-2.5 bg-card/70 backdrop-blur-xs border border-border/50 shadow-xs leading-relaxed overflow-hidden">
                         <div className="markdown-content">
                             <CustomMarkdownRenderer content={aiContent?.final || message.content} />
                         </div>

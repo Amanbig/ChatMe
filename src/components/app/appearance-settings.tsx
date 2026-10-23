@@ -38,20 +38,18 @@ export default function AppearanceSettings() {
     };
 
     const fontSizes = [
-        { label: 'Compact', size: 12 },
-        { label: 'Small', size: 13 },
-        { label: 'Default', size: 14 },
+        { label: 'Tiny', size: 12 },
+        { label: 'Compact (Default)', size: 13 },
+        { label: 'Standard', size: 14 },
         { label: 'Medium', size: 15 },
-        { label: 'Large', size: 16 },
-        { label: 'XL', size: 18 }
+        { label: 'Large', size: 16 }
     ];
 
     const codeFontSizes = [
         { label: '11px', size: 11 },
-        { label: '12px', size: 12 },
-        { label: '13px (Default)', size: 13 },
-        { label: '14px', size: 14 },
-        { label: '15px', size: 15 }
+        { label: '12px (Default)', size: 12 },
+        { label: '13px', size: 13 },
+        { label: '14px', size: 14 }
     ];
 
     const densities = [
