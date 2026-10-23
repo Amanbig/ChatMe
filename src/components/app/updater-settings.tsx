@@ -28,6 +28,7 @@ import {
   Package,
   HardDrive,
   FileCode,
+  FileText,
   ExternalLink,
   RotateCcw,
   Sparkles,
@@ -412,7 +413,7 @@ export default function UpdaterSettings() {
                     {updateData.release.name}
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground flex items-center gap-3">
+                <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-3">
                   <span>Tag: {updateData.release.tag_name}</span>
                   {updateData.release.published_at && (
                     <span>
@@ -431,6 +432,15 @@ export default function UpdaterSettings() {
                     className="inline-flex items-center gap-1 hover:underline text-primary"
                   >
                     View on GitHub <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <a
+                    href="https://github.com/Amanbig/ChatMe/blob/main/LICENSE"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 hover:underline text-primary"
+                  >
+                    <FileText className="w-3 h-3" />
+                    Apache-2.0 License <ExternalLink className="w-3 h-3" />
                   </a>
                 </p>
               </div>
