@@ -55,9 +55,26 @@ export async function executeAgentCommand(command: string, params: any): Promise
             
             case 'write_file':
                 return await invoke('write_file', { 
-                    path: params.path, 
-                    content: params.content 
+                    filePath: params.filePath || params.path || params.file_path, 
+                    contents: params.contents || params.content || ''
                 });
+
+            case 'fetch_url': {
+                let targetUrl = (params.url || '').trim();
+                if (!/^https?:\/\//i.test(targetUrl)) {
+                    targetUrl = 'https://' + targetUrl;
+                }
+                const res = await fetch(targetUrl);
+                if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                const html = await res.text();
+                const clean = html
+                    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+                    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+                    .replace(/<[^>]+>/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                return clean.slice(0, 4000);
+            }
             
             case 'search_files':
                 return await invoke('search_files', {
