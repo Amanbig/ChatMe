@@ -31,7 +31,7 @@ import { RxCross2 } from "react-icons/rx";
 import { VscChromeMinimize } from "react-icons/vsc";
 import { IoMdSquareOutline } from "react-icons/io";
 import { useNavigate, useLocation } from "react-router";
-import { getChats, createChat, deleteChat as deleteChatApi, checkForUpdates } from "@/lib/api";
+import { getChats, createChat, deleteChat as deleteChatApi, checkForUpdates, getAppVersion } from "@/lib/api";
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAgent } from "@/contexts/AgentContext";
@@ -59,8 +59,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [appVersion, setAppVersion] = useState("0.6.5");
 
   useEffect(() => {
+    getAppVersion()
+      .then((ver) => {
+        if (ver) setAppVersion(ver);
+      })
+      .catch(() => {});
+
     async function checkAppUpdates() {
       try {
         const res = await checkForUpdates();
@@ -439,7 +446,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     <FaRobot size={14} className="text-primary" />
                   </div>
                   <div>
-                    <h2 className="font-semibold text-sm">Welcome to ChatMe</h2>
+                    <div className="flex items-center gap-1.5">
+                      <h2 className="font-semibold text-sm">ChatMe</h2>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-mono font-normal text-muted-foreground border-border/50">
+                        v{appVersion}
+                      </Badge>
+                    </div>
                     <p className="text-[11px] text-muted-foreground">Start a new conversation</p>
                   </div>
                 </>
